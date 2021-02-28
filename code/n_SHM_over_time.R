@@ -23,62 +23,74 @@ seq_level_data <- left_join(mouse_info, seq_level_data, by = 'mouse_id') %>%
          tissue = factor(tissue, levels = c('LN','spleen','BM')))
 
 #-------  Distribution of n. of apparent mutations in naive sequences (first across all mice and tissues)
-overall_naive_mutation_rate <- seq_level_data %>%
-  filter(cell_type == 'naive') %>%
-  summarise(total_n_mutations = sum(n_mutations_partis),
-            total_n_bases = sum(seq_length_partis)) %>%
-  mutate(mutation_rate = total_n_mutations/total_n_bases) %>%
-  pull(mutation_rate) 
-
-mean_length_naive_seqs <- seq_level_data %>%
-  filter(cell_type == 'naive') %>% 
-  summarise(mean_length_of_naive_seqs = round(mean(seq_length_partis))) %>% pull(mean_length_of_naive_seqs)
-mean_length_naive_seqs
-
-distribution_mutations_naive_global <- seq_level_data %>%
-  filter(cell_type == 'naive', tissue == 'spleen') %>%
-  group_by(n_mutations_partis) %>%
-  dplyr::count() %>%
+distribution_mutations_global <- seq_level_data %>%
+  group_by(cell_type) %>%
+  mutate(mean_seq_length = round(mean(seq_length_partis))) %>%
+  group_by(n_mutations_partis, cell_type, mean_seq_length) %>%
+  summarise(n_seqs = n()) %>%
   ungroup() %>%
-  mutate(obs_fraction = n/sum(n),
+  group_by(cell_type) %>%
+  mutate(obs_fraction = n_seqs/sum(n_seqs),
          expected_fraction_from_error_rate = dbinom(x = n_mutations_partis,
-                                                    size = mean_length_naive_seqs,
-                                                    prob = estimated_seq_error_rate),
-         expected_fraction_from_mean_naive_mutation_rate = dbinom(x = n_mutations_partis,
-                                                                  size = mean_length_naive_seqs,
-                                                                  prob = overall_naive_mutation_rate))
+                                                    size = mean_seq_length,
+                                                    prob = estimated_seq_error_rate))
 
-distribution_mutations_naive_global %>%
-  pivot_longer(cols = c('obs_fraction', 'expected_fraction_from_error_rate','expected_fraction_from_mean_naive_mutation_rate')) %>%
-  mutate(name = factor(name, levels = c('obs_fraction', 'expected_fraction_from_error_rate','expected_fraction_from_mean_naive_mutation_rate'))) %>%
+distribution_mutations_global %>%
+  filter(cell_type == 'naive') %>%
+  pivot_longer(cols = c('obs_fraction', 'expected_fraction_from_error_rate')) %>%
+  mutate(name = factor(name, levels = c('obs_fraction', 'expected_fraction_from_error_rate'))) %>%
   ggplot(aes(x = n_mutations_partis, y = value, color = name, group = name)) +
   geom_point() +
   geom_line() +
   xlim(0, 20) +
   xlab('Number of mutations from inferred germline sequence') +
   ylab('Frequency') +
-  scale_color_discrete(labels = c('Observed fraction','Binomial expectation from estimated error rate',
-                                  'Binomial expectation from mean mutation rate in naive sequences'),
+  scale_color_discrete(labels = c('Observed fraction','Binomial expectation from estimated error rate'),
                        name = '') +
   theme(legend.position = 'top')
 
 # Distribution pooling mice in the same group across tissues
+distribution_mutations_naive_by_group_and_tissue <- seq_level_data %>%
+  group_by(group_controls_pooled, tissue, cell_type) %>%
+  mutate(mean_seq_length = round(mean(seq_length_partis))) %>%
+  group_by(group_controls_pooled, tissue, cell_type, mean_seq_length, n_mutations_partis) %>%
+  summarise(n_seqs = n()) %>%
+  ungroup() %>%
+  group_by(group_controls_pooled, tissue, cell_type) %>%
+  mutate(obs_fraction = n_seqs/sum(n_seqs)) %>%
+  mutate(expected_fraction_from_error_rate = dbinom(x = n_mutations_partis,
+                                                    size = mean_seq_length,
+                                                    prob = estimated_seq_error_rate)) %>%
+  ungroup()
 
-
+distribution_mutations_naive_by_group_and_tissue %>%
+  filter(cell_type == 'naive') %>%
+  pivot_longer(cols = c('obs_fraction', 'expected_fraction_from_error_rate')) %>%
+  mutate(name = factor(name, levels = c('obs_fraction', 'expected_fraction_from_error_rate'))) %>%
+  ggplot(aes(x = n_mutations_partis, y = value, color = name, group = name)) +
+  geom_point() +
+  geom_line() +
+  xlim(0, 20) +
+  facet_grid(group_controls_pooled~tissue) +
+  xlab('Number of mutations from inferred germline sequence') +
+  ylab('Frequency') +
+  scale_color_discrete(labels = c('Observed fraction','Binomial expectation from estimated error rate'),
+                       name = '') +
+  theme(legend.position = 'top')
 
 
 # Distribution by mouse/tissue
 distribution_mutations_naive_by_mouse_tissue <- seq_level_data %>%
-  filter(cell_type == 'naive') %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, n_mutations_partis) %>%
-  summarise(n_naive_seqs = n(), mean_naive_seq_length = mean(seq_length_partis)) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
+  mutate(mean_seq_length = round(mean(seq_length_partis))) %>%
   ungroup() %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue) %>%
-  mutate(total_naive_seqs = sum(n_naive_seqs),
-         obs_fraction = n_naive_seqs / total_naive_seqs,
-         mean_naive_seq_length = round(sum(mean_naive_seq_length*obs_fraction))) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, mean_seq_length, n_mutations_partis) %>%
+  summarise(n_seqs = n()) %>%
+  ungroup() %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
+  mutate(obs_fraction = n_seqs / sum(n_seqs)) %>%
   mutate(expected_fraction_from_error_rate = dbinom(x = n_mutations_partis,
-                                                    size = mean_naive_seq_length[1],
+                                                    size = mean_seq_length,
                                                     prob = estimated_seq_error_rate)) %>%
   ungroup()
 
@@ -86,6 +98,7 @@ distribution_mutations_naive_by_mouse_tissue <- seq_level_data %>%
 lapply(list('spleen','LN','BM'),
        FUN = function(tis, distribution_mutations_naive_by_mouse_tissue){
          pl <- distribution_mutations_naive_by_mouse_tissue %>%
+           filter(cell_type == 'naive') %>%
            pivot_longer(cols = c('obs_fraction', 'expected_fraction_from_error_rate')) %>%
            mutate(mouse_id = factor(mouse_id, levels = mouse_id_factor_levels)) %>%
            mutate(name = factor(name, levels = c('obs_fraction', 'expected_fraction_from_error_rate'))) %>%
@@ -108,6 +121,18 @@ lapply(list('spleen','LN','BM'),
        },
        distribution_mutations_naive_by_mouse_tissue = distribution_mutations_naive_by_mouse_tissue
        )
+
+
+distribution_mutations_naive_by_mouse_tissue %>%
+  filter(n_mutations_partis == 0) %>%
+  ggplot(aes(x = group_controls_pooled, y = obs_fraction, color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  facet_grid(tissue~cell_type) +
+  xlab('Group') +
+  ylab('Fraction of naive sequences unmutated') +
+  theme(legend.position = 'none',
+        axis.text.x = element_text(angle = 20, vjust = 0.5)) 
 
 
   
