@@ -29,10 +29,10 @@ echo else >> $sbatch_file
     # Export sequences to temporary fasta file 
     echo python seqs_to_fasta.py '$input_file' >> $sbatch_file
 
-    echo temp_fasta_file=../data/sequence_data/mouse_specific_data_files/$time_point-'${SLURM_ARRAY_TASK_ID}'.fasta >> $sbatch_file
+    echo temp_fasta_file=../processed_data/mouse_specific_data_files/$time_point-'${SLURM_ARRAY_TASK_ID}'.fasta >> $sbatch_file
 
     # Run partis
-    echo /project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --infname '$temp_fasta_file' --outfname '$output_file' >> $sbatch_file
+    echo /project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --infname '$temp_fasta_file' --outfname '$output_file' --extra-annotation-columns regional_bounds:cdr3_seqs >> $sbatch_file
 
     # Remove temporary fasta file
     echo rm '$temp_fasta_file' >> $sbatch_file

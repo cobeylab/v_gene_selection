@@ -23,6 +23,26 @@ pair_duplicates <- function(clone){
   return(duplicate_seqs)
 }
 
+count_mutations_from_naive <- function(seq_vector, naive_seq, translate_seqs){
+  # Will assume seqs are NT seqs. Will translate if translate_seqs is TRUE.
+  if(translate_seqs){
+    naive_seq <- c2s(seqinr::translate(s2c(tolower(naive_seq))))
+    seq_vector <- sapply(seq_vector,
+                         FUN = function(seq){
+                           c2s(seqinr::translate(s2c(tolower(seq))))
+                         }, USE.NAMES = F)
+    
+  }
+  n_mutations <- sapply(seq_vector,
+                        FUN = function(seq){
+                          stringDist(c(naive_seq, seq),
+                                     method = 'hamming')
+                        })
+  return(n_mutations)
+}
+
+
+
 
 format_partis_info <- function(yaml_object){
   partis_info <- c()
@@ -30,13 +50,31 @@ format_partis_info <- function(yaml_object){
     #print(paste('clone', i-1))
     clone <- yaml_object$events[[i]]
     
+    cdr3_start <- clone$codon_positions$v + 1 # Adds one because partis numbering starts at 0
+    cdr3_end <- clone$codon_positions$j + 3 # adds +1 and then +2 to go to end of codon
+    naive_cdr3_seq <- str_sub(clone$naive_seq, cdr3_start, cdr3_end)
+    naive_cdr3_seq_aa <- c2s(seqinr::translate(s2c(tolower(naive_cdr3_seq))))
+    
+    stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
+    stopifnot(unique(nchar(clone$cdr3_seqs)) == nchar(naive_cdr3_seq))
+    
+    cdr3_mutations_nt <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
+                                                    naive_seq = naive_cdr3_seq, translate_seqs = F)
+    
+    cdr3_mutations_aa <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
+                                                    naive_seq = naive_cdr3_seq, translate_seqs = T)
+    
     # Get sequence info for reference seqs (partis clusters identical seqs. choosing one as the ref)
     ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
-                           n_mutations_partis = clone$n_mutations,
-                           productive_partis = (clone$stops == F)&(clone$in_frames)&(clone$mutated_invariants == F))
+                           n_mutations_partis = clone$n_mutations, 
+                           productive_partis = (clone$stops == F)&(clone$in_frames)&(clone$mutated_invariants == F),
+                           cdr3_length_partis = clone$cdr3_length,
+                           cdr3_mutations_partis_nt = cdr3_mutations_nt,
+                           cdr3_mutations_partis_aa = cdr3_mutations_aa)
     
     # Get productivity of duplicate sequences by referring to the productivity of their corresponding reference seq.
     duplicate_seqs <- pair_duplicates(clone)
+    
     if(is.null(duplicate_seqs) == F){
       duplicate_seq_info <- left_join(duplicate_seqs, 
                                           ref_seq_info %>% dplyr::rename(representative_seq = seq),

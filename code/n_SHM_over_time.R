@@ -123,6 +123,7 @@ lapply(list('spleen','LN','BM'),
        )
 
 
+# Plot with fraction of unmutated sequences by mouse / tissue / cell type
 distribution_mutations_naive_by_mouse_tissue %>%
   filter(n_mutations_partis == 0) %>%
   ggplot(aes(x = group_controls_pooled, y = obs_fraction, color = infection_status)) +
@@ -130,41 +131,43 @@ distribution_mutations_naive_by_mouse_tissue %>%
   geom_point() +
   facet_grid(tissue~cell_type) +
   xlab('Group') +
-  ylab('Fraction of naive sequences unmutated') +
+  ylab('Fraction of sequences unmutated') +
   theme(legend.position = 'none',
-        axis.text.x = element_text(angle = 20, vjust = 0.5)) 
-
-
-  
-
-
-
-
-
-
-# Plot with fraction of unmutate naive sequences by mouse / tissue
-distribution_mutations_naive %>% 
-  filter(n_mutations_partis == 0) %>%
-  ggplot(aes(x = group_controls_pooled, y = fraction_seqs, color = infection_status)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
-  facet_wrap('tissue') +
+        axis.text.x = element_text(angle = 20, vjust = 0.5)) +
   background_grid()
 
 
+distribution_mutations_naive_by_group_and_tissue %>%
+  ggplot(aes(x = group_controls_pooled, y = n_mutations_partis, size = obs_fraction, alpha = obs_fraction)) +
+  facet_grid(tissue~cell_type, scales = 'free') +
+  geom_point()
 
-
-seq_level_data %>% filter(group_controls_pooled != 'control', tissue == 'LN', cell_type == 'GC') %>%
-  filter(n_mutations_partis > 0) %>%
-  ggplot(aes(x = group_controls_pooled, y = n_mutations_partis)) +
+seq_level_data %>%
+  ggplot(aes(x = group_controls_pooled, y = n_mutations_partis, color = infection_status)) +
   geom_violin() +
-  facet_wrap('cell_type') +
-  scale_y_log10()
+  facet_grid(tissue~cell_type, scales = 'free') +
+  scale_y_log10() +
+  theme(legend.position = 'none') +
+  xlab('Group') +
+  ylab('Number of mutations') +
+  background_grid() +
+  theme(legend.position = 'none',
+        axis.text.x = element_text(angle = 20, vjust = 0.5)) +
+  background_grid()
+
+distribution_mutations_naive_by_group_and_tissue %>%
+  filter(n_mutations_partis <=10) %>%
+  ggplot(aes(x = group_controls_pooled, y = obs_fraction, fill = n_mutations_partis)) +
+  geom_col() +
+  facet_grid(tissue~cell_type)
+
+
+
 
 mean_n_mutations <- seq_level_data %>% group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
   summarise(mean_n_mutations = mean(n_mutations_partis))
 
-mean_n_mutations %>% ggplot(aes(x = group_controls_pooled, y = mean_n_mutations, color = infection_status)) +
+mean_n_mutations %>% ggplot(aes(x = group_controls_pooled, y = mean_n_mutations, color = infection_status,)) +
   geom_point() +
   geom_boxplot() +
   facet_grid(tissue ~ cell_type, scales = 'free') +
