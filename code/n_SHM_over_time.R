@@ -7,7 +7,7 @@ theme_set(theme_cowplot())
 
 source('gene_frequency_functions.R')
 
-seq_level_data <- read_csv('../processed_data/seq_level_files/seq_level_data.csv')
+seq_level_data <- read_csv('../processed_data/seq_level_data.csv')
 # seq_level_data <- read_csv('~/Desktop/seq_level_data.csv')
 
 estimated_seq_error_rate <- 0.0018

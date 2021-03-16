@@ -4,8 +4,7 @@
 results
 figures
 data
-processed_data/mouse_specific_data_files/
-processed_data/seq_level_files/
+processed_data
 code/_output
 code/.Rhistory
 *.out
