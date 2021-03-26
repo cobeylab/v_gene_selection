@@ -5,6 +5,8 @@ library(stringr)
 library(seqinr)
 library(Biostrings)
 
+# Annotates mouse-specific data files with partis annotations / exports a file with clone information a seq-level file with some annotations
+
 args = commandArgs(trailingOnly = T)
 mouse_yaml_file_path = args[1] # e.g. mouse_yaml_file_path = '../results/partis/8-5_partis.yaml'
 mouse_data_file_path = args[2] # e.g. mouse_data_file_path = '../processed_data/mouse_specific_data_files/8-5.csv'
@@ -186,17 +188,19 @@ merge_info <- function(yaml_object, mouse_data_file_path){
                      -n_mutations_partis_nt, -n_mutations_partis_aa),
             mouse_data_file_path, row.names = F)
   
-  # Export the sequence level files
+  # Export the sequence level file for this mouse
   seq_level_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
-           productive_partis, cdr3_seq_partis)
-  write.csv(seq_level_file, paste0('../processed_data/seq_level_files/', mouse_id, '_seq_level_file.csv'),
+           productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa)
+  write.csv(seq_level_file, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
             row.names = F)
   
-  # Export clone info files
+  # Export clone info file
   clone_info_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, v_segment_partis, d_segment_partis, j_segment_partis, cdr3_length_partis,
-           clone_consensus_cdr3_partis, clone_naive_cdr3_partis)
+           clone_consensus_cdr3_partis, clone_naive_cdr3_partis) %>%
+    unique()
+  
   write.csv(clone_info_file, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info.csv'),
             row.names = F)
   

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Annotates mouse-specific sequence data files with partis results
+# Annotates mouse-specific sequence data files with partis results, output annotated seq files
 
 mice_ids=$(ls ../processed_data/mouse_specific_data_files/*csv | grep -o '[0-9]*-[0-9]*' | tr '\n' ','  | tr '\n' ',')
 mice_ids=${mice_ids::-1}
@@ -25,7 +25,7 @@ do
 
     echo module load R/3.6.1 >> $sbatch_file
  
-    echo Rscript annotate_data_with_partis_results.R ${yaml_file} ${mouse_data_file} >> $sbatch_file
+    echo Rscript process_partis_output.R ${yaml_file} ${mouse_data_file} >> $sbatch_file
         # ------------------------------------------------------------------------------------
 
     sbatch $sbatch_file   

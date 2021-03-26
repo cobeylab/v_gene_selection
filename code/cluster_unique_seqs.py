@@ -14,16 +14,15 @@ from Bio.Alphabet import generic_dna
 from Bio.Align.Applications import MafftCommandline
 from Bio.Phylo.Applications import RaxmlCommandline
 from Bio import AlignIO
-from Bio.Phylo.TreeConstruction import *
-from Bio.Phylo.TreeConstruction import DistanceCalculator
-from Bio import Phylo
+#from Bio.Phylo.TreeConstruction import *
+#from Bio.Phylo.TreeConstruction import DistanceCalculator
+#from Bio import Phylo
 
-sys.setrecursionlimit(10000)
+sys.setrecursionlimit(100000)
 
-def build_alignment(seqs, naive_seq, temp_dir, temp_file_id):
+def build_alignment(seqs, seq_ids, naive_seq, temp_dir, temp_file_id):
     aln_seqs = [naive_seq] + seqs
-    # Arbitrarily assign sequence ids
-    seq_ids = [temp_file_id + '_' + str(i) for i in range(len(seqs)) ]
+    
     aln_ids = ['naive'] + seq_ids
     
     temp_fasta_file =  temp_dir + temp_file_id + '.fasta'
@@ -53,10 +52,10 @@ def build_alignment(seqs, naive_seq, temp_dir, temp_file_id):
     return(aln)
     
 # Aligns seqs from a subpopulation from the same clone, builds parsimony tree
-def build_tree(seqs, naive_seq, temp_dir, temp_file_id):
+def build_tree(seqs, seq_ids, naive_seq, temp_dir, temp_file_id):
     #temp_tree_file =  temp_dir + temp_file_id + '_tree.nex'
     
-    aln = build_alignment(seqs, naive_seq, temp_dir, temp_file_id)
+    aln = build_alignment(seqs, seq_ids, naive_seq, temp_dir, temp_file_id)
     
     
     # ----- Get RAXML tree ----- 
@@ -69,7 +68,7 @@ def build_tree(seqs, naive_seq, temp_dir, temp_file_id):
                                    name= temp_file_id)
     raxml_cline.program_name = '/project2/cobey/RaxML/raxmlHPC-PTHREADS-AVX'
     raxml_cline.outgroup = 'naive'
-    raxml_cline.threads =8
+    raxml_cline.threads = 8
     raxml_cline()
     
     temp_tree_file = 'RAxML_bestTree.' + temp_file_id
@@ -107,13 +106,13 @@ def build_tree(seqs, naive_seq, temp_dir, temp_file_id):
 
 def collapse_polytomies(tree):
     
-    collapsed_tree = deepcopy(tree)
+    #collapsed_tree = deepcopy(tree)
     
     uncolapsed_polys = True
     while uncolapsed_polys is True:
 
         # Find all internal nodes with a child internal node with br len 0
-        focal_nodes = [node for node in collapsed_tree.internal_nodes() if 
+        focal_nodes = [node for node in tree.internal_nodes() if 
                        any([child.is_internal() and child.edge_length < 1e-5 
                             for child in node.child_nodes()])]
         
@@ -130,7 +129,7 @@ def collapse_polytomies(tree):
                         # Remove spurious child node
                     node.remove_child(child)
     
-    return collapsed_tree
+    return tree
             
         
 # Counts differences between pair of seqs, excluding sites with gaps in either
@@ -150,7 +149,9 @@ def cluster_tree(tree, aln, threshold):
     # First, collapse any polytomies
     tree = collapse_polytomies(tree)
 
-    effective_n_seqs = 0
+    uniq_seq_clusters = {}
+    
+    aln_length = len(aln[1,:])
         
     for int_node in tree.internal_nodes():
         children = int_node.child_nodes()
@@ -158,62 +159,93 @@ def cluster_tree(tree, aln, threshold):
         n_desc_tips = len(tips_children)
         
         if n_desc_tips == 1:
-            effective_n_seqs += 1     
+            tip_id = tips_children[0].taxon.label
+            uniq_seq_clusters[tip_id] = [tip_id]
+   
         # If there are two tips as descendants, see if distance > threshold
         elif n_desc_tips == 2:
+
             pair_ids = [n.taxon.label for n in tips_children] 
-            pair_ids = [pid.replace(' ','_') for pid in pair_ids]
                    
             pair_seqs = [record.seq for record in aln if record.id in pair_ids]
             pair_seqs = [str(s) for s in pair_seqs]
                 
             n_diffs = count_seq_diffs(pair_seqs)
             if n_diffs <= threshold:
-                effective_n_seqs += 1
+                # If seqs are similar, arbitrarily choose 1st as ref.
+                uniq_seq_clusters[pair_ids[0]] = pair_ids
             else:
-                effective_n_seqs +=2
-        # If there are more than two tip descendants        
+                # Other wise, keep sequences separate
+                for pid in pair_ids:
+                    uniq_seq_clusters[pid] = [pid]
+                
+        # If there are more than two tip descendants (polytomies)        
         elif n_desc_tips > 2:
-            # Count all descendants with br length 0 as 1
-            if any([n.edge_length < 1e-5 for n in tips_children]):
-                effective_n_seqs +=1
             
-            # For all descendants with br length > 0
-            for child in [n for n in tips_children if n.edge_length > 1e-5]:
-                n_diffs = child.edge_length * len(aln[1,:])
-                if n_diffs > threshold:
-                    effective_n_seqs += 1
+            # Cluster all sequences that differ from the parent node by <= threshold
+            
+            long_tip_indices = [i for i in range(len(tips_children)) if
+                                 tips_children[i].edge_length * aln_length > threshold]
 
-    return effective_n_seqs
+            short_tip_indices = [i for i in range(len(tips_children)) if
+                                 i not in long_tip_indices]
+            
+            
+            long_tip_ids = [tips_children[i].taxon.label for i in 
+                                long_tip_indices]
+            
+            short_tip_ids = [tips_children[i].taxon.label for i in
+                                   short_tip_indices]
+            
+            if len(long_tip_ids) > 0:
+                for long_tip in long_tip_ids:
+                    uniq_seq_clusters[long_tip] = [long_tip]
+
+            if len(short_tip_ids) > 0:
+                uniq_seq_clusters[short_tip_ids[0]] = short_tip_ids
+                
+    if 'naive' in uniq_seq_clusters.keys():
+        del uniq_seq_clusters['naive']
+
+    return uniq_seq_clusters
             
                    
-# Counts effective number of sequences, calling cluster_tree if 3 or more seqs.
-def estimate_uniq_seqs(seqs, naive_seq, threshold, temp_dir, 
+# Clusters unique sequences, choosing a reference seq id for the group
+def cluster_uniq_seqs(seqs, seq_ids, naive_seq, threshold, temp_dir, 
                               temp_file_id):
     # Analyze only unique sequences
-    seqs = list(set(seqs))
+    #seqs = list(set(seqs))
+    assert len(seqs) > 0
+    assert len(seqs) == len(seq_ids)
     
-    if len(seqs) == 1 or len(seqs) == 0:
-        effective_n_seqs = len(seqs)
+    
+    if len(seqs) == 1:
+        uniq_seq_clusters = {seq_ids[0]: [seq_ids[0]]}
+        
+        seq_ids
+        
     elif len(seqs) == 2:
         # If two seqs., align but don't build tree
-        aln = build_alignment(seqs, naive_seq, temp_dir, temp_file_id)
+        aln = build_alignment(seqs, seq_ids, naive_seq, temp_dir, temp_file_id)
         aligned_seqs = [str(rec.seq) for rec in aln if rec.id != 'naive']
         
         n_diffs = count_seq_diffs(aligned_seqs)
         if n_diffs <= threshold:
-            effective_n_seqs =  1
+            # If 2 seqs differ by less than threshold, arbitrarily choose 1 
+            # the 1st as the unique cluster reference
+            uniq_seq_clusters = {seq_ids[0]: seq_ids}
         else:
-            effective_n_seqs = 2
+            uniq_seq_clusters = {seq_ids[0]: [seq_ids[0]],
+                                 seq_ids[1]: [seq_ids[1]]}
     else:
-        tree, aln = build_tree(seqs, naive_seq, temp_dir, temp_file_id)
-        effective_n_seqs = cluster_tree(tree, aln, threshold)
+        tree, aln = build_tree(seqs, seq_ids, naive_seq, temp_dir, temp_file_id)
+        uniq_seq_clusters = cluster_tree(tree, aln, threshold)
     
-    return effective_n_seqs
+    return uniq_seq_clusters
         
         
-def master_function(mouse_csv_path, output_path, germline_V, germline_J, threshold,
-                   clonal_method):
+def master_function(mouse_csv_path, output_path, chosen_isotype, germline_V, 
+                    germline_J, threshold, clonal_method):
 
     print "Collecting clone info from" + mouse_csv_path
     mouse_id = re.search(r'[0-9]*-[0-9]*', mouse_csv_path).group()
@@ -223,21 +255,21 @@ def master_function(mouse_csv_path, output_path, germline_V, germline_J, thresho
     empty_seq_dic = {'prod_seqs':[], 'unprod_seqs':[], 'prod_seq_ids':[], 
                      'unprod_seq_ids':[]}
 
-    empty_isotype_dic = {"IGA":deepcopy(empty_seq_dic), "IGD":deepcopy(empty_seq_dic),
-                         "IGM":deepcopy(empty_seq_dic), "IGG2B":deepcopy(empty_seq_dic),
-                         "IGG2A.C":deepcopy(empty_seq_dic), "IGG1":deepcopy(empty_seq_dic),
-                         "IGG3":deepcopy(empty_seq_dic), "IGE":deepcopy(empty_seq_dic),
-                         "NA": deepcopy(empty_seq_dic)}
+    #empty_isotype_dic = {"IGA":deepcopy(empty_seq_dic), "IGD":deepcopy(empty_seq_dic),
+    #                     "IGM":deepcopy(empty_seq_dic), "IGG2B":deepcopy(empty_seq_dic),
+    #                     "IGG2A.C":deepcopy(empty_seq_dic), "IGG1":deepcopy(empty_seq_dic),
+    #                     "IGG3":deepcopy(empty_seq_dic), "IGE":deepcopy(empty_seq_dic),
+    #                     "NA": deepcopy(empty_seq_dic)}
     
     
-    empty_cell_type_dic = {'GC':deepcopy(empty_isotype_dic),'mem':deepcopy(empty_isotype_dic),
-                           'PC':deepcopy(empty_isotype_dic),'naive':deepcopy(empty_isotype_dic)}
+    empty_cell_type_dic = {'GC':deepcopy(empty_seq_dic),'mem':deepcopy(empty_seq_dic),
+                           'PC':deepcopy(empty_seq_dic),'naive':deepcopy(empty_seq_dic)}
     
     empty_clone_dic = {'LN':deepcopy(empty_cell_type_dic), 'BM':deepcopy(empty_cell_type_dic),
                         'spleen': deepcopy(empty_cell_type_dic)}
-
-    fieldnames = ["clone_id", "mouse_id", "tissue", "cell_type", "isotype", "uniq_prod_seqs",
-                  "uniq_unprod_seqs", "total_prod_seqs", "total_unprod_seqs"]
+    
+    fieldnames = ["mouse_id", "clone_id", "tissue", "cell_type", "isotype", 
+                  "cluster_ref_seq", "seq_id"]
     
  
     with open(mouse_csv_path, 'rU') as f:
@@ -245,94 +277,108 @@ def master_function(mouse_csv_path, output_path, germline_V, germline_J, thresho
         for row in mouse_csv:
             # Get cell type, tissue, clone id, V, D, J genes
             cell_type = row['specimen_cell_subset']
-            if cell_type == 'na\xc3\xafve':
+            if cell_type == 'naxc3xafve' or cell_type == 'na\xc3\xafve':
                 cell_type = 'naive'
             tissue = row['specimen_tissue']
             clone_id = row['clone_id_' + clonal_method]
             
             assert clone_id != ''
-
-            # If 1st time clone is represented, initialize empty dictionary:
-            if clone_id not in clone_info.keys():
-                clone_info[clone_id] = deepcopy(empty_clone_dic)
-                clone_info[clone_id]['v_gene'] = row['v_segment_' + clonal_method]
-                clone_info[clone_id]['j_gene'] = row['j_segment_' + clonal_method]
-                clone_info[clone_id]['d_gene'] = row['d_segment_' + clonal_method]
-
-
-            seq = row['trimmed_sequence']
-            seq_is_productive = row['productive_' + clonal_method] == 't'
-            read_id = row['trimmed_read_id']
-            
-            # Retain sequence up to end of J gene
-            j_seq = row['j_sequence'].upper()
-            j_start_position = seq.find(j_seq)
-            j_end_position = j_start_position + len(j_seq) - 1
-            seq = seq[0:j_end_position+1]
             
             isotype = row['isotype']
             if isotype == '':
                 isotype = 'NA'
             
-            if seq_is_productive:
-                clone_info[clone_id][tissue][cell_type][isotype]['prod_seqs'].append(seq)
-                clone_info[clone_id][tissue][cell_type][isotype]['prod_seq_ids'].append(read_id)
-            else:
-                clone_info[clone_id][tissue][cell_type][isotype]['unprod_seqs'].append(seq)
-                clone_info[clone_id][tissue][cell_type][isotype]['unprod_seq_ids'].append(read_id)
+            if isotype == chosen_isotype:
+                # If 1st time clone is represented, initialize empty dictionary:
+                if clone_id not in clone_info.keys():
+                    clone_info[clone_id] = deepcopy(empty_clone_dic)
+                    clone_info[clone_id]['v_gene'] = row['v_segment_' + clonal_method]
+                    clone_info[clone_id]['j_gene'] = row['j_segment_' + clonal_method]
+                    clone_info[clone_id]['d_gene'] = row['d_segment_' + clonal_method]
+    
+    
+                seq = row['trimmed_sequence']
+                seq_is_productive = row['productive_' + clonal_method] == 't'
+                read_id = row['trimmed_read_id']
+                
+                # Retain sequence up to end of J gene
+                j_seq = row['j_sequence'].upper()
+                j_start_position = seq.find(j_seq)
+                j_end_position = j_start_position + len(j_seq) - 1
+                seq = seq[0:j_end_position+1]
+                
+
+                
+                if seq_is_productive:
+                    clone_info[clone_id][tissue][cell_type]['prod_seqs'].append(seq)
+                    clone_info[clone_id][tissue][cell_type]['prod_seq_ids'].append(read_id)
+                else:
+                    clone_info[clone_id][tissue][cell_type]['unprod_seqs'].append(seq)
+                    clone_info[clone_id][tissue][cell_type]['unprod_seq_ids'].append(read_id)
     #return clone_info
+    
+    temp_dir = 'out_err_files/'
 
     # Append info to output file
     with open(output_path, 'a') as f:
         f.write(','.join(fieldnames) + '\n')
         output_csv = csv.DictWriter(f, fieldnames=fieldnames)
+        
+        
+        
         for clone in clone_info:
-            print 'Processing clone ' + clone
+            print 'Processing clone ' + clone # + ',' + tissue + ',' + cell_type + ',' + isotype
             for tissue in empty_clone_dic.keys():
                 for cell_type in empty_cell_type_dic.keys():
-                    for isotype in empty_isotype_dic.keys():
+                    
+                    #if clone == '5652' and tissue == 'spleen' and cell_type == 'PC':
+                    #    1/0
+                    
+                    
+                    prod_seqs = clone_info[clone][tissue][cell_type]['prod_seqs']
+                    prod_seq_ids = clone_info[clone][tissue][cell_type]['prod_seq_ids']
+                    
+                    if len(prod_seqs) > 0:
                         
-                        prod_seqs = clone_info[clone][tissue][cell_type][isotype]['prod_seqs']
-                        unprod_seqs = clone_info[clone][tissue][cell_type][isotype]['unprod_seqs']
+                        clone_v = clone_info[clone]['v_gene'].replace('mm','')
+                        clone_j = clone_info[clone]['j_gene'].replace('mm','')
+                                                    
+                        # Estimate number of unique seqs (productive only for now)
+                        if clone_v in germline_V.keys() and clone_j in germline_J.keys():
+                            naive_V = germline_V[clone_v]
+                            naive_J = germline_J[clone_j]
+                            naive_seq = (str(naive_V) + str(naive_J)).upper()
+
+                            temp_file_id = mouse_id + '_' + clone + '_' + chosen_isotype
+                            uniq_seq_clusters = cluster_uniq_seqs(prod_seqs, prod_seq_ids, naive_seq,
+                                                                  threshold,temp_dir,
+                                                                  temp_file_id)
+                        else:
+                            if len(prod_seqs) == 1:
+                                uniq_seq_clusters = {prod_seq_ids[0]:[prod_seq_ids[0]]}
                         
-                        if len(prod_seqs) > 0 or len(unprod_seqs) > 0:
+                        for reference_id in uniq_seq_clusters.keys():
+                            ids_in_cluster = uniq_seq_clusters[reference_id]
                             
-                            row = {}
-                            
-                            clone_v = clone_info[clone]['v_gene'].replace('mm','')
-                            clone_j = clone_info[clone]['j_gene'].replace('mm','')
-                            
-                            row['clone_id'], row['mouse_id'] = clone, mouse_id
-                            row['tissue'], row['cell_type'] = tissue, cell_type
-                            row['isotype'] = isotype
-                            
-                            row['total_prod_seqs'], row['total_unprod_seqs'] = len(prod_seqs), len(unprod_seqs)
-                            
-                            # Estimate number of unique seqs (productive only for now)
-                            #prod_seq_ids = clone_info[clone][tissue][cell_type]['prod_seq_ids']
-                            if clone_v in germline_V.keys() and clone_j in germline_J.keys():
-                                naive_V = germline_V[clone_v]
-                                naive_J = germline_J[clone_j]
-                                naive_seq = (str(naive_V) + str(naive_J)).upper()
-                                temp_dir = 'out_err_files/'
-                                temp_file_id = mouse_id + '_' + clone
-                                n_uniq_prod_seqs = estimate_uniq_seqs(prod_seqs, naive_seq,
-                                                                      threshold,temp_dir,
-                                                                      temp_file_id)
-                            else:
-                                if len(prod_seqs) == 1:
-                                    n_uniq_prod_seqs = 1
-                                else:
-                                    n_uniq_prod_seqs = 'NA'
-                            
-                            row['uniq_prod_seqs'] = n_uniq_prod_seqs
-                            # Not computing unique unproductive sequences for now.
-                            row['uniq_unprod_seqs'] = 'NA'
-                            output_csv.writerow(row)
+                            for seq_id in ids_in_cluster:
+                                
+                                row = {}
+                                
+                                row['mouse_id'], row['clone_id'] = mouse_id, clone
+                                row['tissue'], row['cell_type'] = tissue, cell_type
+                                row['isotype'] = chosen_isotype
+                                
+                                row['cluster_ref_seq'] = reference_id
+                                row['seq_id'] = seq_id
+                                
+                                output_csv.writerow(row)
+                                
 
 def main(argv):
     mouse_csv_path = str(argv[1])
     output_path = str(argv[2])
+    chosen_isotype = str(argv[3]) # Each job will do this for a specific isotype
+    
     clonal_method = 'partis'
     threshold = 2
     
@@ -364,7 +410,7 @@ def main(argv):
             germline_J[gene_name] = record.seq
    
     
-    master_function(mouse_csv_path, output_path, germline_V, germline_J,
+    master_function(mouse_csv_path, output_path, chosen_isotype, germline_V, germline_J,
                    threshold, clonal_method)
 
 
