@@ -176,7 +176,8 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   
   # Mouse raw data contains raw data sent from the Boyd lab. Add clone id, V/D/J assignment with those from partis
   merged_data <- left_join(mouse_raw_data %>% mutate(trimmed_read_id = as.character(trimmed_read_id)),
-                           partis_info, by = c('trimmed_read_id'))
+                           partis_info, by = c('trimmed_read_id')) %>%
+    dplyr::rename(seq_id = trimmed_read_id)
   
   merged_data <- merged_data %>%
     dplyr::rename(v_segment_igblast = v_segment, d_segment_igblast = d_segment, j_segment_igblast = j_segment,
@@ -187,10 +188,9 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   write.csv(merged_data %>% select(-clone_naive_cdr3_partis, -clone_consensus_cdr3_partis, -cdr3_mutations_partis_nt, -cdr3_mutations_partis_aa,
                      -n_mutations_partis_nt, -n_mutations_partis_aa),
             mouse_data_file_path, row.names = F)
-  
-  # Export the sequence level file for this mouse
+
   seq_level_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
-    select(mouse_id, clone_id_partis, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
+    select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa)
   write.csv(seq_level_file, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
             row.names = F)

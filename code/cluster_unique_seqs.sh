@@ -28,7 +28,7 @@ do
             echo "#SBATCH --partition=cobey" >> $sbatch_file
             echo "#SBATCH --nodes=1" >> $sbatch_file
             echo "#SBATCH --ntasks-per-node=9" >> $sbatch_file
-            echo "#SBATCH --mem-per-cpu=5000" >> $sbatch_file
+            echo "#SBATCH --mem-per-cpu=10000" >> $sbatch_file
     
             echo module load mafft/7.310 >> $sbatch_file
     

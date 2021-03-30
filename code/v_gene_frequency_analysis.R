@@ -17,19 +17,15 @@ clone_summary_statistics <- read_csv('../results/clone_summary_statistics.csv')
 
 clone_info <- left_join(clone_info, clone_summary_statistics)
  
-
-# File in old repo. Update with new one
+# Number of unique productive sequences in each clone, by tissue and cell type
 unique_seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
- 
- 
 unique_seq_counts <- left_join(unique_seq_counts, clone_info)
 unique_seq_counts <- get_info_from_mouse_id(unique_seq_counts)
 
  
- 
 # Get naive frequencies excluding the LN, tissue-specific frequencies for other cell types
 naive_from_tissue <- c('spleen','BM')
-naive_freqs <- (calc_gene_freqs(unique_seq_counts %>% filter(tissue %in% naive_from_tissue), long_format = F, by_tissue = F))$naive_freqs
+naive_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = F, tissue_subset = naive_from_tissue))$naive_freqs
  
 exp_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = T))$exp_freqs
  
@@ -186,7 +182,8 @@ deviation_from_naive <- left_join(obs_rhos, neutral_rhos) %>%
                 (obs_rho >= lbound_sim_rho) & (obs_rho <= ubound_sim_rho) ~ 'neutral'
         )) %>%
         mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
-        #filter(!is.na(deviation_from_naive))
+        # deviation from naive is NA for mice lacking naive sequences in the tissues in naive_from_tissue
+        filter(!is.na(deviation_from_naive))
 
 n_genes_by_deviation <- deviation_from_naive %>%
         group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
@@ -226,18 +223,39 @@ get_consistent_genes_table <- function(candidate_genes_tissue, candidate_genes_c
                        deviation_from_naive == 'positive') %>%
                 arrange(desc(n_mice_with_call)) %>%
                 filter(n_mice_with_call >= 2) %>% pull(v_gene)
-        genes_by_n_mice_called %>% 
+        
+        output_table <- genes_by_n_mice_called %>% 
                 filter(tissue == candidate_genes_tissue , group_controls_pooled == candidate_genes_group, cell_type == candidate_genes_cell_type) %>%
                 filter(v_gene %in% candidate_genes) %>% pivot_wider(names_from = deviation_from_naive, values_from = n_mice_with_call) %>%
-                arrange(desc(positive)) %>% select(v_gene, positive, neutral, negative) %>%
+                arrange(desc(positive)) %>% select(v_gene, positive, matches('neutral'), negative) 
+        
+        if(('neutral' %in% colnames(output_table)) == F){
+                output_table <- output_table %>% mutate(neutral = 0)
+        }
+        
+        output_table <- output_table %>%
                 mutate(positive = ifelse(is.na(positive), 0, positive),
                        negative = ifelse(is.na(negative), 0, negative),
                        neutral = ifelse(is.na(neutral), 0, neutral)
                 ) %>%
                 rename(nonsignificant = neutral)
+        return(output_table)
 }
  
-get_consistent_genes_table('LN','PC', 'primary-8')
+get_consistent_genes_table('LN','PC', 'primary-8') %>%
+        filter(positive >= 3)
+get_consistent_genes_table('LN','PC', 'primary-16') %>%
+        filter(positive >= 3)
+get_consistent_genes_table('LN','PC', 'primary-24') %>%
+        filter(positive >= 2)
+
+get_consistent_genes_table('LN','GC', 'primary-8') %>%
+        filter(positive >= 2)
+get_consistent_genes_table('LN','GC', 'primary-16') %>%
+        filter(positive >= 3)
+get_consistent_genes_table('LN','GC', 'primary-24') %>%
+        filter(positive >= 2)
+
 
 
 # Plots showing deviation from naive freq for major genes
@@ -263,18 +281,30 @@ plot_most_common_genes <- function(plot_cell_type, plot_tissue, plot_group){
                                  color = deviation_from_naive),
                              arrow = arrow(ends = 'last', length = unit(10, "pt"), type = 'closed')) +
                 geom_text(aes(label = str_remove(v_gene, 'IGHV'),
-                              x = v_gene_rank, y = label_position), angle = 20, size = 4, alpha = 0.8) +
+                              x = v_gene_rank, y = label_position), angle = 20, size = 3, alpha = 0.8) +
                 facet_wrap('mouse_id', scales = 'free') +
                 xlab(paste0('V gene rank in ', plot_group, ' ', plot_tissue, ' ',
                             switch(plot_cell_type, 'PC' = 'plasma cells', 'GC' = 'germinal center cells', 'mem' = 'memory cells'), ' (top 20 genes only)')) +
                 ylab('V gene frequency') +
-                theme(legend.position = c(0.4,0.25)) +
-                scale_color_discrete(name = 'Deviation from naive frequency\n(bootstrap)', labels = c('negative','non-significant','positive'))
+                theme(legend.position = c(0.4,0.25)) + 
+                scale_x_continuous(expand = c(0.15,0)) +
+                scale_color_discrete(name = 'Deviation from naive\nfrequency (bootstrap)', labels = c('negative','non-significant','positive'))
         
 }
 
-plot_most_common_genes('PC','LN','primary-8')
+plot_most_common_genes('PC','LN','primary-8') +
+        theme(legend.position = c(0.67,0.25))
+plot_most_common_genes('PC','LN','primary-16') +
+        theme(legend.position = c(0.67,0.25))
+plot_most_common_genes('PC','LN','primary-24') +
+        theme(legend.position = c(0.85,0.30))
 
+plot_most_common_genes('GC','LN','primary-8') +
+        theme(legend.position = c(0.8,0.3))
+plot_most_common_genes('GC','LN','primary-16') +
+        theme(legend.position = c(0.33,0.2))
+plot_most_common_genes('GC','LN','primary-24') +
+        theme(legend.position = c(0.85,0.35))
 
 # ============== CLONE SIZE DISTRIBUTIONS
 
@@ -297,13 +327,128 @@ clone_size_dist_by_tissue_and_cell_type <- unique_seq_counts %>%
                clone_freq = clone_size / total_seqs) %>%
         mutate(clone_rank = rank(-clone_freq, ties.method = 'first')) %>%
         ungroup() %>%
-        mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
+        mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
+
+clone_size_dist_whole_mouse <- left_join(clone_size_dist_whole_mouse, clone_info)
+clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type, clone_info)
+
+
+clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
+                                                     deviation_from_naive %>% select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
+
+
+clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
+                                                     naive_freqs %>% select(mouse_id, total_mouse_naive_seqs) %>% unique()) %>%
         mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
                cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')))
 
-clone_size_dist_whole_mouse <- left_join(clone_size_dist_whole_mouse, clone_info)
+
+# Fraction of sequences in the largest 10 clones
+clone_size_dist_by_tissue_and_cell_type %>% 
+        filter(total_seqs >= 100) %>%
+        #filter(tissue == 'LN', group_controls_pooled != 'control') %>%
+        filter(clone_rank <=10 , mouse_id != '40-7') %>% 
+        group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_seqs) %>%
+        summarise(seqs_in_top_clones = sum(clone_size)) %>%
+        mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs) %>%
+        ungroup() %>%
+        # Effectively a primary infection mouse
+        ggplot(aes(x = group_controls_pooled, y = fraction_seqs_in_top_clones, color = infection_status)) +
+        geom_boxplot(outlier.alpha =  F) +
+        geom_point() +
+        facet_grid(tissue~cell_type) +
+        background_grid() +
+        #ggtitle() +
+        theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'none') +
+        xlab("Group") +
+        ylab("Fraction of sequences in the 10 largest clones\n(populations with at least 100 unique sequences)")
+
+
+plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_abs_size = F){
+        
+        if(plot_abs_size){
+            y_axis_var <- 'clone_size'
+            y_axis_label <- 'Number of unique sequences'
+        }else{
+            y_axis_var <- 'clone_freq'
+            y_axis_label <- 'Clone frequency'
+        }
+       
+        clone_size_dist_by_tissue_and_cell_type %>%
+                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100, mouse_id != '40-7') %>%
+                filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, clone_rank <= 20) %>%
+                ungroup() %>%
+                ggplot(aes_string(x = 'clone_rank', y = y_axis_var, group = 'mouse_id')) +
+                geom_line() +
+                geom_point(aes(color = deviation_from_naive), size = 2) +
+                geom_text(aes(x = clone_rank + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
+                              label = str_remove(v_gene, 'IGHV')), show.legend = F, size = 3.5) +
+                facet_wrap('mouse_id', scales = 'free') +
+                xlab('Clone rank (top 20 clones only)') +
+                ylab(y_axis_label) +
+                theme(legend.position = c(0.8,0.2)) +
+                scale_y_continuous(expand = expansion(mult = c(0.05, .1))) +
+                scale_color_discrete(name = 'V gene deviation from naive frequency', 
+                                     labels = c('negative','non-significant','positive'))
+        
+}
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
+
+plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
+plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
+
+plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
+plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
+
+plot_clone_size_dist('GC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
+plot_clone_size_dist('GC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
+
+plot_clone_size_dist('GC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
+plot_clone_size_dist('GC','LN', 'primary-16', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
+
+plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
+plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
 
 
 
+plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, cdr3_only){
+        
+        if(cdr3_only){
+                y_axis_var <- 'mean_cdr3_mutations_partis_aa'
+                ymin <- 'min_cdr3_mutations_partis_aa'
+                ymax <- 'max_cdr3_mutations_partis_aa'
+                y_axis_label <- 'Mean number of amino acid mutations in CDR3'
+        }else{
+                y_axis_var <- 'mean_n_mutations_partis_aa'
+                ymin <- 'min_n_mutations_partis_aa'
+                ymax <- 'max_n_mutations_partis_aa'
+                y_axis_label <- 'Mean number of amino acid mutations'
+        }
+        
+        clone_size_dist_by_tissue_and_cell_type %>%
+                filter(tissue == plot_tissue, cell_type == plot_cell_type, group_controls_pooled == plot_group) %>%
+                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100, mouse_id != '40-7') %>%
+                filter(clone_rank <= 100) %>%
+                ggplot(aes_string(x = 'clone_rank', y = y_axis_var)) +
+                geom_hline(yintercept = c(1), linetype = 2) +
+                geom_linerange(aes_string(ymin = ymin, ymax = ymax)) +
+                geom_point(aes(size = clone_size), color = 'dodgerblue') +
+                #geom_text(aes(label = clone_id)) +
+                facet_wrap('mouse_id', scales = 'free') +
+                scale_x_log10() +
+                xlab('Clone rank (top 100 clones only)') +
+                ylab(paste0(y_axis_label,'\n(whisker = min, max)')) +
+                scale_size_continuous(name = 'Clone size\n(unique sequences)') +
+                scale_y_continuous(limits = c(0,NA))
+}
+plot_mutations_top_clones('PC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
+plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
+plot_mutations_top_clones('PC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.94))
 
+plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = T) + theme(legend.position = c(0.75,0.3))
+
+plot_mutations_top_clones('GC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.05,0.94))
+plot_mutations_top_clones('GC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.15))
+plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.93))
 

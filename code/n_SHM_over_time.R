@@ -7,20 +7,30 @@ theme_set(theme_cowplot())
 
 source('gene_frequency_functions.R')
 
-seq_level_data <- read_csv('../processed_data/seq_level_data.csv')
+seq_level_data <- read_csv('../processed_data/annotated_seqs.csv')
 # seq_level_data <- read_csv('~/Desktop/seq_level_data.csv')
 
 estimated_seq_error_rate <- 0.0018
 
-seq_level_data$specimen_cell_subset[seq_level_data$specimen_cell_subset == 'naïve'] <- 'naive'
 
-mouse_info <- get_info_from_mouse_id(seq_level_data %>% select(mouse_id) %>% unique())
+# Seq information (isotype, n mutations in CDRs, etc.)
+annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 
-seq_level_data <- left_join(mouse_info, seq_level_data, by = 'mouse_id') %>%
-  filter(productive_partis) %>% dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset) %>%
-  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels),
-         cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')),
-         tissue = factor(tissue, levels = c('LN','spleen','BM')))
+annotated_seqs <- annotated_seqs %>%
+  mutate(across(c('clone_id_partis','partis_uniq_ref_seq','seq_id'), as.character))
+
+annotated_seqs$specimen_cell_subset[annotated_seqs$specimen_cell_subset == 'naïve'] <- 'naive'
+
+# Sequence clustering information to estimate unique sequences
+unique_seq_clusters <- read_csv('../processed_data/unique_seq_clusters.csv')
+unique_seq_clusters <- unique_seq_clusters %>%
+  mutate(across(c('clone_id','cluster_ref_seq','seq_id'), as.character))
+
+
+combined_tibble <- left_join(unique_seq_clusters,
+                             annotated_seqs %>% dplyr::rename(clone_id = clone_id_partis,
+                                                              cell_type = specimen_cell_subset,
+                                                              tissue = specimen_tissue)) 
 
 #-------  Distribution of n. of apparent mutations in naive sequences (first across all mice and tissues)
 distribution_mutations_global <- seq_level_data %>%

@@ -2,14 +2,14 @@ library(dplyr)
 library(tidyr)
 library(readr)
 
-seq_level_files <- list.files('../processed_data/annotated_seq_files/', pattern = 'csv', full.names = T)
+annotated_seq_files <- list.files('../processed_data/annotated_seq_files/', pattern = 'csv', full.names = T)
 clone_info_files <- list.files('../processed_data/clone_info_files/', pattern = 'csv', full.names = T)
 unique_seq_cluster_files <-  list.files('../processed_data/unique_seq_clusters_files/', pattern = 'csv', full.names = T)
 
 
-seq_level_data <- lapply(seq_level_files, read_csv)
-seq_level_data <- bind_rows(seq_level_data)
-write_csv(seq_level_data, '../processed_data/seq_level_data.csv')
+annotated_seqs <- lapply(annotated_seq_files, read_csv)
+annotated_seqs <- bind_rows(annotated_seqs)
+write_csv(annotated_seqs, '../processed_data/annotated_seqs.csv')
 
 clone_info <- lapply(clone_info_files, read_csv)
 clone_info <- bind_rows(clone_info)
@@ -21,8 +21,11 @@ unique_seq_clusters <- lapply(unique_seq_cluster_files, read_csv)
 unique_seq_clusters <- lapply(unique_seq_clusters, FUN = function(x){x %>% mutate(clone_id = as.character(clone_id),
                                                                                   cluster_ref_seq = as.character(cluster_ref_seq),
                                                                                   seq_id = as.character(seq_id),
-                                                                                  isotype = as.character(isotype))})
-unique_seq_clusters <- bind_rows(unique_seq_clusters)
+                                                                                  isotype = as.character(isotype))}) 
+
+unique_seq_clusters <- bind_rows(unique_seq_clusters) %>%
+  filter(!is.na(seq_id)) #  Handles incomplete lines for files still being filled
+
 write_csv(unique_seq_clusters, '../processed_data/unique_seq_clusters.csv')
 
 # In addition to file with detailed sequence clustering, export file with unique sequence counts by mouse, clone, cell type, tissue

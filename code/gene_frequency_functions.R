@@ -111,7 +111,7 @@ retain_pure_clones <- function(clone_info){
 
 
 # Calculates gene frequencies for each cell type in each mouse (pools across tissues)
-calc_gene_freqs <- function(unique_seq_counts, long_format = F, by_tissue = F){
+calc_gene_freqs <- function(unique_seq_counts, long_format = F, by_tissue = F, tissue_subset = NULL){
   
   grouping_vars <- c('mouse_id', 'v_gene', 'cell_type')
   
@@ -123,29 +123,44 @@ calc_gene_freqs <- function(unique_seq_counts, long_format = F, by_tissue = F){
   mouse_info <- unique_seq_counts %>% select(mouse_id, day, infection_status, group, group_controls_pooled) %>%
     unique()
   
+  # Tibble with all genes present in each mice at least once, with rows for that gene
+  # in all possible tissue /cell type combinations
+  if(by_tissue){
+    all_genes_in_mice <- unique_seq_counts %>% select(mouse_id, v_gene, tissue, cell_type) %>%
+      complete(nesting(mouse_id, v_gene), tissue, cell_type) %>% unique()
+  }else{
+    all_genes_in_mice <- unique_seq_counts %>% select(mouse_id, v_gene, cell_type) %>%
+      complete(nesting(mouse_id, v_gene), cell_type) %>% unique()
+  }
+  
+  # If a character vector is provided as tissue_subset, calculate frequencies using those tissues only 
+  if(is.null(tissue_subset) == F){
+    base_data <- unique_seq_counts %>% filter(tissue %in% tissue_subset)
+    if(by_tissue){
+      all_genes_in_mice <- all_genes_in_mice %>% filter(tissue %in% tissue_subset)
+    }
+  }else{
+    base_data <- unique_seq_counts
+  }
+  
   # Calculate frequencies in each subcompartment (naive, GC, PC, mem)
-  gene_seq_freqs <- unique_seq_counts %>%
+  gene_seq_freqs <- base_data %>%
     mutate(mouse_id = factor(mouse_id), v_gene = factor(v_gene), cell_type = factor(cell_type)) %>%
     group_by(across(grouping_vars)) %>%
     summarise(n_vgene_seqs = sum(uniq_prod_seqs, na.rm=T)) %>%
     ungroup() 
    
-  # Complete tibble so that genes present in a mouse are represented by 0s when absent from specific subpopulations
-  if(by_tissue){
-    gene_seq_freqs <- gene_seq_freqs %>%
-      complete(nesting(mouse_id, v_gene), tissue, cell_type,
-               fill = list(n_vgene_seqs = 0))
-  }else{
-    gene_seq_freqs <- gene_seq_freqs %>%
-      complete(nesting(mouse_id, v_gene), cell_type,
-               fill = list(n_vgene_seqs = 0))
-  }
+  # Left join to all_genes_in_mice tibble, so that genes present in mice get an explicit zero value
+  # in compartments they're missing from
+  gene_seq_freqs <- left_join(all_genes_in_mice, gene_seq_freqs) %>%
+    replace_na(list(n_vgene_seqs =  0))
   
   gene_seq_freqs <- gene_seq_freqs %>%
     # Calculate mouse-cell-type (optionally tissue) totals
     group_by(across(grouping_vars[grouping_vars != 'v_gene'])) %>%
     mutate(total_mouse_cell_type_seqs = sum(n_vgene_seqs)) %>%
     ungroup() %>%
+    # Exclude compartments that are entirely zero
     filter(total_mouse_cell_type_seqs > 0) %>%
     ungroup()
   
@@ -440,14 +455,11 @@ simulate_selection_freq_changes <- function(unique_seq_counts, synth_data_input_
   # Get gene frequencies
   exp_freqs <- calc_gene_freqs(base_data, long_format = F, by_tissue = by_tissue)$exp_freqs
   
-  # Naive frequencies can be across all tissues or from a specific tissue 
+  # Naive frequencies can be across all tissues or from a specific set of tissues
   # (in which case they're used for all tissues if experienced reps are simulated for each tissue)
-  if(is.null(naive_from_tissue)){
-    naive_freqs <- calc_gene_freqs(base_data, long_format = F, by_tissue = F)$naive_freqs
-  }else{
-    naive_freqs <- calc_gene_freqs(base_data %>% filter(tissue %in% naive_from_tissue),
-                                   long_format = F, by_tissue = F)$naive_freqs 
-  }
+  
+  naive_freqs <- calc_gene_freqs(base_data, long_format = F, by_tissue = F,
+                                 tissue_subset = naive_from_tissue)$naive_freqs
   
   # Set genes present in mice but with 0 naive seqs to have 1 naive seq, adjust frequencies accordingly
   naive_freqs <- adjust_zero_naive_freqs(naive_freqs)
