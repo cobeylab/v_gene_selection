@@ -12,7 +12,6 @@ seq_level_data <- read_csv('../processed_data/annotated_seqs.csv')
 
 estimated_seq_error_rate <- 0.0018
 
-
 # Seq information (isotype, n mutations in CDRs, etc.)
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 

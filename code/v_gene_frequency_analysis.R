@@ -22,7 +22,6 @@ unique_seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
 unique_seq_counts <- left_join(unique_seq_counts, clone_info)
 unique_seq_counts <- get_info_from_mouse_id(unique_seq_counts)
 
- 
 # Get naive frequencies excluding the LN, tissue-specific frequencies for other cell types
 naive_from_tissue <- c('spleen','BM')
 naive_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = F, tissue_subset = naive_from_tissue))$naive_freqs
@@ -411,7 +410,6 @@ plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = F) + theme(legend.
 plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
 
 
-
 plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, cdr3_only){
         
         if(cdr3_only){
@@ -451,4 +449,68 @@ plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = T) + theme(legend.
 plot_mutations_top_clones('GC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.05,0.94))
 plot_mutations_top_clones('GC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.15))
 plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.93))
+
+# ------------ PAIRWISE CORRELATIONS BETWEEN MICE ----------------
+pairwise_gene_freqs <- get_pairwise_freqs(unique_seq_counts, by_tissue = T, naive_from_tissue = naive_from_tissue)
+pairwise_correlations <- get_pairwise_correlations(pairwise_gene_freqs)
+        
+pairwise_correlations %>%
+  filter(cell_type == 'naive') %>%
+  filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
+  ggplot(aes(x = pair_type, y = cor_coef, color = pair_type)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width = 0.1),
+             alpha = 0.5) +
+  scale_y_continuous(limits = c(0,1)) +
+  theme(legend.position = 'top') +
+  xlab('Days post infection') +
+  ylab('Correlation in gene naive frequencies between mouse pairs') +
+  theme(legend.position = 'none')
+
+pairwise_correlations %>%
+  filter(cell_type != 'naive') %>%
+  filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
+  ggplot(aes(x = pair_type, y = cor_coef, color = pair_type)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width = 0.1),
+             alpha = 0.5) +
+  scale_y_continuous(limits = c(0,1)) +
+  theme(legend.position = 'top') +
+  xlab('Days post infection') +
+  ylab('Correlation in gene naive frequencies between mouse pairs') +
+  theme(legend.position = 'none') +
+  facet_grid(tissue~cell_type) +
+  sca
+
+
+
+pairwise_correlations %>%
+  filter(day_i == 8, pair_type == 'primary',
+         tissue == 'LN', cell_type == 'PC') 
+
+pairwise_correlations %>%
+  filter(day_i == day_j) %>%
+  filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
+  filter(tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  ggplot(aes(x = day_i, y = cor_coef, color = pair_type)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  facet_wrap('cell_type') +
+  scale_y_continuous(limits = c(0,1)) +
+  theme(legend.position = 'top') +
+  xlab('Days post infection') +
+  ylab('Correlation in gene frequencies between mouse pairs')
+
+
+   
+
+
+  
+        
+
+        
+
+
+
+
 

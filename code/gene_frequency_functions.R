@@ -331,49 +331,53 @@ calculate_frequency_ratio_matrix <- function(gene_freqs){
   return(frequency_ratio_matrix)
 }
 
-# Generate pairs of mice to compare
-gen_pairs <- function(clone_info){
-  mouse_ids <- unique(clone_info %>% pull(mouse_id))
+# For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
+get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, naive_from_tissue = NULL){
   
-  pairs <- expand.grid(ids1 = mouse_ids, ids2 = mouse_ids) %>%
+  mouse_info <- unique_seq_counts %>%
+    select(mouse_id, day, infection_status, group, group_controls_pooled) %>%
+    unique()
+  
+  unique_pairs <- unique_seq_counts %>% select(mouse_id) %>% unique() %>%
+    dplyr::rename(mouse_id_i = mouse_id) %>%
+    mutate(mouse_id_j = mouse_id_i) %>%
+    complete(mouse_id_i, mouse_id_j) %>%
     rowwise() %>%
-    mutate(pair = paste(ids1, ids2, sep = ';')) %>%
-    pull(pair)
+    mutate(pair = paste0(sort(c(mouse_id_i, mouse_id_j)), collapse = ';')) %>%
+    ungroup() %>%
+    filter(mouse_id_i != mouse_id_j) %>%
+    select(pair) %>%
+    unique() %>% pull(pair)
   
-  unique_pairs <- c()
-  # Order pair labels (to then retain only unique pairs)
-  # Label shows smaller times/ids first
-  for(p in pairs){
-    mouse1 <-  strsplit(p, ';')[[1]][1]
-    mouse2 <- strsplit(p, ';')[[1]][2]
-    
-    unique_pairs <- c(unique_pairs,
-                      tibble(mouse = c(mouse1, mouse2)) %>%
-                        mutate(mouse_id = mouse) %>%
-                        separate(mouse_id, c('day','id')) %>%
-                        arrange(as.numeric(day),as.numeric(id)) %>%
-                        summarise(pair = paste0(mouse, collapse = ';')) %>% 
-                        pull(pair))
+  # Calculates naive sequences pooled across a specific set of tissues (by_tissue = F on purpose)
+  naive_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = F, tissue_subset = naive_from_tissue) %>%
+    filter(cell_type == 'naive') 
+  
+  if(!is.null(naive_from_tissue)){
+    naive_freqs <- naive_freqs %>% mutate(tissue = paste(naive_from_tissue, collapse = '+'))
+  }else{
+    naive_freqs <- naive_freqs %>% mutate(tissue = 'all tissues')
   }
-  unique_pairs <- unique(unique_pairs)
   
-  return(unique_pairs)
-}
-
-
-# For pair of mice, rearrange freqs tibble to show changes in each mouse as different vars.
-# Pair is a semi-colon separated string, e.g. "8-1;8-5"
-# For now, keeps frequencies in a long format (i.e., with naive frequencies listed as another cell type instead of another column)
-get_pairwise_freqs <- function(unique_seq_counts, mouse_pairs, by_tissue = F){
+  # Calculate experienced frequencies (tissue specific if by_tissue is T)
+  exp_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = by_tissue, tissue_subset = NULL) %>%
+    filter(cell_type != 'naive')
   
-  gene_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = by_tissue)
+  gene_freqs <- bind_rows(exp_freqs, naive_freqs)
+  
+  compartment_sizes <- gene_freqs %>%
+    select(mouse_id, cell_type, matches('tissue'), total_mouse_cell_type_seqs) %>%
+    unique()
   
   internal_function <- function(mouse_pair, gene_freqs){
     # Parse mouse_pair, determine type of pair (e.g. 'primary', 'primary/control', 'secondary/control')
     mice <- str_split(mouse_pair,';')[[1]]
+    
     days <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][1]})
     mouse_id_numbers <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][2]})
     infection_status = assign_infection_status(days, mouse_id_numbers)
+    
+
     pair_type = ifelse(length(unique(infection_status)) == 1,
                        infection_status,
                        paste(sort(unique(infection_status)),collapse = '/'))
@@ -381,8 +385,10 @@ get_pairwise_freqs <- function(unique_seq_counts, mouse_pairs, by_tissue = F){
     time_j <- days[2]
     pair_time <- paste(sort(as.numeric(days)), collapse=';')
     
-    mouse1_freqs <- gene_freqs %>% filter(mouse_id == mice[1])
-    mouse2_freqs <- gene_freqs %>% filter(mouse_id == mice[2])
+    mouse1_freqs <- gene_freqs %>% filter(mouse_id == mice[1]) %>% 
+      select(-day, -infection_status, -group, -group_controls_pooled, - total_mouse_cell_type_seqs)
+    mouse2_freqs <- gene_freqs %>% filter(mouse_id == mice[2]) %>%
+      select(-day, -infection_status, -group, -group_controls_pooled, -total_mouse_cell_type_seqs)
     
     for(var in colnames(mouse1_freqs)){
       if((var %in% c('v_gene','cell_type','tissue')) == F){
@@ -391,46 +397,56 @@ get_pairwise_freqs <- function(unique_seq_counts, mouse_pairs, by_tissue = F){
       }
     }
     
-    
     # Assemble pair tibble
     pair_changes <- full_join(mouse1_freqs, mouse2_freqs) %>%
       mutate(mouse_pair = mouse_pair,
-             mouse_i = factor(mice[1], levels = mouse_id_factor_levels),
-             mouse_j = factor(mice[2], levels = mouse_id_factor_levels),
-             pair_time = pair_time, time_i = time_i, time_j = time_j,
+             mouse_id_i = mice[1], mouse_id_j = mice[2],
              pair_type = factor(pair_type, levels = c('control','control/primary','primary',
                                                       'control/secondary','secondary','primary/secondary'))) %>%
-      select(mouse_pair, pair_type, matches('infection_status'), everything())  %>%
-      filter(!is.na(vgene_seq_freq_i), !is.na(vgene_seq_freq_j))
+      select(mouse_pair, pair_type, everything())  
+      #%>% filter(!is.na(vgene_seq_freq_i), !is.na(vgene_seq_freq_j))
+    
     return(pair_changes)
   }
   # Paired changes in gene frequences
-  paired_gene_freqs <- lapply(mouse_pairs, FUN = internal_function,
+  paired_gene_freqs <- lapply(unique_pairs, FUN = internal_function,
                                      gene_freqs = gene_freqs)
-  paired_gene_freqs <- bind_rows(paired_gene_freqs) %>%
-    mutate(time_i = factor(time_i, levels = c('8','16','24','40','56')))
+  paired_gene_freqs <- bind_rows(paired_gene_freqs) 
+  
+  paired_gene_freqs <- left_join(paired_gene_freqs,
+                                 mouse_info %>% dplyr::rename_with(.fn = function(x){paste0(x,'_i')}, .cols = everything()))
+  paired_gene_freqs <- left_join(paired_gene_freqs,
+                                 mouse_info %>% dplyr::rename_with(.fn = function(x){paste0(x,'_j')}, .cols = everything())) 
+  paired_gene_freqs <- left_join(paired_gene_freqs,
+                                 compartment_sizes %>% dplyr::rename_with(.fn = function(x){paste0(x,'_i')},
+                                                                          .cols = c(mouse_id, total_mouse_cell_type_seqs)))
+  paired_gene_freqs <- left_join(paired_gene_freqs,
+                                 compartment_sizes %>% dplyr::rename_with(.fn = function(x){paste0(x,'_j')},
+                                                                          .cols = c(mouse_id, total_mouse_cell_type_seqs))) %>%
+    select(mouse_pair, pair_type, matches('id'), matches('day'), matches('infection_status'), matches('group'), matches('total_mouse_cell_type_seqs'),
+           everything())
+  
+  
   return(paired_gene_freqs)
 }
 
-get_pairwise_correlations <- function(pairwise_freqs){
+get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparison = 10){
   
-  grouping_vars <- c('mouse_pair','pair_type','mouse_i','mouse_j','time_i','time_j',
-                     'cell_type')
-  if('tissue' %in% names(pairwise_freqs)){
+  grouping_vars <- c('mouse_pair','pair_type','mouse_id_i','mouse_id_j','day_i','day_j',
+                     'cell_type', 'total_mouse_cell_type_seqs_i','total_mouse_cell_type_seqs_j')
+  if('tissue' %in% names(pairwise_gene_freqs)){
     grouping_vars <- c(grouping_vars, 'tissue')
   }
   
-  pairwise_correlations <- pairwise_freqs %>% 
-    filter(mouse_i != mouse_j) %>%
+  pairwise_correlations <- pairwise_gene_freqs %>% 
+    filter(mouse_id_i != mouse_id_j) %>%
     group_by(across(grouping_vars)) %>%
-    mutate(n_genes_in_comparison = length(unique(v_gene))) %>%
-    filter(n_genes_in_comparison >= 10) %>%
+    mutate(n_genes_in_pairwise_comparison = sum(!is.na(n_vgene_seqs_i) & !is.na(n_vgene_seqs_j))) %>%
+    filter(n_genes_in_pairwise_comparison >= min_genes_in_comparison) %>%
     summarise(cor_coef = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
                                   method = 'spearman')$estimate) %>%
     ungroup()
   
-  # Check no comparisons were made between mice sampled in different days
-  #stopifnot(all(pairwise_correlations %>% mutate(test = time_i == time_j) %>% pull(test) == T))
   return(pairwise_correlations)
 } 
 
