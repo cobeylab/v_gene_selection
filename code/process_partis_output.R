@@ -54,8 +54,11 @@ count_mutations_from_naive <- function(seq_vector, naive_seq, translate_seqs, is
   }else{
     n_mutations <- sapply(seq_vector,
                           FUN = function(seq){
-                            stringDist(c(naive_seq, seq),
-                                       method = 'hamming')
+                            seq_char_vector = s2c(seq)
+                            naive_seq_char_vector <- s2c(naive_seq)
+                            mutated_sites <- which((naive_seq_char_vector != 'N') & (seq_char_vector != 'N') &
+                                                     (naive_seq_char_vector != seq_char_vector))
+                            return(length(mutated_sites))
                           })
     
   }
@@ -79,6 +82,16 @@ format_partis_info <- function(yaml_object){
     cdr3_end <- clone$codon_positions$j + 3 # adds +1 and then +2 to go to end of codon
     naive_cdr3_seq <- str_sub(clone$naive_seq, cdr3_start, cdr3_end)
     naive_cdr3_seq_aa <- c2s(seqinr::translate(s2c(tolower(naive_cdr3_seq))))
+    
+    v_gene_bounds <- clone$regional_bounds$v
+    naive_v_gene_region_seq <- str_sub(clone$naive_seq, v_gene_bounds[1], v_gene_bounds[2])
+    v_gene_region_seqs <- str_sub(clone$input_seqs, v_gene_bounds[1], v_gene_bounds[2])
+    
+    vgene_mutations_nt <- count_mutations_from_naive(seq_vector = v_gene_region_seqs, naive_seq = naive_v_gene_region_seq,
+                                                       translate_seqs = F)
+    # Number of bases effectively sequenced in V gene region for each sequence (i.e. excluding "N"'s introduced by partis)
+    sequenced_bases_in_vgene_region <- nchar(str_remove_all(v_gene_region_seqs,'N'))
+    
     
     stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
     stopifnot(unique(nchar(clone$cdr3_seqs)) == nchar(naive_cdr3_seq))
@@ -107,7 +120,10 @@ format_partis_info <- function(yaml_object){
                            cdr3_length_partis = clone$cdr3_length / 3,
                            cdr3_seq_partis = cdr3_seq_partis,
                            cdr3_mutations_partis_nt = cdr3_mutations_nt,
-                           cdr3_mutations_partis_aa = cdr3_mutations_aa)
+                           cdr3_mutations_partis_aa = cdr3_mutations_aa,
+                           vgene_mutations_partis_nt = vgene_mutations_nt,
+                           sequenced_bases_in_vgene_region_partis =sequenced_bases_in_vgene_region
+                           )
     
     # Get productivity of duplicate sequences by referring to the productivity of their corresponding reference seq.
     duplicate_seqs <- pair_duplicates(clone)
@@ -179,7 +195,7 @@ merge_info <- function(yaml_object, mouse_data_file_path){
                            partis_info, by = c('trimmed_read_id')) %>%
     dplyr::rename(seq_id = trimmed_read_id)
   
-  merged_data <- merged_data %>%
+  #merged_data <- merged_data %>%
     dplyr::rename(v_segment_igblast = v_segment, d_segment_igblast = d_segment, j_segment_igblast = j_segment,
            clone_id_igblast = igh_igblast_clone_id, productive_igblast = productive,
            v_segment_support_igblast = v_score) 
@@ -188,10 +204,11 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   write.csv(merged_data %>% select(-clone_naive_cdr3_partis, -clone_consensus_cdr3_partis, -cdr3_mutations_partis_nt, -cdr3_mutations_partis_aa,
                      -n_mutations_partis_nt, -n_mutations_partis_aa),
             mouse_data_file_path, row.names = F)
-
+  
   seq_level_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
-           productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa)
+           productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
+           vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis)
   write.csv(seq_level_file, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
             row.names = F)
   

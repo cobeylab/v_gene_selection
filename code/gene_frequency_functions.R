@@ -332,7 +332,7 @@ calculate_frequency_ratio_matrix <- function(gene_freqs){
 }
 
 # For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
-get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, naive_from_tissue = NULL){
+get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, adjust_naive_zeros, naive_from_tissue = NULL){
   
   mouse_info <- unique_seq_counts %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled) %>%
@@ -351,7 +351,7 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, naive_from_tiss
   
   # Calculates naive sequences pooled across a specific set of tissues (by_tissue = F on purpose)
   naive_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = F, tissue_subset = naive_from_tissue) %>%
-    filter(cell_type == 'naive') 
+    filter(cell_type == 'naive') %>% mutate(exp_naive_ratio = NA)
   
   if(!is.null(naive_from_tissue)){
     naive_freqs <- naive_freqs %>% mutate(tissue = paste(naive_from_tissue, collapse = '+'))
@@ -359,9 +359,27 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, naive_from_tiss
     naive_freqs <- naive_freqs %>% mutate(tissue = 'all tissues')
   }
   
+  if(adjust_naive_zeros){
+    naive_freqs <- adjust_zero_naive_freqs(naive_freqs %>% 
+                              dplyr::rename(naive_vgene_seq_freq = vgene_seq_freq,
+                                            n_naive_vgene_seqs = n_vgene_seqs,
+                                            total_mouse_naive_seqs = total_mouse_cell_type_seqs)) %>%
+      dplyr::rename(vgene_seq_freq = naive_vgene_seq_freq,
+                    n_vgene_seqs = n_naive_vgene_seqs,
+                    total_mouse_cell_type_seqs = total_mouse_naive_seqs)
+  }
+  
+  
   # Calculate experienced frequencies (tissue specific if by_tissue is T)
-  exp_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = by_tissue, tissue_subset = NULL) %>%
-    filter(cell_type != 'naive')
+  exp_freqs <- calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = by_tissue, tissue_subset = NULL)$exp_freqs
+  
+  # For experienced cell compartments, calculate rho (ratio between obs and naive freqs)
+  exp_freqs <- left_join(exp_freqs,
+            naive_freqs %>% select(mouse_id, v_gene, vgene_seq_freq) %>% 
+              dplyr::rename(naive_vgene_freq = vgene_seq_freq)) %>%
+    mutate(log_exp_naive_ratio = log(vgene_seq_freq) - log(naive_vgene_freq),
+           exp_naive_ratio = exp(log_exp_naive_ratio)) %>%
+    select(-naive_vgene_freq, -log_exp_naive_ratio)
   
   gene_freqs <- bind_rows(exp_freqs, naive_freqs)
   
@@ -413,6 +431,8 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, naive_from_tiss
                                      gene_freqs = gene_freqs)
   paired_gene_freqs <- bind_rows(paired_gene_freqs) 
   
+  # Add mouse information and compartment sizes (n unique seqs.)
+  
   paired_gene_freqs <- left_join(paired_gene_freqs,
                                  mouse_info %>% dplyr::rename_with(.fn = function(x){paste0(x,'_i')}, .cols = everything()))
   paired_gene_freqs <- left_join(paired_gene_freqs,
@@ -422,18 +442,33 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, naive_from_tiss
                                                                           .cols = c(mouse_id, total_mouse_cell_type_seqs)))
   paired_gene_freqs <- left_join(paired_gene_freqs,
                                  compartment_sizes %>% dplyr::rename_with(.fn = function(x){paste0(x,'_j')},
-                                                                          .cols = c(mouse_id, total_mouse_cell_type_seqs))) %>%
-    select(mouse_pair, pair_type, matches('id'), matches('day'), matches('infection_status'), matches('group'), matches('total_mouse_cell_type_seqs'),
+                                                                          .cols = c(mouse_id, total_mouse_cell_type_seqs))) 
+  
+  naive_compartment_sizes <- compartment_sizes %>% filter(cell_type == 'naive') %>%
+    dplyr::rename(total_mouse_naive_seqs = total_mouse_cell_type_seqs) %>% select(-tissue, -cell_type)
+    
+  
+  paired_gene_freqs <- left_join(paired_gene_freqs,
+                                 naive_compartment_sizes %>% dplyr::rename_with(.fn = function(x){paste0(x,'_i')},
+                                                                                .cols =  everything()))
+  
+  paired_gene_freqs <- left_join(paired_gene_freqs,
+                                 naive_compartment_sizes %>% dplyr::rename_with(.fn = function(x){paste0(x,'_j')},
+                                                                                .cols =  everything())) %>%
+    select(mouse_pair, pair_type, matches('id'), matches('day'), matches('infection_status'), matches('group'),
+           matches('total_mouse_cell_type_seqs'), matches('total_mouse_naive_seqs'),
            everything())
   
   
   return(paired_gene_freqs)
 }
 
+# Calculates pairwise correlations v gene freqs. or v genes experienced-to-naive freq.ratios between pairs of mice.
 get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparison = 10){
   
   grouping_vars <- c('mouse_pair','pair_type','mouse_id_i','mouse_id_j','day_i','day_j',
-                     'cell_type', 'total_mouse_cell_type_seqs_i','total_mouse_cell_type_seqs_j')
+                     'cell_type', 'total_mouse_cell_type_seqs_i','total_mouse_cell_type_seqs_j',
+                     'total_mouse_naive_seqs_i', 'total_mouse_naive_seqs_j')
   if('tissue' %in% names(pairwise_gene_freqs)){
     grouping_vars <- c(grouping_vars, 'tissue')
   }
@@ -441,13 +476,21 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
   pairwise_correlations <- pairwise_gene_freqs %>% 
     filter(mouse_id_i != mouse_id_j) %>%
     group_by(across(grouping_vars)) %>%
-    mutate(n_genes_in_pairwise_comparison = sum(!is.na(n_vgene_seqs_i) & !is.na(n_vgene_seqs_j))) %>%
-    filter(n_genes_in_pairwise_comparison >= min_genes_in_comparison) %>%
-    summarise(cor_coef = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
+    mutate(n_genes_in_freqs_comparison = sum(!is.na(n_vgene_seqs_i) & !is.na(n_vgene_seqs_j)),
+           n_genes_in_freq_ratio_comparison = sum(!is.na(exp_naive_ratio_i) & !is.na(exp_naive_ratio_j)))
+  
+  pairwise_correlations_freqs <- pairwise_correlations %>%
+    filter(n_genes_in_freqs_comparison >= min_genes_in_comparison) %>%
+    summarise(cor_coef_freqs = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
                                   method = 'spearman')$estimate) %>%
     ungroup()
   
-  return(pairwise_correlations)
+  pairwise_correlations_freq_ratios <- pairwise_correlations %>%
+    filter(n_genes_in_freq_ratio_comparison >= min_genes_in_comparison) %>%
+    summarise(cor_coef_freq_ratios = cor.test(exp_naive_ratio_i, exp_naive_ratio_j,
+                                  method = 'spearman')$estimate) %>%
+    ungroup()
+  return(list(freqs = pairwise_correlations_freqs, freq_ratios = pairwise_correlations_freq_ratios))
 } 
 
 

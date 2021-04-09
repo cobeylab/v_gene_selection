@@ -451,13 +451,15 @@ plot_mutations_top_clones('GC','LN','primary-16', cdr3_only = F) + theme(legend.
 plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.93))
 
 # ------------ PAIRWISE CORRELATIONS BETWEEN MICE ----------------
-pairwise_gene_freqs <- get_pairwise_freqs(unique_seq_counts, by_tissue = T, naive_from_tissue = naive_from_tissue)
+pairwise_gene_freqs <- get_pairwise_freqs(unique_seq_counts, by_tissue = T, adjust_naive_zeros = T,
+                                          naive_from_tissue = naive_from_tissue)
 pairwise_correlations <- get_pairwise_correlations(pairwise_gene_freqs)
+
         
-pairwise_correlations %>%
+pairwise_correlations$freqs %>%
   filter(cell_type == 'naive') %>%
   filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
-  ggplot(aes(x = pair_type, y = cor_coef, color = pair_type)) +
+  ggplot(aes(x = pair_type, y = cor_coef_freqs, color = pair_type)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(position = position_jitter(width = 0.1),
              alpha = 0.5) +
@@ -467,41 +469,64 @@ pairwise_correlations %>%
   ylab('Correlation in gene naive frequencies between mouse pairs') +
   theme(legend.position = 'none')
 
-pairwise_correlations %>%
+pairwise_correlations$freqs %>%
+  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
+        cell_type = factor(cell_type, levels = c('experienced','GC','PC','mem'))) %>%
   filter(cell_type != 'naive') %>%
   filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
-  ggplot(aes(x = pair_type, y = cor_coef, color = pair_type)) +
+  ggplot(aes(x = pair_type, y = cor_coef_freqs, color = pair_type)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(position = position_jitter(width = 0.1),
              alpha = 0.5) +
   scale_y_continuous(limits = c(0,1)) +
   theme(legend.position = 'top') +
-  xlab('Days post infection') +
+  xlab('Type of pair') +
   ylab('Correlation in gene naive frequencies between mouse pairs') +
   theme(legend.position = 'none') +
   facet_grid(tissue~cell_type) +
-  sca
+  scale_x_discrete(labels = function(x){str_replace(x, '/','\n-\n')}) +
+  background_grid()
 
-
-
-pairwise_correlations %>%
-  filter(day_i == 8, pair_type == 'primary',
-         tissue == 'LN', cell_type == 'PC') 
-
-pairwise_correlations %>%
+pairwise_correlations$freqs %>%
   filter(day_i == day_j) %>%
   filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
   filter(tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
-  ggplot(aes(x = day_i, y = cor_coef, color = pair_type)) +
+  ggplot(aes(x = day_i, y = cor_coef_freqs, color = pair_type)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point() +
   facet_wrap('cell_type') +
   scale_y_continuous(limits = c(0,1)) +
   theme(legend.position = 'top') +
   xlab('Days post infection') +
-  ylab('Correlation in gene frequencies between mouse pairs')
+  ylab('Correlation in gene frequencies between mouse pairs') +
+  theme(legend.position = 'none') +
+  scale_color_discrete(name = 'Infection status')
+
+pairwise_correlations$freq_ratios %>%
+  filter(day_i == day_j) %>%
+  filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
+  filter(tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  ggplot(aes(x = day_i, y = cor_coef_freq_ratios, color = pair_type)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  facet_wrap('cell_type') +
+  scale_y_continuous(limits = c(0,1)) +
+  theme(legend.position = 'top') +
+  xlab('Days post infection') +
+  ylab('Correlation between mouse pairs\nin experienced-to-naive gene frequency ratios') +
+  scale_color_discrete(name = 'Infection status')
 
 
+
+pairwise_correlations$freqs %>%
+  filter(day_i == 8, pair_type == 'primary',
+         tissue == 'LN', cell_type == 'PC') %>%
+  arrange(desc(cor_coef_freqs))
+
+pairwise_correlations$freq_ratios %>%
+  filter(day_i == 8, pair_type == 'primary',
+         tissue == 'LN', cell_type == 'PC') %>%
+  arrange(desc(cor_coef_freq_ratios))
    
 
 
