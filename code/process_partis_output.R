@@ -56,9 +56,15 @@ count_mutations_from_naive <- function(seq_vector, naive_seq, translate_seqs, is
                           FUN = function(seq){
                             seq_char_vector = s2c(seq)
                             naive_seq_char_vector <- s2c(naive_seq)
-                            mutated_sites <- which((naive_seq_char_vector != 'N') & (seq_char_vector != 'N') &
-                                                     (naive_seq_char_vector != seq_char_vector))
-                            return(length(mutated_sites))
+                            
+                            #Some unproductive sequences will not be successfully aligned to the naive seq. by partis.
+                            if(length(naive_seq_char_vector) != length(seq_char_vector)){
+                              return(NA)
+                            }else{
+                              mutated_sites <- which((naive_seq_char_vector != 'N') & (seq_char_vector != 'N') &
+                                                       (naive_seq_char_vector != seq_char_vector))
+                              return(length(mutated_sites))
+                            }
                           })
     
   }
@@ -159,7 +165,9 @@ format_partis_info <- function(yaml_object){
              j_segment_partis = clone$j_gene,
              v_segment_support_partis = clone$v_per_gene_support[[1]],
              clone_consensus_cdr3_partis = consensus_cdr3_partis,
-             clone_naive_cdr3_partis = naive_cdr3_seq_aa) %>%
+             clone_naive_cdr3_partis = naive_cdr3_seq_aa,
+             clone_naive_seq_nt_partis = clone$naive_seq,
+             clone_naive_seq_aa_partis = clone$naive_seq_aa) %>%
       dplyr::rename(trimmed_read_id = seq)
     
         
@@ -195,14 +203,14 @@ merge_info <- function(yaml_object, mouse_data_file_path){
                            partis_info, by = c('trimmed_read_id')) %>%
     dplyr::rename(seq_id = trimmed_read_id)
   
-  #merged_data <- merged_data %>%
+  merged_data <- merged_data %>%
     dplyr::rename(v_segment_igblast = v_segment, d_segment_igblast = d_segment, j_segment_igblast = j_segment,
            clone_id_igblast = igh_igblast_clone_id, productive_igblast = productive,
            v_segment_support_igblast = v_score) 
   
   # Overwrite mouse-specific data file with new file including partis annotation.
   write.csv(merged_data %>% select(-clone_naive_cdr3_partis, -clone_consensus_cdr3_partis, -cdr3_mutations_partis_nt, -cdr3_mutations_partis_aa,
-                     -n_mutations_partis_nt, -n_mutations_partis_aa),
+                     -n_mutations_partis_nt, -n_mutations_partis_aa, -clone_naive_seq_nt_partis, -clone_naive_seq_aa_partis),
             mouse_data_file_path, row.names = F)
   
   seq_level_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
@@ -215,7 +223,7 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   # Export clone info file
   clone_info_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, v_segment_partis, d_segment_partis, j_segment_partis, cdr3_length_partis,
-           clone_consensus_cdr3_partis, clone_naive_cdr3_partis) %>%
+           clone_consensus_cdr3_partis, clone_naive_cdr3_partis, clone_naive_seq_nt_partis, clone_naive_seq_aa_partis) %>%
     unique()
   
   write.csv(clone_info_file, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info.csv'),
