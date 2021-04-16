@@ -587,3 +587,23 @@ simulate_selection_freq_changes <- function(unique_seq_counts, synth_data_input_
   return(replicates_tibble)
   
 }
+
+# Pre-computes the probability of observing a range of mutations for seq. lengths observed in the data, given an estimated sequencing error rate
+generate_mutation_null_model <- function(seq_cluster_stats, estimated_seq_error_rate, n_mutations_variable, seq_length_variable){
+  # n_mutations_variable: name of column with number of mutations, e.g.
+  
+  length_set <- unique(seq_cluster_stats[, seq_length_variable]) %>% unlist()
+  
+  # Find the range of the number of nt mutations observed in the data
+  n_mutations_range <- seq(min(seq_cluster_stats[, n_mutations_variable] %>% unlist(), na.rm = T),
+                           max(seq_cluster_stats[, n_mutations_variable] %>% unlist(), na.rm = T))
+  
+  null_model_mutations <- expand_grid(length_set, n_mutations_range) %>%
+    dplyr::rename(length = length_set, n_mutations = n_mutations_range) %>%
+    group_by(length) %>%
+    mutate(null_prob = dbinom(x = n_mutations, size = length, prob = estimated_seq_error_rate))
+  
+  return(null_model_mutations)
+  
+}
+

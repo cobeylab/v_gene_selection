@@ -33,6 +33,8 @@ combined_tibble <- combined_tibble %>%
             seq_length_partis = mean(seq_length_partis),
             cdr3_mutations_partis_aa = mean(cdr3_mutations_partis_aa),
             cdr3_mutations_partis_nt = mean(cdr3_mutations_partis_nt),
+            vgene_mutations_partis_nt = mean(vgene_mutations_partis_nt),
+            sequenced_bases_in_vgene_region_partis = mean(sequenced_bases_in_vgene_region_partis),
             cluster_consensus_CDR3 = consensusString(AAStringSet(cdr3_seq_partis))) %>%
   ungroup()
 
