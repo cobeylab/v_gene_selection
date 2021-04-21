@@ -19,7 +19,6 @@ unique_seq_clusters <- unique_seq_clusters %>%
   mutate(across(c('clone_id','cluster_ref_seq','seq_id'), as.character)) %>%
   filter(!is.na(isotype))
 
-
 combined_tibble <- left_join(unique_seq_clusters,
                              annotated_seqs %>% dplyr::rename(clone_id = clone_id_partis,
                                                               cell_type = specimen_cell_subset,

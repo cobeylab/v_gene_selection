@@ -332,13 +332,15 @@ calculate_frequency_ratio_matrix <- function(gene_freqs){
 }
 
 # For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
-get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, adjust_naive_zeros, naive_from_tissue = NULL){
+get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
+  # Assumes gene_freqs in wide format:
+  stopifnot('naive_vgene_seq_freq' %in% names(gene_freqs))
   
-  mouse_info <- unique_seq_counts %>%
+  mouse_info <- gene_freqs %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled) %>%
     unique()
   
-  unique_pairs <- unique_seq_counts %>% select(mouse_id) %>% unique() %>%
+  unique_pairs <- gene_freqs %>% select(mouse_id) %>% unique() %>%
     dplyr::rename(mouse_id_i = mouse_id) %>%
     mutate(mouse_id_j = mouse_id_i) %>%
     complete(mouse_id_i, mouse_id_j) %>%
@@ -349,15 +351,21 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, adjust_naive_ze
     select(pair) %>%
     unique() %>% pull(pair)
   
-  # Calculates naive sequences pooled across a specific set of tissues (by_tissue = F on purpose)
-  naive_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = F, tissue_subset = naive_from_tissue) %>%
-    filter(cell_type == 'naive') %>% mutate(exp_naive_ratio = NA)
+  # Get naive and experienced frequencies into separate tibbles
+  exp_freqs <- gene_freqs %>% select(mouse_id, day, infection_status, group, group_controls_pooled,
+                                     v_gene, tissue, cell_type, n_vgene_seqs, total_mouse_cell_type_seqs,
+                                     vgene_seq_freq)
   
-  if(!is.null(naive_from_tissue)){
-    naive_freqs <- naive_freqs %>% mutate(tissue = paste(naive_from_tissue, collapse = '+'))
-  }else{
-    naive_freqs <- naive_freqs %>% mutate(tissue = 'all tissues')
-  }
+  naive_freqs <- gene_freqs %>%
+    select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene,
+           n_naive_vgene_seqs, total_mouse_naive_seqs, naive_vgene_seq_freq) %>%
+    unique() %>%
+    dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs, total_mouse_cell_type_seqs = total_mouse_naive_seqs,
+                  vgene_seq_freq = naive_vgene_seq_freq) %>%
+    mutate(cell_type = 'naive', exp_naive_ratio = NA, tissue = 'naive_source_tissue') %>%
+    select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene, cell_type, n_vgene_seqs,
+           total_mouse_cell_type_seqs, vgene_seq_freq, exp_naive_ratio)
+  
   
   if(adjust_naive_zeros){
     naive_freqs <- adjust_zero_naive_freqs(naive_freqs %>% 
@@ -370,9 +378,6 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, adjust_naive_ze
   }
   
   
-  # Calculate experienced frequencies (tissue specific if by_tissue is T)
-  exp_freqs <- calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = by_tissue, tissue_subset = NULL)$exp_freqs
-  
   # For experienced cell compartments, calculate rho (ratio between obs and naive freqs)
   exp_freqs <- left_join(exp_freqs,
             naive_freqs %>% select(mouse_id, v_gene, vgene_seq_freq) %>% 
@@ -381,6 +386,8 @@ get_pairwise_freqs <- function(unique_seq_counts, by_tissue = F, adjust_naive_ze
            exp_naive_ratio = exp(log_exp_naive_ratio)) %>%
     select(-naive_vgene_freq, -log_exp_naive_ratio)
   
+  
+  # Put experienced and naive frequencies back together
   gene_freqs <- bind_rows(exp_freqs, naive_freqs)
   
   compartment_sizes <- gene_freqs %>%
@@ -561,7 +568,7 @@ simulate_selection_freq_changes <- function(unique_seq_counts, synth_data_input_
       ungroup() %>%
       rename(true_sim_exp_freq = sim_exp_freq) %>%
       mutate(vgene_seq_freq = n_vgene_seqs / total_mouse_cell_type_seqs) %>%
-      select(mouse_id, day, infection_status, group_controls_pooled, cell_type, matches('tissue'), v_gene, fitness,
+      select(mouse_id, day, infection_status, group, group_controls_pooled, cell_type, matches('tissue'), v_gene, fitness,
              n_naive_vgene_seqs, total_mouse_naive_seqs, naive_vgene_seq_freq, n_vgene_seqs ,total_mouse_cell_type_seqs,
              true_sim_exp_freq, vgene_seq_freq)
     
@@ -605,5 +612,13 @@ generate_mutation_null_model <- function(seq_cluster_stats, estimated_seq_error_
   
   return(null_model_mutations)
   
+}
+
+get_clone_size_distribution <- function(seq_counts){
+  seq_counts %>%
+  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, clone_id) %>%
+  summarise(clone_prod_seqs = sum(uniq_prod_seqs)) %>%
+  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type) %>%
+  mutate(clone_freq = clone_prod_seqs / sum(clone_prod_seqs)) 
 }
 

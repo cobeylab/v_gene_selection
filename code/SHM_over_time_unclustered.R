@@ -25,9 +25,9 @@ annotated_seqs <- annotated_seqs %>% dplyr::rename(tissue = specimen_tissue, cel
 # Ignore sequences inferred to be unproductive by partis
 annotated_seqs <- annotated_seqs %>% filter(productive_partis)
 
-# What if we exclude naive sequences that are not IGD?
-#annotated_seqs <- annotated_seqs %>%
-#  filter(!(cell_type == 'naive' & isotype != 'IGD'))
+# What if we exclude naive sequences that are not IGD and IGM
+annotated_seqs <- annotated_seqs %>%
+  filter(!(cell_type == 'naive' & !(isotype %in% c('IGM','IGD'))))
 
 
 # Gets distribution of the number of mutations by mouse, tissue and cell type

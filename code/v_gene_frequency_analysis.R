@@ -18,20 +18,26 @@ clone_summary_statistics <- read_csv('../results/clone_summary_statistics.csv')
 clone_info <- left_join(clone_info, clone_summary_statistics)
  
 # Number of unique productive sequences in each clone, by tissue and cell type
-unique_seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
+# unique_seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
+# Now computing frequencies without sequence clustering
+# (Object will still be labelled 'unique' for consistency with previous code)
+unique_seq_counts <- read_csv('../processed_data/seq_counts_unclustered.csv') %>%
+  dplyr::rename(uniq_prod_seqs = prod_seqs)
+
+
 unique_seq_counts <- left_join(unique_seq_counts, clone_info)
 unique_seq_counts <- get_info_from_mouse_id(unique_seq_counts)
+
 
 # Get naive frequencies excluding the LN, tissue-specific frequencies for other cell types
 naive_from_tissue <- c('spleen','BM')
 naive_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = F, tissue_subset = naive_from_tissue))$naive_freqs
- 
+  
 exp_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = T))$exp_freqs
  
 gene_freqs <- left_join(exp_freqs,naive_freqs) %>%
         mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
                group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
-
 
 # Example of gene rank frequency plot
 LN_PC_freqs_primary8 <- gene_freqs %>% 
@@ -451,11 +457,72 @@ plot_mutations_top_clones('GC','LN','primary-16', cdr3_only = F) + theme(legend.
 plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.93))
 
 # ------------ PAIRWISE CORRELATIONS BETWEEN MICE ----------------
-pairwise_gene_freqs <- get_pairwise_freqs(unique_seq_counts, by_tissue = T, adjust_naive_zeros = T,
-                                          naive_from_tissue = naive_from_tissue)
+pairwise_gene_freqs <- get_pairwise_freqs(gene_freqs, adjust_naive_zeros = T)
 pairwise_correlations <- get_pairwise_correlations(pairwise_gene_freqs)
 
-        
+neutral_pairwise_correlations_freqs <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
+                                 FUN = function(x){
+                                   get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freqs
+                                 })
+
+neutral_pairwise_correlations_freq_ratios <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
+                                              FUN = function(x){
+                                                get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freq_ratios
+                                              })
+
+for(i in 1:length(neutral_pairwise_correlations_freqs)){
+  neutral_pairwise_correlations_freqs[[i]] <- neutral_pairwise_correlations_freqs[[i]] %>%
+    mutate(replicate = i) %>% select(replicate, everything())
+  neutral_pairwise_correlations_freq_ratios[[i]] <- neutral_pairwise_correlations_freq_ratios[[i]] %>%
+    mutate(replicate = i) %>% select(replicate, everything())
+}
+
+neutral_pairwise_correlations_freqs <- bind_rows(neutral_pairwise_correlations_freqs)
+neutral_pairwise_correlations_freq_ratios <- bind_rows(neutral_pairwise_correlations_freq_ratios)
+
+
+mean_neutral_pw_cor_freqs <- neutral_pairwise_correlations_freqs %>%
+  group_by(mouse_pair, pair_type, mouse_id_i, mouse_id_j, day_i, day_j, cell_type, tissue, total_mouse_cell_type_seqs_i, total_mouse_cell_type_seqs_j) %>%
+  summarise(mean_neutral_cor_coef = mean(cor_coef_freqs),
+            llim_neutral_cor_coef = quantile(cor_coef_freqs,0.025, na.rm = T),
+            ulim_neutral_cor_coef = quantile(cor_coef_freqs, 0.975, na.rm = T))
+
+mean_neutral_pw_cor_freq_ratios <- neutral_pairwise_correlations_freq_ratios %>%
+  group_by(mouse_pair, pair_type, mouse_id_i, mouse_id_j, day_i, day_j, cell_type, tissue, total_mouse_cell_type_seqs_i, total_mouse_cell_type_seqs_j) %>%
+  summarise(mean_neutral_cor_coef = mean(cor_coef_freq_ratios),
+            median_neutral_cor_coef = median(cor_coef_freq_ratios),
+            llim_neutral_cor_coef = quantile(cor_coef_freq_ratios,0.025, na.rm = T),
+            ulim_neutral_cor_coef = quantile(cor_coef_freq_ratios, 0.975, na.rm = T))
+
+# Have to generate neutral pairwise correlations in freq. ratios                                 
+
+
+# Add neutral summary statistics to observed pairwise correlations
+pairwise_correlations$freqs <- left_join(pairwise_correlations$freqs, mean_neutral_pw_cor_freqs) %>%
+  mutate(neutrality_test = case_when(
+    cor_coef_freqs > ulim_neutral_cor_coef ~ 'Higher than neutral',
+    cor_coef_freqs < llim_neutral_cor_coef ~ 'Lower than neutral',
+    (cor_coef_freqs >= llim_neutral_cor_coef) & (cor_coef_freqs <= ulim_neutral_cor_coef) ~ 'Neutral'
+  ))
+
+pairwise_correlations$freq_ratios <- left_join(pairwise_correlations$freq_ratios, mean_neutral_pw_cor_freq_ratios) %>%
+  mutate(neutrality_test = case_when(
+    cor_coef_freq_ratios > ulim_neutral_cor_coef ~ 'Higher than neutral',
+    cor_coef_freq_ratios < llim_neutral_cor_coef ~ 'Lower than neutral',
+    (cor_coef_freq_ratios >= llim_neutral_cor_coef) & (cor_coef_freq_ratios <= ulim_neutral_cor_coef) ~ 'Neutral'
+  ))
+
+pairwise_correlations$freqs$neutrality_test[pairwise_correlations$freqs$total_mouse_naive_seqs_i < 100 | pairwise_correlations$freqs$total_mouse_naive_seqs_j < 100] <- 'Insufficient naive seqs in one or both mice'
+pairwise_correlations$freq_ratios$neutrality_test[pairwise_correlations$freq_ratios$total_mouse_naive_seqs_i < 100 | pairwise_correlations$freq_ratios$total_mouse_naive_seqs_j < 100] <- 'Insufficient naive seqs in one or both mice'
+
+
+pairwise_correlations$freqs <- pairwise_correlations$freqs %>%
+  mutate(neutrality_test = factor(neutrality_test, levels = c('Lower than neutral','Neutral','Higher than neutral','Insufficient naive seqs in one or both mice')))
+
+pairwise_correlations$freq_ratios <- pairwise_correlations$freq_ratios %>%
+  mutate(neutrality_test = factor(neutrality_test, levels = c('Lower than neutral','Neutral','Higher than neutral','Insufficient naive seqs in one or both mice')))
+
+
 pairwise_correlations$freqs %>%
   filter(cell_type == 'naive') %>%
   filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
@@ -468,6 +535,7 @@ pairwise_correlations$freqs %>%
   xlab('Days post infection') +
   ylab('Correlation in gene naive frequencies between mouse pairs') +
   theme(legend.position = 'none')
+
 
 pairwise_correlations$freqs %>%
   mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
@@ -488,33 +556,45 @@ pairwise_correlations$freqs %>%
   background_grid()
 
 pairwise_correlations$freqs %>%
-  filter(day_i == day_j) %>%
-  filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
-  filter(tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
-  ggplot(aes(x = day_i, y = cor_coef_freqs, color = pair_type)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
+  filter(day_i == day_j, total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100,
+         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  ggplot(aes(x = day_i, y = cor_coef_freqs)) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  # MAKE SURE THE FILTER IN THE GEOM BOXPLOT DATA MATCHES THE FILTER FOR THE GEOM POINTS
+  geom_boxplot(data = neutral_pairwise_correlations_freqs %>%
+                 filter(day_i == day_j, total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100,
+                        tissue == 'LN', pair_type %in% c('primary','secondary')),
+               outlier.alpha = 0) +
+  geom_point(aes(color = neutrality_test), size = 5, position = position_jitter(width = 0.1),
+             alpha = 0.9) +
   facet_wrap('cell_type') +
-  scale_y_continuous(limits = c(0,1)) +
+  scale_y_continuous(limits = c(-1,1)) +
   theme(legend.position = 'top') +
   xlab('Days post infection') +
   ylab('Correlation in gene frequencies between mouse pairs') +
-  theme(legend.position = 'none') +
-  scale_color_discrete(name = 'Infection status')
+  #theme(legend.position = 'none') +
+  scale_color_discrete(name = '')
+
 
 pairwise_correlations$freq_ratios %>%
-  filter(day_i == day_j) %>%
-  filter(total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100) %>%
-  filter(tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
-  ggplot(aes(x = day_i, y = cor_coef_freq_ratios, color = pair_type)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
+  filter(day_i == day_j, total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100, 
+         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  ggplot(aes(x = day_i, y = cor_coef_freq_ratios)) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  # MAKE SURE THE FILTER IN THE GEOM BOXPLOT DATA MATCHES THE FILTER FOR THE GEOM POINTS
+  geom_boxplot(data = neutral_pairwise_correlations_freq_ratios %>%
+                 filter(day_i == day_j, total_mouse_cell_type_seqs_i >= 100, total_mouse_cell_type_seqs_j >= 100, 
+                        tissue == 'LN', pair_type %in% c('primary','secondary')) ,
+               outlier.alpha = 0) +
+  geom_point(aes(color = neutrality_test), size = 5, position = position_jitter(width = 0.1),
+             alpha = 0.9) +
   facet_wrap('cell_type') +
-  scale_y_continuous(limits = c(0,1)) +
+  scale_y_continuous(limits = c(-1,1)) +
   theme(legend.position = 'top') +
   xlab('Days post infection') +
   ylab('Correlation between mouse pairs\nin experienced-to-naive gene frequency ratios') +
-  scale_color_discrete(name = 'Infection status')
+  scale_color_discrete(name = '')
+
 
 
 

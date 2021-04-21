@@ -41,7 +41,17 @@ unique_seq_counts <- unique_seq_clusters %>%
 
 write_csv(unique_seq_counts, '../processed_data/unique_seq_counts.csv')
 
-
+# Write file with sequence counts without sequence clustering
+annotated_seqs$specimen_cell_subset[annotated_seqs$specimen_cell_subset == 'naïve'] <- 'naive'
+unique_seq_counts_unclustered <- annotated_seqs %>%
+  filter(productive_partis) %>%
+  dplyr::rename(clone_id = clone_id_partis, cell_type = specimen_cell_subset,
+                tissue = specimen_tissue) %>%
+  group_by(mouse_id, clone_id, tissue, cell_type) %>%
+  summarise(prod_seqs = n()) %>%
+  ungroup()
+write_csv(unique_seq_counts_unclustered, '../processed_data/seq_counts_unclustered.csv')
+    
 # File with total productive and unique productive sequences per mouse
 total_prod_seqs_per_mouse <- unique_seq_clusters %>%
   group_by(mouse_id) %>%
@@ -58,6 +68,3 @@ prod_seqs_per_mouse %>% summarise(across(c('total_prod_seqs', 'uniq_prod_seqs'),
 
 prod_seqs_per_mouse %>%
   write_csv('../processed_data/prod_seqs_per_mouse.csv')
-  
-
-
