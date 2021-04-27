@@ -33,13 +33,32 @@ unique_seq_counts <- get_info_from_mouse_id(unique_seq_counts)
 naive_from_tissue <- c('spleen','BM')
 naive_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = F, tissue_subset = naive_from_tissue))$naive_freqs
   
+# Get frequency specific gene frequencies
 exp_freqs <- (calc_gene_freqs(unique_seq_counts, long_format = F, by_tissue = T))$exp_freqs
  
+# Combine naive and experienced frequencies into a single tibble
 gene_freqs <- left_join(exp_freqs,naive_freqs) %>%
         mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
                group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
-# Example of gene rank frequency plot
+# Generate realizations under neutral model
+# For these realizations, adjust observed zeros in naive frequencies for genes known to be present in the mouse
+# i.e. genes present in mouse but with 0 obs seqs in naive rep. are assigned 1 sequence, with freqs adjusted accordingly
+adj_gene_freqs <- left_join(exp_freqs, adjust_zero_naive_freqs(naive_freqs)) %>%
+  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
+         group_controls_pooled = factor(group_controls_pooled,
+                                        levels = group_controls_pooled_factor_levels))
+
+neutral_realizations <- simulate_selection_freq_changes(unique_seq_counts,
+                                                        synth_data_input_tibble = 'neutral',
+                                                        min_seqs = 0,
+                                                        extra_mice = 0,
+                                                        by_tissue = T, 
+                                                        naive_from_tissue = naive_from_tissue,
+                                                        n_reps = 100)
+
+
+# ======= Example of gene rank frequency plot ======================================
 LN_PC_freqs_primary8 <- gene_freqs %>% 
         filter(group_controls_pooled == 'primary-8', tissue == 'LN', cell_type == 'PC',
                total_mouse_cell_type_seqs >= 100)
@@ -63,7 +82,11 @@ LN_PC_freqs_primary8  %>%
         xlab('V genes\n(ordered by median frequency across mice)') +
         ylab('Frequency in lymph node plasma cells')
 
-# Select scatterplots showing exp. vs. naive freq correlations
+# ===== CORRELATION BETWEEN NAIVE AND EXPERIENCED FREQUENCIES ==========
+
+
+
+# -- Select scatterplots showing exp. vs. naive freq correlations ------
 
 plot_naive_freq_corr <- function(group_controls_pooled, tissue, cell_type){
         stopifnot(tissue == 'LN') # If looking at other tissues have to change y axis
@@ -91,27 +114,28 @@ plot_naive_freq_corr('primary-16', 'LN','GC')
 plot_naive_freq_corr('secondary-40', 'LN','GC')
 
 
-# Plot of naive-exp correlation coeffs. over timex.
-# Exclude mouse 40-7
-naive_exp_correlations <- gene_freqs %>% 
-        filter(mouse_id != '40-7') %>%
-        filter(total_mouse_cell_type_seqs > 100, total_mouse_naive_seqs > 100) %>%
-        group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type,
-                 tissue, total_mouse_cell_type_seqs) %>%
-        summarise(naive_exp_corr = cor.test(vgene_seq_freq,naive_vgene_seq_freq,
-                                            method = 'spearman')$estimate) %>%
-        ungroup()
+# Spearman correlation coefficients
+naive_exp_correlations_obs <- get_naive_exp_correlations(gene_freqs) %>%
+        filter(total_mouse_cell_type_seqs > 100, total_mouse_naive_seqs > 100) 
 
-naive_exp_corr_weighted_means <- naive_exp_correlations %>%
+naive_exp_correlations_neutral <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
+                                         FUN = get_naive_exp_correlations)
+
+naive_exp_correlations_neutral <- bind_rows(naive_exp_correlations_neutral, .id = 'replicate') %>%
+  mutate(replicate = as.numeric(replicate)) %>%
+  filter(total_mouse_cell_type_seqs > 100, total_mouse_naive_seqs > 100)
+
+naive_exp_corr_weighted_means <- naive_exp_correlations_obs %>%
         group_by(group_controls_pooled, infection_status, cell_type, tissue) %>%
         mutate(weights = total_mouse_cell_type_seqs/sum(total_mouse_cell_type_seqs)) %>%
         summarise(naive_exp_corr_weighted_mean = sum(naive_exp_corr*weights)) %>%
         ungroup()
 
-naive_exp_correlations %>%
+naive_exp_correlations_obs %>%
         filter(tissue == 'LN', group_controls_pooled != 'control') %>%
         ggplot(aes(x = group_controls_pooled, y = naive_exp_corr, color = infection_status)) +
-        geom_boxplot(outlier.alpha = 0) +
+        geom_boxplot(data = naive_exp_correlations_neutral %>% filter(tissue == 'LN', group_controls_pooled != 'control'),
+                     outlier.alpha = 0) +
         geom_point(aes(size = total_mouse_cell_type_seqs), shape = 1,
                    position = position_jitter(width = 0.1)) +
         geom_point(data = naive_exp_corr_weighted_means %>%
@@ -121,7 +145,7 @@ naive_exp_correlations %>%
         facet_grid(.~cell_type, scales = 'free') +
         theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'top') +
         xlab('Group') +
-        ylab('Correlation between naive and experienced gene frequencies') +
+        ylab('Correlation between naive and experienced (LN) gene frequencies') +
         geom_hline(yintercept = 0, linetype = 2) +
         scale_color_manual(values = c('green3','dodgerblue2')) +
         scale_size_continuous(name = 'Number of unique sequences',
@@ -129,39 +153,28 @@ naive_exp_correlations %>%
         guides(color = 'none') +
         background_grid()
 
-naive_exp_correlations %>%
-        filter(tissue == 'spleen') %>%
-        ggplot(aes(x = group_controls_pooled, y = naive_exp_corr, color = infection_status)) +
-        geom_boxplot(outlier.alpha = 0) +
-        geom_point(aes(size = total_mouse_cell_type_seqs), shape = 1,
-                   position = position_jitter(width = 0.1)) +
-        geom_point(data = naive_exp_corr_weighted_means %>%
-                           filter(tissue == 'spleen'),
-                   aes(y = naive_exp_corr_weighted_mean),
-                   shape = 4, size = 4, stroke = 2, show.legend = F) +
-        facet_grid(.~cell_type, scales = 'free') +
-        theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'top') +
-        xlab('Group') +
-        ylab('Correlation between naive and experienced gene frequencies') +
-        geom_hline(yintercept = 0, linetype = 2) +
-        scale_size_continuous(name = 'Number of unique sequences') +
-        guides(color = 'none') +
-        background_grid()
+naive_exp_correlations_obs %>%
+  filter(tissue == 'spleen') %>%
+  ggplot(aes(x = group_controls_pooled, y = naive_exp_corr, color = infection_status)) +
+  geom_boxplot(data = naive_exp_correlations_neutral %>% filter(tissue == 'spleen'),
+               outlier.alpha = 0) +
+  geom_point(aes(size = total_mouse_cell_type_seqs), shape = 1,
+             position = position_jitter(width = 0.1)) +
+  geom_point(data = naive_exp_corr_weighted_means %>%
+               filter(tissue == 'spleen'),
+             aes(y = naive_exp_corr_weighted_mean),
+             shape = 4, size = 4, stroke = 2, show.legend = F) +
+  facet_grid(.~cell_type, scales = 'free') +
+  theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'top') +
+  xlab('Group') +
+  ylab('Correlation between naive and experienced (spleen) gene frequencies') +
+  geom_hline(yintercept = 0, linetype = 2) +
+  #scale_color_manual(values = c('green3','dodgerblue2')) +
+  scale_size_continuous(name = 'Number of unique sequences',
+                        breaks = c(1000,10000,20000)) +
+  guides(color = 'none') +
+  background_grid()
 
-# Test of overrepresentation relative to naive using bootstrap
-# For these analyses, adjust observed zeros in naive frequencies for genes known to be present in the mouse
-adj_gene_freqs <- left_join(exp_freqs, adjust_zero_naive_freqs(naive_freqs)) %>%
-        mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-               group_controls_pooled = factor(group_controls_pooled,
-                                              levels = group_controls_pooled_factor_levels))
-
-neutral_realizations <- simulate_selection_freq_changes(unique_seq_counts,
-                                                        synth_data_input_tibble = 'neutral',
-                                                        min_seqs = 0,
-                                                        extra_mice = 0,
-                                                        by_tissue = T, 
-                                                        naive_from_tissue = naive_from_tissue,
-                                                        n_reps = 100)
 
 # Rho: ratio of experienced to naive frequency
 obs_rhos <- adj_gene_freqs %>%
@@ -216,7 +229,7 @@ genes_by_n_mice_called <-
         left_join(deviation_from_naive %>% filter(!is.na(deviation_from_naive)), 
                   gene_freqs %>% select(mouse_id, cell_type, tissue, total_mouse_cell_type_seqs, total_mouse_naive_seqs) %>%
                           unique()) %>%
-        filter(total_mouse_cell_type_seqs >= 100, total_mouse_naive_seqs >= 100, mouse_id != '40-7') %>%
+        filter(total_mouse_cell_type_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
         group_by(group_controls_pooled, v_gene) %>% 
         mutate(n_mice_gene_occurs_in_this_group = length(unique(mouse_id))) %>%
         group_by(group_controls_pooled, v_gene, n_mice_gene_occurs_in_this_group, cell_type, tissue, deviation_from_naive) %>%
@@ -276,8 +289,7 @@ gene_freqs <- gene_freqs %>%
 plot_most_common_genes <- function(plot_cell_type, plot_tissue, plot_group){
         gene_freqs %>% 
                 filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, v_gene_rank <= 20) %>%
-                filter(total_mouse_cell_type_seqs >= 100, total_mouse_naive_seqs >= 100,
-                       mouse_id != '40-7') %>%
+                filter(total_mouse_cell_type_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
                 rowwise() %>%
                 mutate(label_position = ifelse(vgene_seq_freq > naive_vgene_seq_freq, 1.05*vgene_seq_freq, 1.05*naive_vgene_seq_freq)) %>%
                 ggplot() +
@@ -298,7 +310,7 @@ plot_most_common_genes <- function(plot_cell_type, plot_tissue, plot_group){
 }
 
 plot_most_common_genes('PC','LN','primary-8') +
-        theme(legend.position = c(0.67,0.25))
+        theme(legend.position = c(0.87,0.35))
 plot_most_common_genes('PC','LN','primary-16') +
         theme(legend.position = c(0.67,0.25))
 plot_most_common_genes('PC','LN','primary-24') +
@@ -352,7 +364,7 @@ clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_a
 clone_size_dist_by_tissue_and_cell_type %>% 
         filter(total_seqs >= 100) %>%
         #filter(tissue == 'LN', group_controls_pooled != 'control') %>%
-        filter(clone_rank <=10 , mouse_id != '40-7') %>% 
+        filter(clone_rank <=10) %>% 
         group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_seqs) %>%
         summarise(seqs_in_top_clones = sum(clone_size)) %>%
         mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs) %>%
@@ -380,7 +392,7 @@ plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_a
         }
        
         clone_size_dist_by_tissue_and_cell_type %>%
-                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100, mouse_id != '40-7') %>%
+                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
                 filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, clone_rank <= 20) %>%
                 ungroup() %>%
                 ggplot(aes_string(x = 'clone_rank', y = y_axis_var, group = 'mouse_id')) +
@@ -432,7 +444,7 @@ plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, c
         
         clone_size_dist_by_tissue_and_cell_type %>%
                 filter(tissue == plot_tissue, cell_type == plot_cell_type, group_controls_pooled == plot_group) %>%
-                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100, mouse_id != '40-7') %>%
+                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
                 filter(clone_rank <= 100) %>%
                 ggplot(aes_string(x = 'clone_rank', y = y_axis_var)) +
                 geom_hline(yintercept = c(1), linetype = 2) +

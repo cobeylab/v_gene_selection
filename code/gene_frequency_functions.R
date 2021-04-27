@@ -26,19 +26,29 @@ group_controls_pooled_factor_levels <- c('control','primary-8','primary-16',
 
 
 get_info_from_mouse_id <- function(data){
-  data %>% mutate(day = str_extract(mouse_id,'[0-9]*[^-]'),
+  mouse_info <- data %>% 
+    select(mouse_id) %>%
+    unique() %>%
+    mutate(day = str_extract(mouse_id,'[0-9]*[^-]'),
            mouse_id_number = str_replace(str_extract(mouse_id,'-[0-9]*'),'-',''),
            infection_status = assign_infection_status(day, mouse_id_number),
-           day = factor(day, levels = sort(unique(as.numeric(day))))) %>%
+           day = factor(day, levels = sort(unique(as.numeric(day)))))
+  
+  mouse_info$day[mouse_info$mouse_id == '40-7'] <- '8'
+  
+  mouse_info <- mouse_info %>%
     mutate(group = paste(infection_status, day, sep = '-')) %>%
     mutate(group_controls_pooled = group) %>%
     mutate(group_controls_pooled = ifelse(grepl('control',group_controls_pooled), 'control', group_controls_pooled)) %>%
-    select(-mouse_id_number) %>%
-    select(mouse_id, day, infection_status, group, group_controls_pooled, everything())
+    select(-mouse_id_number) 
+  
+  return(left_join(data, mouse_info, by = 'mouse_id') %>%
+           select(mouse_id, day, infection_status, group, group_controls_pooled, everything()))
 }
 
 
 # Determines infection status based on mouse id (treats all post day 40 non-controls as secondary)
+# But treats 40-7 as primary infection on day 8.
 assign_infection_status <- function(day, mouse_id_number){
   day <- as.numeric(as.character(day)) # Converting factor to numeric through character
   mouse_id_number <- as.numeric(as.character(mouse_id_number))
@@ -46,6 +56,10 @@ assign_infection_status <- function(day, mouse_id_number){
   infection_status[infection_status == 'infected'] <- ifelse(
     day[infection_status == 'infected'] < 40, 'primary', 'secondary'
   )
+  
+  # 40-7 was de facto a primary-8 infected mouse 
+  infection_status[day == '40' & mouse_id_number == '7'] <- 'primary'
+  
   return(infection_status)
 }
 
