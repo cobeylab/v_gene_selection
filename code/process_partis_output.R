@@ -74,8 +74,11 @@ count_mutations_from_naive <- function(seq_vector, naive_seq, translate_seqs, is
   return(n_mutations)
 }
 
+
+# Identifies nt and aa mutations (instead of simply counting them, e.g. K123Q)
 identify_vgene_mutations <- function(naive_v_gene_region_seq, v_gene_region_seqs){
-  vgene_mutations <- rep('',length(v_gene_region_seqs))
+  vgene_mutations_aa <- rep('', length(v_gene_region_seqs))
+  vgene_mutations_nt <- rep('', length(v_gene_region_seqs))
   
   # Some inferred naive V gene regions will start with 'N' nucleotides. If X is the number of Ns they start with, remove the first X letters from all seqs
   Ns_in_naive_v_region <- str_locate_all(naive_v_gene_region_seq,'N')[[1]]
@@ -110,6 +113,14 @@ identify_vgene_mutations <- function(naive_v_gene_region_seq, v_gene_region_seqs
       
       codon_nt_positions <- seq(codon*3 - 2, codon * 3)
       
+      # Record nucleotide mutations
+      for(nt_pos in codon_nt_positions){
+        naive_nt <- character_matrix[1, nt_pos]
+        obs_nts <- character_matrix[-1, nt_pos]
+        new_mutations_nt <- ifelse(obs_nts %in% c('N', naive_nt),'', paste0(';',naive_nt, nt_pos, obs_nts))
+        vgene_mutations_nt <- paste0(vgene_mutations_nt, new_mutations_nt)
+      }
+      
       naive_codon <- paste0(character_matrix[1, codon_nt_positions], collapse = '')
       naive_aa <- as.character(Biostrings::translate(DNAString(naive_codon), if.fuzzy.codon = 'X', no.init.codon = T))
       
@@ -118,16 +129,17 @@ identify_vgene_mutations <- function(naive_v_gene_region_seq, v_gene_region_seqs
       obs_aas <- as.character(Biostrings::translate(DNAStringSet(obs_codons), if.fuzzy.codon = 'X', no.init.codon = T))
       
       # Disregard mutations to X (i.e., sequence did not cover this part of inferred naive V gene seq.)
-      new_mutations <- ifelse(obs_aas %in% c('X', naive_aa),'', paste0(';',naive_aa, codon,obs_aas))
+      new_mutations_aa <- ifelse(obs_aas %in% c('X', naive_aa),'', paste0(';',naive_aa, codon,obs_aas))
       
-      vgene_mutations <- paste0(vgene_mutations, new_mutations)
+      vgene_mutations_aa <- paste0(vgene_mutations_aa, new_mutations_aa)
     }
   }
   
   # Remove leading ';'
-  vgene_mutations[vgene_mutations != ''] <- str_sub(vgene_mutations[vgene_mutations != ''], 2)
+  vgene_mutations_aa[vgene_mutations_aa != ''] <- str_sub(vgene_mutations_aa[vgene_mutations_aa != ''], 2)
+  vgene_mutations_nt[vgene_mutations_nt != ''] <- str_sub(vgene_mutations_nt[vgene_mutations_nt != ''], 2)
   
-  return(vgene_mutations)
+  return(list(nt = vgene_mutations_nt, aa = vgene_mutations_aa))
 
 }
 
@@ -135,7 +147,7 @@ identify_vgene_mutations <- function(naive_v_gene_region_seq, v_gene_region_seqs
 format_partis_info <- function(yaml_object){
   partis_info <- c()
   for(i in 1:length(yaml_object$events)){
-    #print(paste('clone', i-1))
+    print(paste0('Processing clone ', i, ' of ', length(yaml_object$events), ' (', round(100*i/length(yaml_object$events)),'%)'))
     clone <- yaml_object$events[[i]]
     
     stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
@@ -166,6 +178,9 @@ format_partis_info <- function(yaml_object){
     # Precise list of mutations in V gene region for each sequences
     vgene_mutations_list <- identify_vgene_mutations(naive_v_gene_region_seq = naive_v_gene_region_seq,
                              v_gene_region_seqs = v_gene_region_seqs)
+    
+    vgene_mutations_list_nt <- vgene_mutations_list$nt
+    vgene_mutations_list_aa <- vgene_mutations_list$aa
     
     
     stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
@@ -198,7 +213,8 @@ format_partis_info <- function(yaml_object){
                            cdr3_mutations_partis_aa = cdr3_mutations_aa,
                            vgene_mutations_partis_nt = vgene_mutations_nt,
                            sequenced_bases_in_vgene_region_partis =sequenced_bases_in_vgene_region,
-                           vgene_mutations_list_partis = vgene_mutations_list 
+                           vgene_mutations_list_partis_nt = vgene_mutations_list_nt,
+                           vgene_mutations_list_partis_aa = vgene_mutations_list_aa
                            )
     
     # Get productivity of duplicate sequences by referring to the productivity of their corresponding reference seq.
@@ -280,14 +296,14 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   
   # Overwrite mouse-specific data file with new file including partis annotation.
   write.csv(merged_data %>% select(-clone_naive_cdr3_partis, -clone_consensus_cdr3_partis, -cdr3_mutations_partis_nt, -cdr3_mutations_partis_aa,
-                     -n_mutations_partis_nt, -n_mutations_partis_aa, -clone_naive_seq_nt_partis, -clone_naive_seq_aa_partis,-vgene_mutations_list_partis,
-                     -vgene_mutations_partis_nt, -sequenced_bases_in_vgene_region_partis),
+                     -n_mutations_partis_nt, -n_mutations_partis_aa, -clone_naive_seq_nt_partis, -clone_naive_seq_aa_partis,-vgene_mutations_list_partis_nt,
+                     -vgene_mutations_list_partis_aa,-vgene_mutations_partis_nt, -sequenced_bases_in_vgene_region_partis),
             mouse_data_file_path, row.names = F)
   
   seq_level_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
-           vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis)
+           vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa)
   write.csv(seq_level_file, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
             row.names = F)
   
