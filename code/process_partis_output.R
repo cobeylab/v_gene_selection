@@ -214,7 +214,8 @@ format_partis_info <- function(yaml_object){
                            vgene_mutations_partis_nt = vgene_mutations_nt,
                            sequenced_bases_in_vgene_region_partis =sequenced_bases_in_vgene_region,
                            vgene_mutations_list_partis_nt = vgene_mutations_list_nt,
-                           vgene_mutations_list_partis_aa = vgene_mutations_list_aa
+                           vgene_mutations_list_partis_aa = vgene_mutations_list_aa,
+                           vgene_region_seq_partis = v_gene_region_seqs
                            )
     
     # Get productivity of duplicate sequences by referring to the productivity of their corresponding reference seq.
@@ -295,26 +296,72 @@ merge_info <- function(yaml_object, mouse_data_file_path){
            v_segment_support_igblast = v_score) 
   
   # Overwrite mouse-specific data file with new file including partis annotation.
+  # Only currently necessary for heuristic clustering analysis, might consider removing.
   write.csv(merged_data %>% select(-clone_naive_cdr3_partis, -clone_consensus_cdr3_partis, -cdr3_mutations_partis_nt, -cdr3_mutations_partis_aa,
                      -n_mutations_partis_nt, -n_mutations_partis_aa, -clone_naive_seq_nt_partis, -clone_naive_seq_aa_partis,-vgene_mutations_list_partis_nt,
-                     -vgene_mutations_list_partis_aa,-vgene_mutations_partis_nt, -sequenced_bases_in_vgene_region_partis),
+                     -vgene_mutations_list_partis_aa,-vgene_mutations_partis_nt, -sequenced_bases_in_vgene_region_partis, -vgene_region_seq_partis),
             mouse_data_file_path, row.names = F)
   
-  seq_level_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+  # Export file with sequence-level annotations
+  annotated_seqs <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
-           vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa)
-  write.csv(seq_level_file, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
+           vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa,
+           vgene_region_seq_partis) %>%
+    dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset, clone_id = clone_id_partis)
+  
+  annotated_seqs$cell_type[annotated_seqs$cell_type == 'naïve'] <- 'naive'
+  
+  
+  write.csv(annotated_seqs, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
             row.names = F)
   
-  # Export clone info file
-  clone_info_file <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+  # Export clone info file, including some summary statistics
+  clone_info <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, v_segment_partis, d_segment_partis, j_segment_partis, cdr3_length_partis,
            clone_consensus_cdr3_partis, clone_naive_cdr3_partis, clone_naive_seq_nt_partis, clone_naive_seq_aa_partis) %>%
-    unique()
+    unique() %>%
+    dplyr::rename(clone_id = clone_id_partis, v_gene = v_segment_partis, j_gene = j_segment_partis,
+                  d_gene = d_segment_partis) %>%
+    mutate(clone_id = as.character(clone_id))
   
-  write.csv(clone_info_file, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info.csv'),
+  
+  clones_summary <- annotated_seqs %>%
+    filter(productive_partis) %>%
+    group_by(mouse_id, clone_id) %>%
+    summarise(mean_n_mutations_partis_aa = mean(n_mutations_partis_aa),
+              mean_cdr3_mutations_partis_aa = mean(cdr3_mutations_partis_aa),
+              median_n_mutations_partis_aa = median(n_mutations_partis_aa),
+              median_cdr3_mutations_partis_aa = median(cdr3_mutations_partis_aa),
+              max_n_mutations_partis_aa = max(n_mutations_partis_aa),
+              max_cdr3_mutations_partis_aa = max(cdr3_mutations_partis_aa),
+              min_n_mutations_partis_aa = min(n_mutations_partis_aa),
+              min_cdr3_mutations_partis_aa = min(cdr3_mutations_partis_aa),
+              #productive_consensus_CDR3 = consensusString(AAStringSet(cdr3_seq_partis)),
+              productive_v_region_consensus = consensusString(DNAStringSet(vgene_region_seq_partis))) %>%
+    ungroup() %>%
+    mutate(clone_id = as.character(clone_id))
+  
+  clone_info <- left_join(clone_info, clones_summary)
+  
+  
+  write.csv(clone_info, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info.csv'),
             row.names = F)
+  
+  # Calculate site-specific mutation frequencies for each V gene.
+  # (For these calculations, exclude unproductive sequences and sequences without an assigned V gene)
+  
+  annotated_seqs <- annotated_seqs %>% filter(!is.na(n_mutations_partis_nt), !is.na(vgene_mutations_partis_nt), productive_partis == T)
+  annotated_seqs <- get_info_from_mouse_id(annotated_seqs)
+  
+  annotated_seqs <- annotated_seqs %>%
+    mutate(across(c('clone_id_partis','partis_uniq_ref_seq','seq_id'), as.character))
+  
+  annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene))
+  
+  mut_probs_per_gene_position <- estimate_mut_probs_per_vgene_position(annotated_seqs)
+  
+  write.csv(mut_probs_per_gene_position, paste0('../results/mutations_per_vgene_base', mouse_id, '_mutations_per_vgene_base.csv'))
   
 }
 

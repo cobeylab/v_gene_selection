@@ -11,24 +11,21 @@ source('gene_frequency_functions.R')
 
 estimated_seq_error_rate <- 0.0018
 
+# Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
+clone_info <- read_csv('../processed_data/clone_info.csv')
+# clone_info  <- read_csv('~/Desktop/clone_info.csv')
+
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') 
+# annotated_seqs <- read_csv('~/Desktop/annotated_seqs.csv')
 
-annotated_seqs <- annotated_seqs %>%
-  mutate(across(c('clone_id_partis','partis_uniq_ref_seq','seq_id'), as.character))
 
-annotated_seqs$specimen_cell_subset[annotated_seqs$specimen_cell_subset == 'naïve'] <- 'naive'
+annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene) 
+          %>% dplyr::rename(clone_id_partis = clone_id))
 
-annotated_seqs <- annotated_seqs %>% filter(!is.na(n_mutations_partis_nt), !is.na(vgene_mutations_partis_nt))
-annotated_seqs <- get_info_from_mouse_id(annotated_seqs)
-annotated_seqs <- annotated_seqs %>% dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset)
-
-# Ignore sequences inferred to be unproductive by partis
-annotated_seqs <- annotated_seqs %>% filter(productive_partis)
 
 # What if we exclude naive sequences that are not IGD and IGM
-annotated_seqs <- annotated_seqs %>%
-  filter(!(cell_type == 'naive' & !(isotype %in% c('IGM','IGD'))))
-
+#annotated_seqs <- annotated_seqs %>%
+#  filter(!(cell_type == 'naive' & !(isotype %in% c('IGM','IGD'))))
 
 # Gets distribution of the number of mutations by mouse, tissue and cell type
 get_distribution_of_mutations <- function(annotated_seqs, n_mutations_variable){

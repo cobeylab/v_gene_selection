@@ -21,7 +21,7 @@ do
     echo "#SBATCH -o out_err_files/process_partis_yaml_$mid.out" >> $sbatch_file       
     echo "#SBATCH -e out_err_files/process_partis_yaml_$mid.err" >> $sbatch_file         
     echo "#SBATCH --time=100:00:00" >> $sbatch_file
-    echo "#SBATCH --mem-per-cpu=10000" >> $sbatch_file
+    echo "#SBATCH --mem-per-cpu=16000" >> $sbatch_file
 
     echo module load R/3.6.1 >> $sbatch_file
  

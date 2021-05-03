@@ -636,3 +636,48 @@ get_clone_size_distribution <- function(seq_counts){
   mutate(clone_freq = clone_prod_seqs / sum(clone_prod_seqs)) 
 }
 
+estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
+  
+  # For a vector with position-specific mutation information for a single mouse / cell type / tissue / v gene,
+  # counts how many times each position was mutated
+  base_function <- function(annotated_seqs, selected_mouse, selected_tissue, selected_cell_type, selected_v_gene){
+    vgene_specific_mutation_list <- annotated_seqs %>% filter(mouse_id == selected_mouse, cell_type == selected_cell_type,
+                                             tissue == selected_tissue, v_gene == selected_v_gene) %>%
+      pull(vgene_mutations_list_partis_nt)
+    
+    concatenated_string <- paste0(vgene_specific_mutation_list, collapse = ';')
+    
+    unique_mutated_positions <- unique(str_extract_all(concatenated_string, '[0-9]+')[[1]])
+    
+    mutation_counts <- lapply(as.list(unique_mutated_positions),
+                              FUN = function(pos){str_count(concatenated_string, pattern = paste0('[A-Z\\*]',pos,'[A-Z\\*]'))})
+    
+    return(tibble(mouse_id = selected_mouse,
+                  tissue = selected_tissue,
+                  cell_type = selected_cell_type,
+                  v_gene = selected_v_gene,
+                  n_vgene_seqs_in_compartment = length(vgene_specific_mutation_list),
+                  position = as.integer(unique_mutated_positions),
+                  n_mutations = as.integer(mutation_counts)) %>%
+             mutate(mutation_freq = n_mutations / length(vgene_specific_mutation_list)) %>%
+             arrange(position)
+    )
+  }
+  
+  unique_combinations <- annotated_seqs %>%
+    select(mouse_id, tissue, cell_type, v_gene) %>%
+    unique()
+
+  output <- mapply(FUN = base_function,
+         selected_mouse = unique_combinations$mouse_id,
+         selected_tissue = unique_combinations$tissue,
+         selected_cell_type = unique_combinations$cell_type,
+         selected_v_gene = unique_combinations$v_gene,
+         MoreArgs = list(annotated_seqs = annotated_seqs), 
+         SIMPLIFY = F)
+  
+  return(bind_rows(output))
+  
+}
+
+
