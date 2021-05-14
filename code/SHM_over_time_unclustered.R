@@ -19,9 +19,9 @@ annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 # annotated_seqs <- read_csv('~/Desktop/annotated_seqs.csv')
 
 
-annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene) 
-          %>% dplyr::rename(clone_id_partis = clone_id))
+annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene))
 
+annotated_seqs <- get_info_from_mouse_id(annotated_seqs)
 
 # What if we exclude naive sequences that are not IGD and IGM
 #annotated_seqs <- annotated_seqs %>%
@@ -190,3 +190,8 @@ lapply(list('spleen','LN','BM'),
        distribution_nt_mutations_v_region = distribution_nt_mutations_v_region 
 )
 
+
+distribution_nt_mutations_v_region %>%
+  filter(cell_type == 'naive', v_gene_) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue) %>%
+  
