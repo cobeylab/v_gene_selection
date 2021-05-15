@@ -78,7 +78,7 @@ neutral_pairwise_correlations <- list(freqs = neutral_pairwise_correlations_freq
                                       freq_ratios = neutral_pairwise_correlations_freq_ratios)
 
 
-save(list(naive_unique_seq_counts, exp_unique_seq_counts, gene_freqs, gene_freqs_adj_naive_zeros,
+save(naive_unique_seq_counts, exp_unique_seq_counts, gene_freqs, gene_freqs_adj_naive_zeros,
           neutral_realizations, pairwise_gene_freqs,
-          pairwise_correlations, neutral_pairwise_correlations),
+          pairwise_correlations, neutral_pairwise_correlations,
      file = '../results/precomputed_gene_freqs.RData')
