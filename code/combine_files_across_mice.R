@@ -6,6 +6,7 @@ library(Biostrings)
 source('gene_frequency_functions.R')
 
 annotated_seq_files <- list.files('../processed_data/annotated_seq_files/', pattern = 'csv', full.names = T)
+# annotated_seq_files <- list.files('~/Desktop/annotated_seq_files/', pattern = 'csv', full.names = T)
 clone_info_files <- list.files('../processed_data/clone_info_files/', pattern = 'csv', full.names = T)
 mutations_per_vgene_base_files <- list.files('../results/mutations_per_vgene_base/', pattern = 'csv', full.names = T)
 germline_v_genes_files <- list.files('../results/partis/partis_germline_genes/', pattern = 'v_genes', full.names = T)
@@ -13,6 +14,14 @@ germline_v_genes_files <- list.files('../results/partis/partis_germline_genes/',
 print('Combining annotated sequences')
 annotated_seqs <- lapply(annotated_seq_files, read_csv)
 annotated_seqs <- bind_rows(annotated_seqs)
+annotated_seqs$cell_type[annotated_seqs$cell_type == 'naive'] <- 'IgD+B220+'
+
+# Process Igd+B220+ cells to decide which are naive, which are likely non-naive
+annotated_seqs <- process_IgD_B220_seqs(annotated_seqs,
+                                        max_clone_unique_IgDB220_seqs = 1,
+                                        max_v_gene_mutations = 2)
+
+
 write_csv(annotated_seqs, '../processed_data/annotated_seqs.csv')
 
 print('Combining clone-level info')
@@ -49,13 +58,12 @@ germline_v_genes <- germline_v_genes %>% select(v_gene, v_gene_seq) %>% unique()
 write_csv(germline_v_genes, '../results/germline_genes.csv')
 
 # ====== Sequences counts for experienced cells, by mouse, cell type, tissue, V gene
-
 seq_counts <- annotated_seqs %>%
   filter(productive_partis) %>%
   group_by(mouse_id, clone_id, tissue, cell_type) %>%
   summarise(prod_seqs = n()) %>%
   ungroup()
-write_csv(seq_counts %>% filter(cell_type != 'naive'), '../processed_data/exp_seq_counts.csv')
+write_csv(seq_counts, '../processed_data/seq_counts.csv')
 
 # Same structure, but after grouping sequences from the same mouse, clone, cell type, tissue and isotype that are identical
 unique_seq_counts <- annotated_seqs %>%
@@ -65,36 +73,7 @@ unique_seq_counts <- annotated_seqs %>%
   group_by(mouse_id, clone_id, tissue, cell_type) %>%
   summarise(unique_prod_seqs = n()) %>%
   ungroup()
-write_csv(unique_seq_counts %>% filter(cell_type != 'naive'), '../processed_data/exp_unique_seq_counts.csv')
-
-
-# ====== Sequences counts for naive cells, by mouse ==========
-# Naive sequences are those that:
-# - were sorted as naive (DUMP-IgD+B220+)
-# - Have IgD or IgM as the isotype determined from the read
-# - Are in a clone that only has DUMP-IgD+B220+ cells
-# - Is in a clone with at most 5 unique cells, where unique = same mouse, clone, tissue, isotype and sequence
-# - Has 3 or fewer mutations in the V gene region.
-# - Are not from the LN samples.
-
-selected_naive_seqs <- select_naive_seqs(annotated_seqs,
-                                          clone_purity = get_clone_purity(unique_seq_counts), 
-                                          pure_clones_only = T,
-                                          naive_isotypes_only = T,
-                                          max_clone_naive_seqs = 3,
-                                          max_v_gene_mutations = 5,
-                                          naive_source_tissues = c('BM','spleen'))
-
-naive_unique_seq_counts <- selected_naive_seqs %>%
-  filter(productive_partis) %>%
-  select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
-  unique() %>%
-  group_by(mouse_id, clone_id, tissue, cell_type) %>%
-  summarise(unique_prod_seqs = n()) %>%
-  ungroup()
-
-write_csv(naive_unique_seq_counts, '../processed_data/naive_unique_seq_counts.csv')
-
+write_csv(unique_seq_counts, '../processed_data/unique_seq_counts.csv')
 
 # From the now-discontinued clustering analysis...
 #unique_seq_cluster_files <-  list.files('../processed_data/unique_seq_clusters_files/', pattern = 'csv', full.names = T)

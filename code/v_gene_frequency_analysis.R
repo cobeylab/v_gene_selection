@@ -2,8 +2,11 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(ggdendro)
 library(cowplot)
 library(scales)
+library(viridis)
+
 theme_set(theme_cowplot())
 
 source('gene_frequency_functions.R')
@@ -11,6 +14,10 @@ source('gene_frequency_functions.R')
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
 
 load('../results/precomputed_gene_freqs.RData')
+
+# Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
+clone_info <- read_csv('../processed_data/clone_info.csv')
+# clone_info <- read_csv('~/Desktop/clone_info.csv')
 
 # ======= Example of gene rank frequency plot ======================================
 LN_PC_freqs_primary8 <- gene_freqs %>% 
@@ -220,6 +227,10 @@ get_consistent_genes_table('LN','PC', 'primary-16') %>%
 get_consistent_genes_table('LN','PC', 'primary-24') %>%
         filter(positive >= 2)
 
+get_consistent_genes_table('LN','PC', 'secondary-56') %>%
+  filter(positive >= 3)
+
+
 get_consistent_genes_table('LN','GC', 'primary-8') %>%
         filter(positive >= 2)
 get_consistent_genes_table('LN','GC', 'primary-16') %>%
@@ -269,6 +280,9 @@ plot_most_common_genes('PC','LN','primary-16') +
 plot_most_common_genes('PC','LN','primary-24') +
         theme(legend.position = c(0.85,0.30))
 
+plot_most_common_genes('PC','LN','secondary-56') +
+  theme(legend.position = c(0.87,0.35))
+
 plot_most_common_genes('GC','LN','primary-8') +
         theme(legend.position = c(0.8,0.3))
 plot_most_common_genes('GC','LN','primary-16') +
@@ -304,7 +318,7 @@ clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_a
 
 # Fraction of sequences in the largest 10 clones
 clone_size_dist_by_tissue_and_cell_type %>% 
-        filter(total_seqs >= 100) %>%
+        filter(total_seqs >= 100, tissue == 'LN', group_controls_pooled != 'control') %>%
         #filter(tissue == 'LN', group_controls_pooled != 'control') %>%
         filter(clone_rank <=10) %>% 
         group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_seqs) %>%
@@ -315,8 +329,9 @@ clone_size_dist_by_tissue_and_cell_type %>%
         ggplot(aes(x = group_controls_pooled, y = fraction_seqs_in_top_clones, color = infection_status)) +
         geom_boxplot(outlier.alpha =  F) +
         geom_point() +
-        facet_grid(tissue~cell_type) +
+        facet_grid(.~cell_type) +
         background_grid() +
+        scale_color_manual(values = c('green3','dodgerblue2')) +
         #ggtitle() +
         theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'none') +
         xlab("Group") +
@@ -352,13 +367,13 @@ plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_a
         
 }
 plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
-plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.8,0.35))
 
 plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
 plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
 
 plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
-plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
+plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.66,0.9))
 
 plot_clone_size_dist('GC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
 plot_clone_size_dist('GC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
@@ -403,6 +418,7 @@ plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, c
 plot_mutations_top_clones('PC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
 plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
 plot_mutations_top_clones('PC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.94))
+plot_mutations_top_clones('PC','LN','secondary-56', cdr3_only = F) + theme(legend.position = c(0.01,0.91))
 
 plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = T) + theme(legend.position = c(0.75,0.3))
 
@@ -412,18 +428,31 @@ plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.
 
 # ------------ PAIRWISE CORRELATIONS BETWEEN MICE ----------------
 
-mean_neutral_pw_cor_freqs <- neutral_pairwise_correlations_freqs %>%
+mean_neutral_pw_cor_freqs <- neutral_pairwise_correlations$freqs %>%
   group_by(mouse_pair, pair_type, mouse_id_i, mouse_id_j, day_i, day_j, cell_type, tissue, total_compartment_seqs_i, total_compartment_seqs_j) %>%
   summarise(mean_neutral_cor_coef = mean(cor_coef_freqs),
             llim_neutral_cor_coef = quantile(cor_coef_freqs,0.025, na.rm = T),
             ulim_neutral_cor_coef = quantile(cor_coef_freqs, 0.975, na.rm = T))
 
-mean_neutral_pw_cor_freq_ratios <- neutral_pairwise_correlations_freq_ratios %>%
+mean_neutral_pw_cor_freq_ratios <- neutral_pairwise_correlations$freq_ratios %>%
   group_by(mouse_pair, pair_type, mouse_id_i, mouse_id_j, day_i, day_j, cell_type, tissue, total_compartment_seqs_i, total_compartment_seqs_j) %>%
   summarise(mean_neutral_cor_coef = mean(cor_coef_freq_ratios),
             median_neutral_cor_coef = median(cor_coef_freq_ratios),
             llim_neutral_cor_coef = quantile(cor_coef_freq_ratios,0.025, na.rm = T),
             ulim_neutral_cor_coef = quantile(cor_coef_freq_ratios, 0.975, na.rm = T))
+
+# Get null percentile for observed correlation values
+null_percentiles_of_obs_values_freqs <- left_join(neutral_pairwise_correlations$freqs, pairwise_correlations$freqs %>%
+                                                    select(mouse_pair, cell_type, tissue, cor_coef_freqs) %>% dplyr::rename(obs_cor_coef_freqs = cor_coef_freqs)) %>%
+  group_by(mouse_pair, cell_type, tissue) %>%
+  summarise(null_percentile_of_obs_value = sum(obs_cor_coef_freqs >= cor_coef_freqs) / length(cor_coef_freqs)) %>%
+  ungroup()
+
+null_percentiles_of_obs_values_freq_ratios <- left_join(neutral_pairwise_correlations$freq_ratios, pairwise_correlations$freq_ratios %>%
+                                                          select(mouse_pair, cell_type, tissue, cor_coef_freq_ratios) %>% dplyr::rename(obs_cor_coef_freq_ratios = cor_coef_freq_ratios)) %>%
+  group_by(mouse_pair, cell_type, tissue) %>%
+  summarise(null_percentile_of_obs_value = sum(obs_cor_coef_freq_ratios >= cor_coef_freq_ratios) / length(cor_coef_freq_ratios)) %>%
+  ungroup()
 
 
 # Add neutral summary statistics to observed pairwise correlations
@@ -444,6 +473,9 @@ pairwise_correlations$freq_ratios <- left_join(pairwise_correlations$freq_ratios
 pairwise_correlations$freqs$neutrality_test[pairwise_correlations$freqs$total_mouse_naive_seqs_i < 100 | pairwise_correlations$freqs$total_mouse_naive_seqs_j < 100] <- 'Insufficient naive seqs in one or both mice'
 pairwise_correlations$freq_ratios$neutrality_test[pairwise_correlations$freq_ratios$total_mouse_naive_seqs_i < 100 | pairwise_correlations$freq_ratios$total_mouse_naive_seqs_j < 100] <- 'Insufficient naive seqs in one or both mice'
 
+pairwise_correlations$freqs <- left_join(pairwise_correlations$freqs, null_percentiles_of_obs_values_freqs)
+pairwise_correlations$freq_ratios <- left_join(pairwise_correlations$freq_ratios, null_percentiles_of_obs_values_freq_ratios)
+
 
 pairwise_correlations$freqs <- pairwise_correlations$freqs %>%
   mutate(neutrality_test = factor(neutrality_test, levels = c('Lower than neutral','Neutral','Higher than neutral','Insufficient naive seqs in one or both mice')))
@@ -461,10 +493,9 @@ pairwise_correlations$freqs %>%
              alpha = 0.5) +
   scale_y_continuous(limits = c(0,1)) +
   theme(legend.position = 'top') +
-  xlab('Days post infection') +
+  xlab('Type of pair') +
   ylab('Correlation in gene naive frequencies between mouse pairs') +
   theme(legend.position = 'none')
-
 
 pairwise_correlations$freqs %>%
   mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
@@ -484,57 +515,38 @@ pairwise_correlations$freqs %>%
   scale_x_discrete(labels = function(x){str_replace(x, '/','\n-\n')}) +
   background_grid()
 
+
 pairwise_correlations$freqs %>%
+  filter(cell_type != 'experienced') %>%
   filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
          tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
   ggplot(aes(x = day_i, y = cor_coef_freqs)) +
-  geom_hline(yintercept = 0, linetype = 2) +
-  # MAKE SURE THE FILTER IN THE GEOM BOXPLOT DATA MATCHES THE FILTER FOR THE GEOM POINTS
-  geom_boxplot(data = neutral_pairwise_correlations_freqs %>%
-                 filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
-                        tissue == 'LN', pair_type %in% c('primary','secondary')),
-               outlier.alpha = 0) +
-  geom_point(aes(color = neutrality_test), size = 5, position = position_jitter(width = 0.1),
-             alpha = 0.9) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width =0.1), alpha = 1, size = 5,
+             aes(color = null_percentile_of_obs_value)) +
   facet_wrap('cell_type') +
-  scale_y_continuous(limits = c(-1,1)) +
-  theme(legend.position = 'top') +
-  xlab('Days post infection') +
-  ylab('Correlation in gene frequencies between mouse pairs') +
-  #theme(legend.position = 'none') +
-  scale_color_discrete(name = '')
-
+  scale_color_distiller(name = 'Probability of weaker\ncorrelation under null model\n',
+                        palette = 'RdBu') +
+  background_grid() +
+  xlab('Days after primary infection') +
+  ylab('Correlation in lymph node V gene frequencies between pairs of mice')
 
 pairwise_correlations$freq_ratios %>%
-  filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100, 
+  filter(cell_type != 'experienced') %>%
+  filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
          tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
   ggplot(aes(x = day_i, y = cor_coef_freq_ratios)) +
-  geom_hline(yintercept = 0, linetype = 2) +
-  # MAKE SURE THE FILTER IN THE GEOM BOXPLOT DATA MATCHES THE FILTER FOR THE GEOM POINTS
-  geom_boxplot(data = neutral_pairwise_correlations_freq_ratios %>%
-                 filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100, 
-                        tissue == 'LN', pair_type %in% c('primary','secondary')) ,
-               outlier.alpha = 0) +
-  geom_point(aes(color = neutrality_test), size = 5, position = position_jitter(width = 0.1),
-             alpha = 0.9) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width =0.1), alpha = 1, size = 5,
+             aes( color = null_percentile_of_obs_value)) +
   facet_wrap('cell_type') +
-  scale_y_continuous(limits = c(-1,1)) +
-  theme(legend.position = 'top') +
-  xlab('Days post infection') +
-  ylab('Correlation between mouse pairs\nin experienced-to-naive gene frequency ratios') +
-  scale_color_discrete(name = '')
-
-pairwise_correlations$freqs %>%
-  filter(day_i == 8, pair_type == 'primary',
-         tissue == 'LN', cell_type == 'PC') %>%
-  arrange(desc(cor_coef_freqs))
-
-pairwise_correlations$freq_ratios %>%
-  filter(day_i == 8, pair_type == 'primary',
-         tissue == 'LN', cell_type == 'PC') %>%
-  arrange(desc(cor_coef_freq_ratios))
-   
-
+  scale_color_distiller(name = 'Probability of weaker\ncorrelation under null model\n',
+                        palette = 'RdBu') +
+  background_grid() +
+  xlab('Days after primary infection') +
+  ylab('Correlation between pairs of mice in\nV gene frequency deviations from naive repertoire')
+  
+  
 # Clone size distribution of naive populations
 clone_size_dist_by_tissue_and_cell_type %>%
   filter(clone_rank <= 20, cell_type %in% c('naive','PC')) %>%
@@ -551,8 +563,96 @@ clone_size_dist_by_tissue_and_cell_type %>%
   xlab('Clone rank') +
   ylab('Number of productive sequences') +
   scale_color_discrete(name = 'Cell type')
+
+
+# Trying to come up with Clustering / PCA
+
+get_vgene_freq_clustering <- function(gene_freqs, cell_type, tissue){
+  wide_format_freqs <- gene_freqs %>% 
+    filter(group_controls_pooled != 'control') %>%
+    filter(total_compartment_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
+    filter(cell_type == !!cell_type, tissue == !!tissue) %>%
+    select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs, v_gene,
+           vgene_seq_freq) %>%
+    pivot_wider(names_from = v_gene, values_from = vgene_seq_freq, values_fill = 0)
+  
+  gene_freq_matrix <- as.matrix(wide_format_freqs[grepl('IGHV', colnames(wide_format_freqs))])
+  rownames(gene_freq_matrix) <- wide_format_freqs$mouse_id
   
   
+
+  # Remove all-zero columns
+  gene_freq_matrix <- gene_freq_matrix[,colSums(gene_freq_matrix) != 0]
+  
+  #========= PCA ============
+  vgene_freq_pca <- prcomp(gene_freq_matrix, scale = T, center = T)
+  
+  
+  first_two_comps <- vgene_freq_pca$x[,c(1,2)]
+  
+  output <- wide_format_freqs %>%  select(mouse_id, day, infection_status, group_controls_pooled,
+                                          tissue, cell_type, total_compartment_seqs) %>%
+    mutate(PCA1 = vgene_freq_pca$x[,1],
+           PCA2 = vgene_freq_pca$x[,2])
+        
+  output %>%
+    ggplot(aes(x = PCA1, y = PCA2, color = group_controls_pooled)) +
+    geom_point(alpha = 0, show.legend = T) +
+    geom_text(aes(label = mouse_id), show.legend = F) +
+    guides(colour = guide_legend(override.aes = list(alpha=1))) +
+    scale_color_discrete(name = 'Group')
+  
+  # ============= CLUSTERING =========
+  z_score_matrix <- apply(gene_freq_matrix, 2,
+                            function(x){(x - mean(x))/sd(x)})
+  
+  
+  z_score_dist_matrix <- dist(z_score_matrix, method = 'euclidean')
+  cluster <- hclust(z_score_dist_matrix, method = 'complete')
+  
+  cluster_for_ggplot <- dendro_data(cluster, type="rectangle")
+  
+  cluster_for_ggplot$labels <-
+    left_join(cluster_for_ggplot$labels, 
+              wide_format_freqs %>% select(mouse_id, group_controls_pooled) %>% dplyr::rename(label = mouse_id))
+   
+  ggplot() +
+    geom_segment(data = segment(cluster_for_ggplot),
+                 aes(x = x, y = y, xend = xend, yend = yend)) +
+    geom_point(data = label(cluster_for_ggplot), 
+              aes(x = x, y = y, color = group_controls_pooled), 
+              size = 3
+    ) +
+    geom_text(data = label(cluster_for_ggplot), 
+              aes(x = x, y = y-1.5, label = label, color = group_controls_pooled), 
+              size = 3
+    ) +
+    coord_flip() +
+    scale_y_reverse(expand = c(0.2, 0)) +
+    theme(axis.line = element_blank(),
+          axis.ticks = element_blank(),
+          axis.text = element_blank(),
+          axis.title = element_blank(),
+          legend.position = c(0.05,0.7),
+          plot.title = element_text(size = 12)) +
+    scale_color_discrete(name = 'Group', type = 'qual') +
+    ggtitle('Clustering based on V gene frequencies in lymph node plasma cells')
+  
+    
+}
+
+
+get_vgene_rho_clustering <- function(gene_freqs, cell_type, tissue){
+  
+}
+
+gene_freqs %>%
+  select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs, v_gene,
+         vgene_seq_freq) %>%
+  pivot_wider(names_from = v_gene, values_from = vgene_seq_freq) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs) 
+
+x <- prcomp(tibble(x = rnorm(10), y = rnorm(10)))
         
 
         

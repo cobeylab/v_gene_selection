@@ -10,37 +10,39 @@ theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
 
-clone_info <- read_csv('../processed_data/clone_info.csv') %>%
-  dplyr::rename(clone_id = clone_id_partis, v_gene = v_segment_partis, j_gene = j_segment_partis,
-                d_gene = d_segment_partis)
+clone_info <- read_csv('../processed_data/clone_info.csv')
 
-unique_seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
+naive_unique_seq_counts <- read_csv('../processed_data/naive_unique_seq_counts.csv')
+exp_unique_seq_counts <- read_csv('../processed_data/exp_unique_seq_counts.csv')
 
-unique_seq_counts <- left_join(unique_seq_counts, clone_info)
+naive_unique_seq_counts <- left_join(naive_unique_seq_counts,
+                                     clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
+  select(mouse_id, clone_id, v_gene, everything())
+naive_unique_seq_counts <- get_info_from_mouse_id(naive_unique_seq_counts)
 
-unique_seq_counts <- get_info_from_mouse_id(unique_seq_counts)
+exp_unique_seq_counts <- left_join(exp_unique_seq_counts,
+                                   clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
+  select(mouse_id, clone_id, v_gene, everything())
+exp_unique_seq_counts <- get_info_from_mouse_id(exp_unique_seq_counts)
 
-unique_seq_counts$mouse_id = factor(unique_seq_counts$mouse_id, levels = mouse_id_factor_levels)
-unique_seq_counts$group <- factor(unique_seq_counts$group, 
-                           levels = group_factor_levels)
-unique_seq_counts$group_controls_pooled <- factor(unique_seq_counts$group_controls_pooled,
-                                           levels = group_controls_pooled_factor_levels)
 
 # ==========================================================================================
 # How many genes do mice use?
 # ==========================================================================================
-gene_freqs <- calc_gene_freqs(unique_seq_counts, long_format = T)
-gene_freqs_by_tissue <- calc_gene_freqs(unique_seq_counts, long_format = T, by_tissue = T)
-gene_freqs <- bind_rows(gene_freqs %>% mutate(tissue = 'all'),
-                        gene_freqs_by_tissue)
+gene_freqs <- calc_gene_freqs(exp_seq_counts = exp_unique_seq_counts,
+                              naive_seq_counts = naive_unique_seq_counts,
+                              clone_info = clone_info, long_format = T, by_tissue = T)
+
+gene_freqs$tissue[gene_freqs$cell_type == 'naive'] <- 'naive_seq_source_tissues'
+
 
 
 obs_n_genes <- gene_freqs %>% filter(n_vgene_seqs > 0) %>%
   group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue,
-           total_mouse_cell_type_seqs) %>%
+           total_compartment_seqs) %>%
   summarise(n_genes = length(unique(v_gene))) %>% ungroup() 
 
-#obs_n_genes <- left_join(obs_n_genes, uniq_seqs_by_tissue)
+
 
 # Chao1 estimates
 compute_chao1 <- function(gene_freqs){
@@ -91,41 +93,43 @@ chao1_estimates <- compute_chao1(gene_freqs)
 obs_n_genes <- left_join(obs_n_genes,
                          chao1_estimates %>% select(-obs) %>% dplyr::rename(n_genes_chao1 = chao1)) %>%
   mutate(cell_type = factor(cell_type, levels = c('naive','experienced','GC','PC','mem')),
-         tissue = factor(tissue, levels = c('all','LN','spleen','BM')))
+         tissue = factor(tissue, levels = c('naive_seq_source_tissues','LN','spleen','BM')),
+         group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 write_csv(obs_n_genes, '../results/n_v_genes_by_mouse.csv')
 
 
-n_vgenes_by_group <- obs_n_genes %>%
-  filter(tissue == 'all') %>%
-  pivot_longer(cols = c('n_genes','n_genes_chao1')) %>%
-  dplyr::rename(value_type = name) %>%
-  rowwise() %>%
-  mutate(point_label = ifelse(value < 50, as.character(mouse_id), '')) %>%
-  ungroup() %>%
-  ggplot(aes(x = group_controls_pooled, y = value, color = infection_status)) +
-  geom_boxplot(outlier.alpha = 0, show.legend = F) +
-  geom_point(aes(size = total_mouse_cell_type_seqs),
-             position = position_jitter(height = 0, width = 0.2),
-             shape = 1) +
-  geom_text(aes(label = point_label), show.legend = F, size = 4,
-            position = position_nudge(y = 0, x = 0.5)) +
-  facet_grid(value_type~cell_type) +
-  theme(legend.position = 'top',
-        axis.text.x = element_text(size = 10, angle = 40, vjust = 0.5)) +
-  scale_color_discrete(guide = 'none') +
-  scale_size(name = 'Number of unique sequences') +
-  background_grid() +
-  xlab('Group') +
-  ylab('Number of V genes')
-
-save_plot('../figures/v_gene_sets/n_vgenes_by_group.pdf',
-          n_vgenes_by_group, base_width = 18, base_height = 9)
+# n_vgenes_by_group <- obs_n_genes %>%
+#   filter(tissue == 'all') %>%
+#   pivot_longer(cols = c('n_genes','n_genes_chao1')) %>%
+#   dplyr::rename(value_type = name) %>%
+#   rowwise() %>%
+#   mutate(point_label = ifelse(value < 50, as.character(mouse_id), '')) %>%
+#   ungroup() %>%
+#   ggplot(aes(x = group_controls_pooled, y = value, color = infection_status)) +
+#   geom_boxplot(outlier.alpha = 0, show.legend = F) +
+#   geom_point(aes(size = total_compartment_seqs),
+#              position = position_jitter(height = 0, width = 0.2),
+#              shape = 1) +
+#   geom_text(aes(label = point_label), show.legend = F, size = 4,
+#             position = position_nudge(y = 0, x = 0.5)) +
+#   facet_grid(value_type~cell_type) +
+#   theme(legend.position = 'top',
+#         axis.text.x = element_text(size = 10, angle = 40, vjust = 0.5)) +
+#   scale_color_discrete(guide = 'none') +
+#   scale_size(name = 'Number of unique sequences') +
+#   background_grid() +
+#   xlab('Group') +
+#   ylab('Number of V genes')
+# 
+# save_plot('../figures/v_gene_sets/n_vgenes_by_group.pdf',
+#           n_vgenes_by_group, base_width = 18, base_height = 9)
 
 # Number of V genes by group by tissue
 chao1_genes_by_group_by_tissue <- obs_n_genes %>%
+  filter(cell_type != 'naive') %>%
   ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
   geom_boxplot(outlier.alpha = 0, show.legend = F) +
-  geom_point(aes(size = total_mouse_cell_type_seqs),
+  geom_point(aes(size = total_compartment_seqs),
              position = position_jitter(height = 0, width = 0.2),
              shape = 1) +
   facet_grid(tissue~cell_type) +
@@ -139,6 +143,53 @@ chao1_genes_by_group_by_tissue <- obs_n_genes %>%
 
 save_plot('../figures/v_gene_sets/chao1_genes_by_group_by_tissue.pdf',
           chao1_genes_by_group_by_tissue, base_height = 8, base_width = 14)
+
+
+# Number of V genes by group in the lymph node only (experienced cells)
+chao1_genes_by_group_LN_exp <- obs_n_genes %>%
+  mutate(cell_type = case_when(
+    cell_type == 'experienced' ~ 'All experienced cells',
+    cell_type == 'GC' ~ 'Germinal center cells',
+    cell_type == 'PC' ~ 'Plasma cells',
+    cell_type == 'mem' ~ 'Memory cells'
+  )) %>%
+  filter(tissue == 'LN') %>%
+  ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0, show.legend = F) +
+  geom_point(aes(size = total_compartment_seqs),
+             position = position_jitter(height = 0, width = 0.2),
+             shape = 1) +
+  facet_wrap('cell_type') +
+  theme(legend.position = 'top',
+        axis.text.x = element_text(size = 14, angle = 40, vjust = 0.5),
+        strip.text = element_text(size = 16)) +
+  scale_color_discrete(guide = 'none') +
+  scale_size(name = 'Number of unique sequences') +
+  background_grid() +
+  xlab('Group') +
+  ylab('Number of V genes (chao1 estimate)')
+
+chao1_genes_by_group_naive <- obs_n_genes %>%
+  filter(cell_type == 'naive') %>%
+  ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0, show.legend = F) +
+  geom_point(aes(size = total_compartment_seqs),
+             position = position_jitter(height = 0, width = 0.2),
+             shape = 1) +
+  facet_wrap('cell_type') +
+  theme(legend.position = 'top',
+        axis.text.x = element_text(size = 14, angle = 40, vjust = 0.5)) +
+  scale_color_discrete(guide = 'none') +
+  scale_size(name = 'Number of unique sequences') +
+  background_grid() +
+  xlab('Group') +
+  ylab('Number of V genes (chao1 estimate)') 
+
+
+
+
+
+
 
 # Number of V genes per pouse
 n_vgenes_by_mouse <- obs_n_genes %>%

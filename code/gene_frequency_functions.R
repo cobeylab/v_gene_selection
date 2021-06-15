@@ -85,72 +85,77 @@ assign_infection_status <- function(day, mouse_id_number){
 #   return(clone_info)
 # }
 
+
 get_clone_purity <- function(seq_counts){
   
   # The object will have a "unique_prod_seqs" column if has counts obtained after clustering identical sequences
   names(seq_counts)[names(seq_counts) == 'unique_prod_seqs'] <- 'prod_seqs'
   
   clone_purity <- seq_counts %>% 
-    # Group each row as representing a naive or non-naive cell subpopulation
-    mutate(cell_group = ifelse(cell_type == 'naive', 'naive', 'non_naive')) %>%
+    # Group each row as representing a Dump-IgD+B220+ or non-Dump-IgD+B220+ cell subpopulation
+    mutate(cell_group = ifelse(cell_type == 'IgD+B220+', 'IgD+B220+', 'non_IgD+B220+')) %>%
     group_by(mouse_id, clone_id, cell_group) %>%
     # Count number of unique productive sequences from naive and non-naive cells in each clone
     summarise(prod_seqs = sum(prod_seqs)) %>%
     ungroup() %>%
     pivot_wider(names_from = 'cell_group', values_from = 'prod_seqs', values_fill = 0) %>%
-    dplyr::rename(naive_seqs_in_clone = naive, non_naive_seqs_in_clone = non_naive) %>%
-    mutate(is_pure_naive = naive_seqs_in_clone > 0 & non_naive_seqs_in_clone ==0,
-           is_pure_non_naive = naive_seqs_in_clone == 0 & non_naive_seqs_in_clone > 0) %>%
+    dplyr::rename(IgD_B220_seqs_in_clone = `IgD+B220+`, non_IgD_B220_seqs_in_clone = `non_IgD+B220+`) %>%
     mutate(
       clone_purity = case_when(
-        is_pure_naive ~ 'pure_naive',
-        is_pure_non_naive ~ 'pure_non_naive',
-        !(is_pure_naive) & !(is_pure_non_naive) ~ 'mixed'
+        IgD_B220_seqs_in_clone > 0 & non_IgD_B220_seqs_in_clone == 0 ~ 'pure_IgD+B220+',
+        IgD_B220_seqs_in_clone == 0 & non_IgD_B220_seqs_in_clone > 0 ~ 'pure_non_IgD+B220+',
+        IgD_B220_seqs_in_clone > 0 & non_IgD_B220_seqs_in_clone > 0 ~ 'mixed'
       )
-    ) %>%
-    select(-is_pure_naive, -is_pure_non_naive)
+    )
+    
   return(clone_purity)
 } 
 
-# Retain clone info in original format but only with lines from pure clones
-# retain_pure_clones <- function(clone_info){
-#   if(all(c('is_pure_naive','is_pure_non_naive') %in% names(clone_info)) == F){
-#     clone_info <- get_clone_purity(clone_info)
-#   }
-# 
-#   pure_clone_info <- clone_info %>%
-#     filter(is_pure_naive | is_pure_non_naive) %>%
-#     mutate(clone_type = ifelse(is_pure_naive,'naive','experienced')) %>%
-#     select(-is_pure_naive, -is_pure_non_naive)
-#   
-#   return(pure_clone_info %>% select(mouse_id, day, infection_status, clone_id, clone_type, everything()))
-# }
-
-
 # Selects sequences sorted as naive based on additional filters (n. mutations, isotype, clone size)
-select_naive_seqs <- function(annotated_seqs, clone_purity, pure_clones_only, naive_isotypes_only,
-                              max_clone_naive_seqs, max_v_gene_mutations, naive_source_tissues){
+process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
+                                  max_v_gene_mutations){
   
-  selected_naive_seqs <- annotated_seqs %>% 
-    filter(cell_type == 'naive')
+  # Naive sequences are those that satisfy ALL the following:
+  # - were sorted as naive (DUMP-IgD+B220+)
+  # - Have IgD or IgM as the isotype determined from the read (or isotype is NA)
+  # - Are in a clone that only has DUMP-IgD+B220+ cells
+  # - Are in a clone with at most max_clone_naive_seqs **unique** seqs, where unique = same mouse, clone, tissue, isotype and sequence
+  # - Has max_v_gene_mutations or fewer mutations in the V gene region.
   
-  selected_naive_seqs <- left_join(selected_naive_seqs, clone_purity)
+  # Sequences sorted as DUMP-IgD+B220+ that do not meet all the other criteria are labeled 'nonnaive_IgD+B220+'
   
-  if(pure_clones_only){
-    selected_naive_seqs <- selected_naive_seqs %>%
-      filter(clone_purity == "pure_naive")
-  }
-  if(naive_isotypes_only){
-    selected_naive_seqs <- selected_naive_seqs %>%
-      filter(isotype %in% c('IGM','IGD'))
-  }
+  unique_productive_seq_counts <- annotated_seqs %>%
+    filter(productive_partis) %>%
+    select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
+    unique() %>%
+    group_by(mouse_id, clone_id, tissue, cell_type) %>%
+    summarise(unique_prod_seqs = n()) %>%
+    ungroup()
   
-  selected_naive_seqs <- selected_naive_seqs %>%
-    filter(naive_seqs_in_clone <= max_clone_naive_seqs,
-           vgene_mutations_partis_nt <= max_v_gene_mutations,
-           tissue %in% naive_source_tissues)
+  clone_purity <- get_clone_purity(unique_productive_seq_counts) %>%
+    dplyr::rename(unique_productive_IgDB220_seqs_in_clone = IgD_B220_seqs_in_clone,
+                  unique_productive_nonIgDB220_seqs_in_clone = non_IgD_B220_seqs_in_clone)
+  annotated_seqs <- left_join(annotated_seqs, clone_purity)
   
-  return(selected_naive_seqs)
+  
+  igd_b220_seqs <- annotated_seqs %>% 
+    filter(cell_type == 'IgD+B220+')
+
+  igd_b220_seqs <- igd_b220_seqs %>%
+    mutate(cell_type = case_when(
+      (isotype %in% c('IGM','IGD') | is.na(isotype)) & clone_purity == "pure_IgD+B220+" &
+        unique_productive_IgDB220_seqs_in_clone <= max_clone_unique_IgDB220_seqs &
+        vgene_mutations_partis_nt <= max_v_gene_mutations ~ 'naive',
+      !is.na(clone_purity) ~ 'nonnaive_IgD+B220+',
+      T ~ 'unassigned_IgD+B220+' # Will contain IgD+B220+ in clones with only unproductive seqs
+    ))
+  
+  processed_tibble <- bind_rows(annotated_seqs %>% filter(cell_type != 'IgD+B220+'),
+            igd_b220_seqs %>% select(all_of(names(annotated_seqs))))
+  
+  stopifnot(nrow(processed_tibble) == nrow(annotated_seqs))
+  
+  return(processed_tibble)
   
 }
 
