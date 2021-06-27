@@ -9,21 +9,19 @@ library(vegan)
 theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
-
 clone_info <- read_csv('../processed_data/clone_info.csv')
+seq_counts <- read_csv('../processed_data/seq_counts.csv')
 
-naive_unique_seq_counts <- read_csv('../processed_data/naive_unique_seq_counts.csv')
-exp_unique_seq_counts <- read_csv('../processed_data/exp_unique_seq_counts.csv')
-
-naive_unique_seq_counts <- left_join(naive_unique_seq_counts,
+seq_counts <- left_join(seq_counts,
                                      clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
   select(mouse_id, clone_id, v_gene, everything())
-naive_unique_seq_counts <- get_info_from_mouse_id(naive_unique_seq_counts)
 
-exp_unique_seq_counts <- left_join(exp_unique_seq_counts,
-                                   clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
-  select(mouse_id, clone_id, v_gene, everything())
-exp_unique_seq_counts <- get_info_from_mouse_id(exp_unique_seq_counts)
+seq_counts <- get_info_from_mouse_id(seq_counts)
+
+# Load pre-computed gene frequencies
+load('../results/precomputed_gene_freqs.RData')
+
+
 
 
 # ==========================================================================================
@@ -191,7 +189,7 @@ chao1_genes_by_group_naive <- obs_n_genes %>%
 
 
 
-# Number of V genes per pouse
+# Number of V genes per mouse
 n_vgenes_by_mouse <- obs_n_genes %>%
   filter(tissue == 'all') %>%
   pivot_longer(cols = c('n_genes','n_genes_chao1')) %>%

@@ -9,9 +9,7 @@ theme_set(theme_cowplot())
 
 source('gene_frequency_functions.R')
 
-estimated_seq_error_rate <- 0.0018
-
-# Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
+# Basic info for each clone (germline genes, CDR length, naive CDR seq)
 clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info  <- read_csv('~/Desktop/clone_info.csv')
 
@@ -26,81 +24,6 @@ annotated_seqs <- get_info_from_mouse_id(annotated_seqs)
 # What if we exclude naive sequences that are not IGD and IGM
 #annotated_seqs <- annotated_seqs %>%
 #  filter(!(cell_type == 'naive' & !(isotype %in% c('IGM','IGD'))))
-
-# Gets distribution of the number of mutations by mouse, tissue and cell type
-get_distribution_of_mutations <- function(annotated_seqs, n_mutations_variable){
-  # n_mutations_variable: the name of the variable with the number of mutations to summarize
-  # e.g. 'n_mutations_partis_nt' is the number of nt mutations across the whole sequence,
-  # 'vgene_mutations_partis_nt' is the number of mutations in the V gene region only
-  
-  grouping_vars <- c('mouse_id','day','infection_status','group_controls_pooled',
-                     'tissue', 'cell_type', n_mutations_variable)
-  
-  dist_n_mutations <- annotated_seqs %>%
-    group_by(across(grouping_vars)) %>%
-    summarise(n_seqs = n()) %>%
-    ungroup() %>%
-    group_by(across(grouping_vars[grouping_vars!= n_mutations_variable])) %>%
-    mutate(compartment_seqs = sum(n_seqs),
-           obs_fraction = n_seqs / compartment_seqs) %>%
-    ungroup() %>%
-    mutate(cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')),
-           tissue = factor(tissue, levels = c('LN','spleen','BM')))
-  return(dist_n_mutations)
-  
-}
-
-# Gets distribution of sequence length by mouse, tissue and cell type
-get_seq_length_distribution <- function(annotated_seqs, seq_length_variable){
-  # seq_length_variable: e.g. 'seq_length_partis' or 'sequenced_bases_in_vgene_region_partis'
-  grouping_vars <- c('mouse_id', 'day', 'infection_status', 'group_controls_pooled', 'tissue', 'cell_type',
-                     seq_length_variable)
-  
-  seq_length_dist <- annotated_seqs %>%
-    group_by(across(grouping_vars)) %>%
-    summarise(n_seqs = n()) %>%
-    ungroup() %>%
-    group_by(across(grouping_vars[grouping_vars!= seq_length_variable])) %>%
-    mutate(compartment_seqs = sum(n_seqs),
-           obs_fraction = n_seqs / compartment_seqs) %>%
-    ungroup() %>%
-    mutate(cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')),
-           tissue = factor(tissue, levels = c('LN','spleen','BM')))
-  
-  return(seq_length_dist)
-  
-}
-
-# Calculates expected null distribution of mutations given the observed distribution of sequence lengths
-get_null_mutation_distribution_given_length_distribution <- function(annotated_seqs, n_mutations_variable, seq_length_variable,
-                                                                     estimated_seq_error_rate){
-  # Get observed distribution of sequence lengths 
-  seq_length_dist <- get_seq_length_distribution(annotated_seqs, seq_length_variable)
-  
-  # For a range of possible sequence lengths, calculate probability of observing 0,1,2,... mutations
-  null_model_base_probs <- generate_mutation_null_model(annotated_seqs, estimated_seq_error_rate, n_mutations_variable = n_mutations_variable,
-                                                        seq_length_variable = seq_length_variable)
-  
-  names(null_model_base_probs)[names(null_model_base_probs) == 'length'] <- seq_length_variable
-  
-  # Calculate expected null distribution of mutations given the observed distribution of sequence lengths
-  null_distribution_given_obs_lengths <- left_join(seq_length_dist  %>%
-              select(mouse_id, tissue, cell_type, matches(seq_length_variable), obs_fraction),
-            null_model_base_probs) %>%
-    group_by(mouse_id, tissue, cell_type, n_mutations) %>%
-    # For each number of mutations, calculate null probability as 
-    # a weighted average across the observed freq distribution of lengths
-    summarise(null_prob = sum(obs_fraction*null_prob)) %>%
-    ungroup()
-  
-  sums <- null_distribution_given_obs_lengths %>% group_by(mouse_id, tissue, cell_type) %>%
-    summarise(S = sum(null_prob)) %>% ungroup() %>% select(S) %>% unique() %>% pull(S)
-  
-  stopifnot(all(abs(sums-1) < 1e-5))
-  
-  return(null_distribution_given_obs_lengths)
-  
-}
 
 # Observed distribution of the number of nucleotide mutations by mouse and tissue
 
@@ -189,9 +112,3 @@ lapply(list('spleen','LN','BM'),
        },
        distribution_nt_mutations_v_region = distribution_nt_mutations_v_region 
 )
-
-
-distribution_nt_mutations_v_region %>%
-  filter(cell_type == 'naive', v_gene_) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue) %>%
-  

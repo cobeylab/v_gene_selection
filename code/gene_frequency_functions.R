@@ -5,6 +5,8 @@ library(stringr)
 library(viridis)
 library(reshape2)
 
+estimated_seq_error_rate <- 0.0018
+
 # Remove mouse/cell-type combinations with fewer than <min_seqs> sequences and mice with fewer than <min_seqs> naive seqs.
 min_seqs <- 1000 # Passed down to other scripts that use the functions defined here.
 
@@ -96,7 +98,7 @@ get_clone_purity <- function(seq_counts){
     mutate(cell_group = ifelse(cell_type == 'IgD+B220+', 'IgD+B220+', 'non_IgD+B220+')) %>%
     group_by(mouse_id, clone_id, cell_group) %>%
     # Count number of unique productive sequences from naive and non-naive cells in each clone
-    summarise(prod_seqs = sum(prod_seqs)) %>%
+    dplyr::summarise(prod_seqs = sum(prod_seqs)) %>%
     ungroup() %>%
     pivot_wider(names_from = 'cell_group', values_from = 'prod_seqs', values_fill = 0) %>%
     dplyr::rename(IgD_B220_seqs_in_clone = `IgD+B220+`, non_IgD_B220_seqs_in_clone = `non_IgD+B220+`) %>%
@@ -129,7 +131,7 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
     select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
     unique() %>%
     group_by(mouse_id, clone_id, tissue, cell_type) %>%
-    summarise(unique_prod_seqs = n()) %>%
+    dplyr::summarise(unique_prod_seqs = n()) %>%
     ungroup()
   
   clone_purity <- get_clone_purity(unique_productive_seq_counts) %>%
@@ -166,7 +168,7 @@ calc_naive_freqs <- function(naive_seq_counts, clone_info){
   
   naive_freqs <- naive_seq_counts %>%
     group_by(mouse_id, v_gene) %>%
-    summarise(n_naive_vgene_seqs = sum(prod_seqs)) %>%
+    dplyr::summarise(n_naive_vgene_seqs = sum(prod_seqs)) %>%
     group_by(mouse_id) %>%
     mutate(naive_vgene_seq_freq = n_naive_vgene_seqs / sum(n_naive_vgene_seqs))
   
@@ -226,7 +228,7 @@ calc_gene_freqs <- function(exp_seq_counts, naive_seq_counts, clone_info, long_f
   gene_seq_freqs <- exp_seq_counts %>%
     mutate(mouse_id = factor(mouse_id), v_gene = factor(v_gene), cell_type = factor(cell_type)) %>%
     group_by(across(grouping_vars)) %>%
-    summarise(n_vgene_seqs = sum(prod_seqs, na.rm=T)) %>%
+    dplyr::summarise(n_vgene_seqs = sum(prod_seqs, na.rm=T)) %>%
     ungroup() 
    
   # Left join to all_genes_in_mice tibble, so that genes present in mice get an explicit zero value
@@ -246,7 +248,7 @@ calc_gene_freqs <- function(exp_seq_counts, naive_seq_counts, clone_info, long_f
   # Calculate frequencies in the experienced repertoire as a whole, across mem/PC/GC
   gene_seq_freqs_all_exp <- gene_seq_freqs %>%
     group_by(across(grouping_vars[grouping_vars != 'cell_type'])) %>%
-    summarise(n_vgene_seqs = sum(n_vgene_seqs)) %>%
+    dplyr::summarise(n_vgene_seqs = sum(n_vgene_seqs)) %>%
     mutate(cell_type = 'experienced') %>%
     ungroup() %>%
     group_by(across(grouping_vars[!(grouping_vars %in% c('v_gene','cell_type'))])) %>%
@@ -366,7 +368,7 @@ get_naive_exp_correlations <- function(gene_freqs){
   gene_freqs %>%
     group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type,
              total_compartment_seqs, total_mouse_naive_seqs) %>%
-    summarise(naive_exp_corr = cor.test(vgene_seq_freq, naive_vgene_seq_freq)$estimate) %>%
+    dplyr::summarise(naive_exp_corr = cor.test(vgene_seq_freq, naive_vgene_seq_freq)$estimate) %>%
     ungroup()
 }
 
@@ -575,13 +577,13 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
   
   pairwise_correlations_freqs <- pairwise_correlations %>%
     filter(n_genes_in_freqs_comparison >= min_genes_in_comparison) %>%
-    summarise(cor_coef_freqs = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
+    dplyr::summarise(cor_coef_freqs = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
                                   method = 'spearman')$estimate) %>%
     ungroup()
   
   pairwise_correlations_freq_ratios <- pairwise_correlations %>%
     filter(n_genes_in_freq_ratio_comparison >= min_genes_in_comparison) %>%
-    summarise(cor_coef_freq_ratios = cor.test(exp_naive_ratio_i, exp_naive_ratio_j,
+    dplyr::summarise(cor_coef_freq_ratios = cor.test(exp_naive_ratio_i, exp_naive_ratio_j,
                                   method = 'spearman')$estimate) %>%
     ungroup()
   return(list(freqs = pairwise_correlations_freqs, freq_ratios = pairwise_correlations_freq_ratios))
@@ -656,7 +658,7 @@ simulate_selection_freq_changes <- function(exp_seq_counts, naive_seq_counts, cl
   
   # Check frequencies sum to 1 in each mouse-cell-type-(tissue) combination for all replicates
   checks <- replicates_tibble %>% group_by(across(any_of(c('replicate','mouse_id','tissue','cell_type')))) %>% 
-    summarise(S = sum(vgene_seq_freq)) %>% ungroup() %>% select(S) %>% unique() %>% pull(S)
+    dplyr::summarise(S = sum(vgene_seq_freq)) %>% ungroup() %>% select(S) %>% unique() %>% pull(S)
   
   stopifnot(all(abs(checks - 1) < 1e-7))
   
@@ -665,14 +667,14 @@ simulate_selection_freq_changes <- function(exp_seq_counts, naive_seq_counts, cl
 }
 
 # Pre-computes the probability of observing a range of mutations for seq. lengths observed in the data, given an estimated sequencing error rate
-generate_mutation_null_model <- function(seq_cluster_stats, estimated_seq_error_rate, n_mutations_variable, seq_length_variable){
+generate_mutation_null_model <- function(annotated_seqs, estimated_seq_error_rate, n_mutations_variable, seq_length_variable){
   # n_mutations_variable: name of column with number of mutations, e.g.
   
-  length_set <- unique(seq_cluster_stats[, seq_length_variable]) %>% unlist()
+  length_set <- unique(annotated_seqs[, seq_length_variable]) %>% unlist()
   
   # Find the range of the number of nt mutations observed in the data
-  n_mutations_range <- seq(min(seq_cluster_stats[, n_mutations_variable] %>% unlist(), na.rm = T),
-                           max(seq_cluster_stats[, n_mutations_variable] %>% unlist(), na.rm = T))
+  n_mutations_range <- seq(min(annotated_seqs[, n_mutations_variable] %>% unlist(), na.rm = T),
+                           max(annotated_seqs[, n_mutations_variable] %>% unlist(), na.rm = T))
   
   null_model_mutations <- expand_grid(length_set, n_mutations_range) %>%
     dplyr::rename(length = length_set, n_mutations = n_mutations_range) %>%
@@ -683,10 +685,114 @@ generate_mutation_null_model <- function(seq_cluster_stats, estimated_seq_error_
   
 }
 
+
+# Gets distribution of the number of mutations by mouse, tissue and cell type
+get_distribution_of_mutations <- function(annotated_seqs, n_mutations_variable, disable_grouping = F){
+  # n_mutations_variable: the name of the variable with the number of mutations to summarize
+  # e.g. 'n_mutations_partis_nt' is the number of nt mutations across the whole sequence,
+  # 'vgene_mutations_partis_nt' is the number of mutations in the V gene region only
+  
+  if(disable_grouping == T){ # computes distribution across the entire tibble (used to analyze separate naive seq datasets)
+    grouping_vars <- n_mutations_variable
+  }else{
+    grouping_vars <- c('mouse_id','day','infection_status','group_controls_pooled',
+                       'tissue', 'cell_type', n_mutations_variable)
+  }
+  
+  dist_n_mutations <- annotated_seqs %>%
+    group_by(across(grouping_vars)) %>%
+    dplyr::summarise(n_seqs = dplyr::n()) %>%
+    ungroup() %>%
+    group_by(across(grouping_vars[grouping_vars!= n_mutations_variable])) %>%
+    mutate(compartment_seqs = sum(n_seqs),
+           obs_fraction = n_seqs / compartment_seqs) %>%
+    ungroup()
+  
+  if(!disable_grouping){
+    dist_n_mutations <- dist_n_mutations %>%
+      mutate(cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')),
+             tissue = factor(tissue, levels = c('LN','spleen','BM')))
+  }
+
+  return(dist_n_mutations)
+  
+}
+
+# Gets distribution of sequence length by mouse, tissue and cell type
+get_seq_length_distribution <- function(annotated_seqs, seq_length_variable, disable_grouping = F){
+  # seq_length_variable: e.g. 'seq_length_partis' or 'sequenced_bases_in_vgene_region_partis'
+
+  if(disable_grouping == T){ # computes distribution across the entire tibble (used to analyze separate naive seq datasets)
+    grouping_vars <- seq_length_variable
+  }else{
+    grouping_vars <- c('mouse_id', 'day', 'infection_status', 'group_controls_pooled', 'tissue', 'cell_type',
+                       seq_length_variable)
+  }
+  
+  seq_length_dist <- annotated_seqs %>%
+    group_by(across(grouping_vars)) %>%
+    dplyr::summarise(n_seqs = n()) %>%
+    ungroup() %>%
+    group_by(across(grouping_vars[grouping_vars!= seq_length_variable])) %>%
+    mutate(compartment_seqs = sum(n_seqs),
+           obs_fraction = n_seqs / compartment_seqs) %>%
+    ungroup() 
+  
+  
+  if(!disable_grouping){
+    seq_length_dist <- seq_length_dist %>%
+      mutate(cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')),
+             tissue = factor(tissue, levels = c('LN','spleen','BM')))
+    
+  }
+  
+  return(seq_length_dist)
+  
+}
+
+# Calculates expected null distribution of mutations given the observed distribution of sequence lengths
+get_null_mutation_distribution_given_length_distribution <- function(annotated_seqs, n_mutations_variable, seq_length_variable,
+                                                                     estimated_seq_error_rate, disable_grouping = F){
+  
+  if(disable_grouping == T){
+    grouping_vars <- 'n_mutations'
+  }else{
+    grouping_vars <- c('mouse_id','tissue','cell_type','n_mutations')
+  }
+  
+  
+  # Get observed distribution of sequence lengths 
+  seq_length_dist <- get_seq_length_distribution(annotated_seqs, seq_length_variable, disable_grouping)
+  
+  # For a range of possible sequence lengths, calculate probability of observing 0,1,2,... mutations
+  null_model_base_probs <- generate_mutation_null_model(annotated_seqs, estimated_seq_error_rate, n_mutations_variable = n_mutations_variable,
+                                                        seq_length_variable = seq_length_variable)
+  
+  names(null_model_base_probs)[names(null_model_base_probs) == 'length'] <- seq_length_variable
+  
+  # Calculate expected null distribution of mutations given the observed distribution of sequence lengths
+  null_distribution_given_obs_lengths <- left_join(seq_length_dist  %>%
+                                                     select(matches('mouse_id'), matches('tissue'), matches('cell_type'), matches(seq_length_variable), obs_fraction),
+                                                   null_model_base_probs) %>%
+    group_by(across(grouping_vars)) %>%
+    # For each number of mutations, calculate null probability as 
+    # a weighted average across the observed freq distribution of lengths
+    dplyr::summarise(null_prob = sum(obs_fraction*null_prob)) %>%
+    ungroup()
+  
+  sums <- null_distribution_given_obs_lengths %>% group_by(across(grouping_vars[grouping_vars != 'n_mutations'])) %>%
+    dplyr::summarise(S = sum(null_prob)) %>% ungroup() %>% select(S) %>% unique() %>% pull(S)
+  
+  stopifnot(all(abs(sums-1) < 1e-5))
+  
+  return(null_distribution_given_obs_lengths)
+  
+}
+
 get_clone_size_distribution <- function(seq_counts){
   seq_counts %>%
   group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, clone_id) %>%
-  summarise(clone_prod_seqs = sum(uniq_prod_seqs)) %>%
+  dplyr::summarise(clone_prod_seqs = sum(uniq_prod_seqs)) %>%
   group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type) %>%
   mutate(clone_freq = clone_prod_seqs / sum(clone_prod_seqs)) 
 }

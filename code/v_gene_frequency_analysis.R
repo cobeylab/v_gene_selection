@@ -6,6 +6,8 @@ library(ggdendro)
 library(cowplot)
 library(scales)
 library(viridis)
+#library(ComplexHeatmap)
+#library(circlize)
 
 theme_set(theme_cowplot())
 
@@ -17,7 +19,7 @@ load('../results/precomputed_gene_freqs.RData')
 
 # Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
 clone_info <- read_csv('../processed_data/clone_info.csv')
-# clone_info <- read_csv('~/Desktop/clone_info.csv')
+# clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
 
 # ======= Example of gene rank frequency plot ======================================
 LN_PC_freqs_primary8 <- gene_freqs %>% 
@@ -52,7 +54,8 @@ plot_naive_freq_corr <- function(group_controls_pooled, tissue, cell_type){
         cell_type_label <- switch(cell_type,
                                   'GC' = 'germinal center cells',
                                   'PC' = 'plasma cells',
-                                  'mem' = 'memory cells')
+                                  'mem' = 'memory cells',
+                                  'nonnaive_IgD+B220+' = 'non-naive IgD+B220+ cells')
         
         gene_freqs %>% 
                 filter(group_controls_pooled == !!group_controls_pooled, tissue == !!tissue, cell_type == !!cell_type) %>%
@@ -70,6 +73,10 @@ plot_naive_freq_corr <- function(group_controls_pooled, tissue, cell_type){
 plot_naive_freq_corr('primary-8', 'LN','PC')
 plot_naive_freq_corr('primary-16', 'LN','GC')
 plot_naive_freq_corr('secondary-40', 'LN','GC')
+
+plot_naive_freq_corr('primary-8', 'LN','nonnaive_IgD+B220+')
+plot_naive_freq_corr('primary-16', 'LN','nonnaive_IgD+B220+')
+plot_naive_freq_corr('secondary-40', 'LN','nonnaive_IgD+B220+')
 
 
 # Spearman correlation coefficients
@@ -108,7 +115,7 @@ naive_exp_correlations_obs %>%
         ylab('Correlation in gene frequencies\nin naive repertoire vs. lymph node cells') +
         geom_hline(yintercept = 0, linetype = 2) +
         scale_color_manual(values = c('green3','dodgerblue2')) +
-        scale_size_continuous(name = 'Number of unique sequences',
+        scale_size_continuous(name = 'Number of sequences',
                               breaks = c(1000,10000,20000)) +
         guides(color = 'none') +
         background_grid()
@@ -238,7 +245,8 @@ get_consistent_genes_table('LN','GC', 'primary-16') %>%
 get_consistent_genes_table('LN','GC', 'primary-24') %>%
         filter(positive >= 2)
 
-
+get_consistent_genes_table('LN','nonnaive_IgD+B220+', 'primary-8') 
+get_consistent_genes_table('LN','nonnaive_IgD+B220+', 'control') 
 
 # Plots showing deviation from naive freq for major genes
 gene_freqs <- left_join(gene_freqs, 
@@ -265,7 +273,8 @@ plot_most_common_genes <- function(plot_cell_type, plot_tissue, plot_group){
                               x = v_gene_rank, y = label_position), angle = 20, size = 3, alpha = 0.8) +
                 facet_wrap('mouse_id', scales = 'free') +
                 xlab(paste0('V gene rank in ', plot_group, ' ', plot_tissue, ' ',
-                            switch(plot_cell_type, 'PC' = 'plasma cells', 'GC' = 'germinal center cells', 'mem' = 'memory cells'), ' (top 20 genes only)')) +
+                            switch(plot_cell_type, 'PC' = 'plasma cells', 'GC' = 'germinal center cells', 'mem' = 'memory cells',
+                                   'nonnaive_IgD+B220+' = 'Non-naive IgD+B220+ cells'), ' (top 20 genes only)')) +
                 ylab('V gene frequency') +
                 theme(legend.position = c(0.4,0.25)) + 
                 scale_x_continuous(expand = c(0.15,0)) +
@@ -290,12 +299,25 @@ plot_most_common_genes('GC','LN','primary-16') +
 plot_most_common_genes('GC','LN','primary-24') +
         theme(legend.position = c(0.85,0.35))
 
+plot_most_common_genes('nonnaive_IgD+B220+','LN','primary-8') +
+  theme(legend.position = c(0.8,0.2))
+plot_most_common_genes('nonnaive_IgD+B220+','LN','primary-16') +
+  theme(legend.position = c(0.85,0.35))
+plot_most_common_genes('nonnaive_IgD+B220+', 'LN','primary-24') +
+  theme(legend.position = c(0.85,0.35))
+
+plot_most_common_genes('nonnaive_IgD+B220+','spleen','primary-8') +
+  theme(legend.position = c(0.8,0.2))
+
+plot_most_common_genes('nonnaive_IgD+B220+','spleen','primary-8') +
+  theme(legend.position = c(0.8,0.2))
+
 # ============== CLONE SIZE DISTRIBUTIONS
 
 # Clone size distributions over time
-clone_size_dist_by_tissue_and_cell_type <- exp_unique_seq_counts %>%
+clone_size_dist_by_tissue_and_cell_type <- seq_counts %>%
         group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
-        summarise(clone_size = sum(unique_prod_seqs)) %>%
+        summarise(clone_size = sum(prod_seqs)) %>%
         group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
         mutate(total_seqs = sum(clone_size),
                clone_freq = clone_size / total_seqs) %>%
@@ -307,13 +329,15 @@ clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_a
 
 
 clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
-                                                     deviation_from_naive %>% select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
+                                                     deviation_from_naive %>%
+                                                       select(mouse_id, day, infection_status, group_controls_pooled,
+                                                              tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
 
 
 clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
                                                      gene_freqs %>% select(mouse_id, total_mouse_naive_seqs) %>% unique()) %>%
         mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-               cell_type = factor(cell_type, levels = c('naive','GC','PC','mem')))
+               cell_type = factor(cell_type, levels = c('naive', 'nonnaive_IgD+B220+','GC','PC','mem')))
 
 
 # Fraction of sequences in the largest 10 clones
@@ -335,7 +359,7 @@ clone_size_dist_by_tissue_and_cell_type %>%
         #ggtitle() +
         theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'none') +
         xlab("Group") +
-        ylab("Fraction of sequences in the 10 largest clones\n(populations with at least 100 unique sequences)")
+        ylab("Fraction of sequences in the 10 largest clones\n(populations with at least 100 sequences)")
 
 
 plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_abs_size = F){
@@ -498,9 +522,9 @@ pairwise_correlations$freqs %>%
   theme(legend.position = 'none')
 
 pairwise_correlations$freqs %>%
-  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-        cell_type = factor(cell_type, levels = c('experienced','GC','PC','mem'))) %>%
   filter(cell_type != 'naive') %>%
+  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
+        cell_type = factor(cell_type, levels = c('experienced','nonnaive_IgD+B220+','GC','PC','mem'))) %>%
   filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
   ggplot(aes(x = pair_type, y = cor_coef_freqs, color = pair_type)) +
   geom_boxplot(outlier.alpha = 0) +
@@ -509,10 +533,11 @@ pairwise_correlations$freqs %>%
   scale_y_continuous(limits = c(0,1)) +
   theme(legend.position = 'top') +
   xlab('Type of pair') +
-  ylab('Correlation in gene naive frequencies between mouse pairs') +
-  theme(legend.position = 'none') +
+  ylab('Correlation in gene frequencies between mouse pairs') +
+  theme(legend.position = 'none',
+        axis.text.x = element_text(size = 9)) +
   facet_grid(tissue~cell_type) +
-  scale_x_discrete(labels = function(x){str_replace(x, '/','\n-\n')}) +
+  scale_x_discrete(labels = function(x){str_replace(x, '/','\n&\n')}) +
   background_grid()
 
 
@@ -565,97 +590,226 @@ clone_size_dist_by_tissue_and_cell_type %>%
   scale_color_discrete(name = 'Cell type')
 
 
-# Trying to come up with Clustering / PCA
+###### HIERARCHICAL CLUSTERING ANALYSIS
 
-get_vgene_freq_clustering <- function(gene_freqs, cell_type, tissue){
-  wide_format_freqs <- gene_freqs %>% 
-    filter(group_controls_pooled != 'control') %>%
-    filter(total_compartment_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
+
+
+# Clustering based on Spearman correlation of V gene frequencies as an inverse measure of distance.
+get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric){
+  
+  if(metric == 'freqs'){
+    data_subset <- pairwise_correlations$freqs %>%
+      rename(cor_coef = cor_coef_freqs)
+    color_key_title <- 'Spearman correlation\nin V gene frequencies'
+  }else{
+    stopifnot(metric == 'freq_ratios')
+    data_subset <- pairwise_correlations$freq_ratios %>%
+      rename(cor_coef = cor_coef_freq_ratios)
+    color_key_title <- 'Spearman correlation\nin V gene frequency deviations\nfrom the naive repertoire\n'
+  }
+  
+  data_subset <- data_subset %>%
+    filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
     filter(cell_type == !!cell_type, tissue == !!tissue) %>%
-    select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs, v_gene,
-           vgene_seq_freq) %>%
-    pivot_wider(names_from = v_gene, values_from = vgene_seq_freq, values_fill = 0)
+    select(mouse_id_i, mouse_id_j, cor_coef)
   
-  gene_freq_matrix <- as.matrix(wide_format_freqs[grepl('IGHV', colnames(wide_format_freqs))])
-  rownames(gene_freq_matrix) <- wide_format_freqs$mouse_id
+  # Add a diagonal to the correlation matrix (each mouse has correlation 1 with itself)
+  data_subset <- bind_rows(data_subset, 
+                           tibble(mouse_id_i = unique(c(data_subset$mouse_id_i, data_subset$mouse_id_j))) %>%
+                             mutate(mouse_id_j = mouse_id_i, cor_coef = 1)) %>%
+    arrange(mouse_id_i, mouse_id_j)
   
+  wide_format_correlations <- data_subset %>%
+    pivot_wider(names_from = mouse_id_j, values_from = cor_coef)
   
+  correlation_matrix <- as.matrix(wide_format_correlations[colnames(wide_format_correlations) != 'mouse_id_i'])
+  rownames(correlation_matrix) <- wide_format_correlations$mouse_id_i
+  
+  # Fill lower triangle
+  for(i in 1:nrow(correlation_matrix)){
+    for(j in 1:ncol(correlation_matrix)){
+      if(j < i){
+        correlation_matrix[i,j] <- correlation_matrix[j,i]
+      }
+    }
+  }
+  
+  # Convert correlations into distances.
+  dist_matrix <- as.dist(1 - correlation_matrix)
+  cluster <- hclust(dist_matrix, method = 'complete')
+  dendrogram <- as.dendrogram(cluster)
 
-  # Remove all-zero columns
-  gene_freq_matrix <- gene_freq_matrix[,colSums(gene_freq_matrix) != 0]
+  # Within topological constraints of dendrogram, tries to order mice with day 8 on top, then day 16, 
+  #etc.
+  leaf_weights <- 1/as.integer(str_extract(cluster$labels, '[0-9]+'))
+  dendrogram <- reorder(dendrogram,
+                        wts = leaf_weights)
   
-  #========= PCA ============
-  vgene_freq_pca <- prcomp(gene_freq_matrix, scale = T, center = T)
-  
-  
-  first_two_comps <- vgene_freq_pca$x[,c(1,2)]
-  
-  output <- wide_format_freqs %>%  select(mouse_id, day, infection_status, group_controls_pooled,
-                                          tissue, cell_type, total_compartment_seqs) %>%
-    mutate(PCA1 = vgene_freq_pca$x[,1],
-           PCA2 = vgene_freq_pca$x[,2])
-        
-  output %>%
-    ggplot(aes(x = PCA1, y = PCA2, color = group_controls_pooled)) +
-    geom_point(alpha = 0, show.legend = T) +
-    geom_text(aes(label = mouse_id), show.legend = F) +
-    guides(colour = guide_legend(override.aes = list(alpha=1))) +
-    scale_color_discrete(name = 'Group')
-  
-  # ============= CLUSTERING =========
-  z_score_matrix <- apply(gene_freq_matrix, 2,
-                            function(x){(x - mean(x))/sd(x)})
-  
-  
-  z_score_dist_matrix <- dist(z_score_matrix, method = 'euclidean')
-  cluster <- hclust(z_score_dist_matrix, method = 'complete')
-  
-  cluster_for_ggplot <- dendro_data(cluster, type="rectangle")
-  
-  cluster_for_ggplot$labels <-
-    left_join(cluster_for_ggplot$labels, 
-              wide_format_freqs %>% select(mouse_id, group_controls_pooled) %>% dplyr::rename(label = mouse_id))
-   
-  ggplot() +
-    geom_segment(data = segment(cluster_for_ggplot),
-                 aes(x = x, y = y, xend = xend, yend = yend)) +
-    geom_point(data = label(cluster_for_ggplot), 
-              aes(x = x, y = y, color = group_controls_pooled), 
-              size = 3
-    ) +
-    geom_text(data = label(cluster_for_ggplot), 
-              aes(x = x, y = y-1.5, label = label, color = group_controls_pooled), 
-              size = 3
-    ) +
-    coord_flip() +
-    scale_y_reverse(expand = c(0.2, 0)) +
-    theme(axis.line = element_blank(),
-          axis.ticks = element_blank(),
-          axis.text = element_blank(),
-          axis.title = element_blank(),
-          legend.position = c(0.05,0.7),
-          plot.title = element_text(size = 12)) +
-    scale_color_discrete(name = 'Group', type = 'qual') +
-    ggtitle('Clustering based on V gene frequencies in lymph node plasma cells')
-  
-    
-}
+  annotation <- get_info_from_mouse_id(
+    tibble(mouse_id = cluster$labels)
+  )
 
-
-get_vgene_rho_clustering <- function(gene_freqs, cell_type, tissue){
+  
+  dendro_heatmap <- heatmaply(x = correlation_matrix,
+            scale_fill_gradient_fun = ggplot2::scale_fill_gradient2(
+              low = "blue", 
+              high = "red", 
+              midpoint = 0, 
+              limits = c(-1, 1)
+            ),
+            Rowv = dendrogram,
+            Colv = dendrogram,
+            row_side_colors = annotation %>% select(group_controls_pooled) %>%
+              rename(group = group_controls_pooled),
+            col_side_colors = annotation %>% select(group_controls_pooled) %>%
+              rename(group = group_controls_pooled),
+            seriate = 'none',
+            key.title = color_key_title)
+  
+  return(dendro_heatmap)
+  
   
 }
 
-gene_freqs %>%
-  select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs, v_gene,
-         vgene_seq_freq) %>%
-  pivot_wider(names_from = v_gene, values_from = vgene_seq_freq) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs) 
+# ----- Dendrograms and heatmaps based on correlation in V gene frequencies -------
 
-x <- prcomp(tibble(x = rnorm(10), y = rnorm(10)))
-        
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'PC',
+                                      tissue = 'LN')
 
-        
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'GC',
+                                      tissue = 'LN')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'GC',
+                                      tissue = 'spleen')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'GC',
+                                      tissue = 'BM')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'PC',
+                                      tissue = 'BM')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'PC',
+                                      tissue = 'spleen')
+
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'mem',
+                                      tissue = 'LN')
+  
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'mem',
+                                      tissue = 'spleen')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'nonnaive_IgD+B220+',
+                                      tissue = 'LN')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'nonnaive_IgD+B220+',
+                                      tissue = 'BM')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+                                      metric = 'freqs',
+                                      cell_type = 'nonnaive_IgD+B220+',
+                                      tissue = 'spleen')
+
+# ----- Dendrograms and heatmaps based on correlation in V gene frequency deviations from naive repertoire -------
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+                                      metric = 'freq_ratios',
+                                      cell_type = 'PC',
+                                      tissue = 'LN')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+                                      metric = 'freq_ratios',
+                                      cell_type = 'GC',
+                                      tissue = 'LN')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+                                      metric = 'freq_ratios',
+                                      cell_type = 'mem',
+                                      tissue = 'LN')
+
+
+
+# Clustering based on Euclidean distance of V gene frequencies
+# get_vgene_freq_clustering <- function(gene_freqs, cell_type, tissue, n_top_genes = NULL){
+#   
+#   if(!is.null(n_top_genes)){
+#     wide_format_freqs <- gene_freqs %>% 
+#       filter(group_controls_pooled != 'control', v_gene_rank <= n_top_genes) 
+#   }else{
+#     wide_format_freqs <- gene_freqs %>% 
+#       filter(group_controls_pooled != 'control')
+#   }
+#   
+#   wide_format_freqs <- wide_format_freqs %>%
+#     filter(total_compartment_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
+#     filter(cell_type == !!cell_type, tissue == !!tissue) %>%
+#     select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_compartment_seqs, v_gene,
+#            vgene_seq_freq) %>%
+#     pivot_wider(names_from = v_gene, values_from = vgene_seq_freq, values_fill = 0)
+#   
+#   gene_freq_matrix <- as.matrix(wide_format_freqs[grepl('IGHV', colnames(wide_format_freqs))])
+#   rownames(gene_freq_matrix) <- wide_format_freqs$mouse_id
+#   
+#   # Remove all-zero columns
+#   gene_freq_matrix <- gene_freq_matrix[,colSums(gene_freq_matrix) != 0]
+#   
+# 
+#   z_score_matrix <- apply(gene_freq_matrix, 2,
+#                             function(x){(x - mean(x))/sd(x)})
+#   
+#   
+#   z_score_dist_matrix <- dist(z_score_matrix, method = 'euclidean')
+#   cluster <- hclust(z_score_dist_matrix, method = 'complete')
+#   
+#   cluster_for_ggplot <- dendro_data(cluster, type="rectangle")
+#   
+#   cluster_for_ggplot$labels <-
+#     left_join(cluster_for_ggplot$labels, 
+#               wide_format_freqs %>% select(mouse_id, group_controls_pooled) %>% dplyr::rename(label = mouse_id))
+#    
+#   ggplot() +
+#     geom_segment(data = segment(cluster_for_ggplot),
+#                  aes(x = x, y = y, xend = xend, yend = yend)) +
+#     geom_point(data = label(cluster_for_ggplot), 
+#               aes(x = x, y = y, color = group_controls_pooled), 
+#               size = 3
+#     ) +
+#     geom_text(data = label(cluster_for_ggplot), 
+#               aes(x = x, y = y-1.5, label = label, color = group_controls_pooled), 
+#               size = 3
+#     ) +
+#     coord_flip() +
+#     scale_y_reverse(expand = c(0.2, 0)) +
+#     theme(axis.line = element_blank(),
+#           axis.ticks = element_blank(),
+#           axis.text = element_blank(),
+#           axis.title = element_blank(),
+#           legend.position = c(0.05,0.7),
+#           plot.title = element_text(size = 12)) +
+#     scale_color_discrete(name = 'Group', type = 'qual') +
+#     ggtitle('Clustering based on V gene frequencies in lymph node plasma cells')
+#   
+#     
+# }
+
 
 
 

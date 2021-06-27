@@ -5,16 +5,20 @@ library(cowplot)
 theme_set(theme_cowplot())
 
 source('partis_output_functions.R')
+source('gene_frequency_functions.R')
 
 # Load and analyze partis results for the sequences from naive B cells from Vijay et al. 2021 (JEM) 
 yaml_object <- read_yaml('../results/partis/seq_data_vijay2021JEM.yaml')
 
-partis_info <- format_partis_info(yaml_object)
+vijay2021JEM_annotated_seqs <- format_partis_info(yaml_object)
 
-partis_info %>% group_by(productive_partis) %>%
+vijay2021JEM_annotated_seqs %>% group_by(productive_partis) %>%
   dplyr::count()
 
-gene_freqs_seq_data_vijay2021JEM <- partis_info %>% filter(productive_partis) %>%
+# Retain only sequences inferred to be productive.
+vijay2021JEM_annotated_seqs <- vijay2021JEM_annotated_seqs %>% filter(productive_partis)
+
+gene_freqs_seq_data_vijay2021JEM <- vijay2021JEM_annotated_seqs %>% filter(productive_partis) %>%
   group_by(v_segment_partis) %>%
   dplyr::summarise(n_seqs_vijay2021JEM = dplyr::n()) %>%
   ungroup() %>%
@@ -22,12 +26,40 @@ gene_freqs_seq_data_vijay2021JEM <- partis_info %>% filter(productive_partis) %>
   arrange(dplyr::desc(freq_vijay2021JEM )) %>%
   dplyr::rename(v_gene = v_segment_partis)
 
-vgene_mutations_distribution_vijay2021JEM <- partis_info %>%
-  filter(productive_partis) %>%
-  group_by(vgene_mutations_partis_nt) %>%
-  dplyr::count() %>%
-  ungroup() %>%
-  mutate(freq_vijay2021JEM = n/sum(n))
+vgene_mutations_distribution_vijay2021JEM <- get_distribution_of_mutations(vijay2021JEM_annotated_seqs,
+                                                                           'vgene_mutations_partis_nt', disable_grouping = T)
+
+null_mutations_given_seq_lengths_vijay2021JEM <- get_null_mutation_distribution_given_length_distribution(vijay2021JEM_annotated_seqs,
+                                                                                                          n_mutations_variable = 'vgene_mutations_partis_nt',
+                                                                                                          seq_length_variable = 'sequenced_bases_in_vgene_region_partis',
+                                                                                                          estimated_seq_error_rate = estimated_seq_error_rate,
+                                                                                                          disable_grouping = T)
+vgene_mutations_distribution_vijay2021JEM <- left_join(
+  vgene_mutations_distribution_vijay2021JEM,
+  null_mutations_given_seq_lengths_vijay2021JEM %>% dplyr::rename(vgene_mutations_partis_nt = n_mutations)
+)
+
+vgene_mutations_distribution_vijay2021JEM %>%
+  pivot_longer(cols = c('obs_fraction','null_prob'),
+               names_to = 'value_type') %>%
+  mutate(obs_and_pred_number = value * compartment_seqs) %>%
+  mutate(obs_and_pred_number = ifelse(value_type == 'obs_fraction',n_seqs, obs_and_pred_number)) %>%
+  ggplot(aes(x = vgene_mutations_partis_nt, y = value)) +
+  geom_point(aes(color = value_type)) +
+  geom_line(aes(color = value_type)) +
+  geom_text(aes(label = round(obs_and_pred_number,2)),
+            position = position_dodge(width = 10)) +
+  #scale_y_log10() +
+  geom_hline(aes(yintercept = 1/compartment_seqs), linetype = 2) +
+  xlab('Number of mutations in V gene region') +
+  ylab('Frequency') +
+  scale_color_discrete(name = '', 
+                       labels = c('Null model','Observed')) +
+  theme(legend.position = c(0.75,0.9)) +
+  scale_x_continuous(limits = c(0,10),
+                     breaks = 0:10) +
+  ggtitle('A sequence with 179 mutations was ommitted to improve visualization')
+
 
 
 # Now load pre-computed gene frequencies from the main (influenza infection) experiments
@@ -75,4 +107,4 @@ naive_freqs_main_experiment %>%
   geom_point() +
   facet_wrap('mouse_id', scales = 'free')
   
-``
+
