@@ -15,7 +15,7 @@ echo "#SBATCH --ntasks-per-node=6" >> $sbatch_file
 echo "#SBATCH --mem-per-cpu=3000" >> $sbatch_file
 
 echo input_file=../data/seq_data_vijay2021JEM/seq_data_vijay2021JEM.fasta >> $sbatch_file
-echo output_file=../results/partis/seq_data_vijay2021JEM.yaml >> $sbatch_file
+echo output_file=../results/partis/seq_data_vijay2021JEM/seq_data_vijay2021JEM.yaml >> $sbatch_file
 
 # Run partis
 echo /project2/cobey/partis/bin/partis partition --n-procs 5 --species mouse --infname '$input_file' --outfname '$output_file' --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa >> $sbatch_file

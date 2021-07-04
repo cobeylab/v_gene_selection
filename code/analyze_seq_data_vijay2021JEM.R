@@ -8,7 +8,7 @@ source('partis_output_functions.R')
 source('gene_frequency_functions.R')
 
 # Load and analyze partis results for the sequences from naive B cells from Vijay et al. 2021 (JEM) 
-yaml_object <- read_yaml('../results/partis/seq_data_vijay2021JEM.yaml')
+yaml_object <- read_yaml('../results/partis/seq_data_vijay2021JEM/seq_data_vijay2021JEM.yaml')
 
 vijay2021JEM_annotated_seqs <- format_partis_info(yaml_object)
 

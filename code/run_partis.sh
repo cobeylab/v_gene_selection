@@ -12,8 +12,6 @@ echo "#SBATCH --partition=cobey" >> $sbatch_file
 echo "#SBATCH --nodes=1" >> $sbatch_file
 echo "#SBATCH --ntasks-per-node=16" >> $sbatch_file
 echo "#SBATCH --mem-per-cpu=3000" >> $sbatch_file
-
-echo "module load mafft" >> $sbatch_file
     
 echo input_file=../processed_data/mouse_specific_data_files/$time_point-'${SLURM_ARRAY_TASK_ID}'.csv >> $sbatch_file
 
