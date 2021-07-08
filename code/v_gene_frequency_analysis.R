@@ -17,6 +17,9 @@ source('gene_frequency_functions.R')
 
 load('../results/precomputed_gene_freqs.RData')
 
+seq_counts <- bind_rows(exp_seq_counts, naive_seq_counts)
+
+
 # Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
 clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
@@ -362,39 +365,68 @@ clone_size_dist_by_tissue_and_cell_type %>%
         ylab("Fraction of sequences in the 10 largest clones\n(populations with at least 100 sequences)")
 
 
-plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_abs_size = F){
-        
-        if(plot_abs_size){
-            y_axis_var <- 'clone_size'
-            y_axis_label <- 'Number of unique sequences'
-        }else{
-            y_axis_var <- 'clone_freq'
-            y_axis_label <- 'Clone frequency'
-        }
-       
-        clone_size_dist_by_tissue_and_cell_type %>%
-                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
-                filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, clone_rank <= 20) %>%
-                ungroup() %>%
-                ggplot(aes_string(x = 'clone_rank', y = y_axis_var, group = 'mouse_id')) +
-                geom_line() +
-                geom_point(aes(color = deviation_from_naive), size = 2) +
-                geom_text(aes(x = clone_rank + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
-                              label = str_remove(v_gene, 'IGHV')), show.legend = F, size = 3.5) +
-                facet_wrap('mouse_id', scales = 'free') +
-                xlab('Clone rank (top 20 clones only)') +
-                ylab(y_axis_label) +
-                theme(legend.position = c(0.8,0.2)) +
-                scale_y_continuous(expand = expansion(mult = c(0.05, .1))) +
-                scale_color_discrete(name = 'V gene deviation from naive frequency', 
-                                     labels = c('negative','non-significant','positive'))
+plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_abs_size = F,
+                                 annotation = 'v_gene'){
+  
+  
+    if(plot_abs_size){
+      y_axis_var <- 'clone_size'
+      y_axis_label <- 'Number of unique sequences'
+      }else{
+        y_axis_var <- 'clone_freq'
+        y_axis_label <- 'Clone frequency'
+      }
+  
+  plotting_data <- clone_size_dist_by_tissue_and_cell_type %>%
+    mutate(across(c('v_gene','d_gene','j_gene'),
+                  function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
+    unite('annotation', annotation, sep = ' ; ') 
+
+  pl <- plotting_data %>%
+    filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
+    filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, clone_rank <= 20) %>%
+    ungroup() %>%
+    ggplot(aes_string(x = 'clone_rank', y = y_axis_var, group = 'mouse_id')) +
+    geom_line() +
+    facet_wrap('mouse_id', scales = 'free') +
+    xlab('Clone rank (top 20 clones only)') +
+    ylab(y_axis_label) +
+    theme(legend.position = c(0.8,0.2)) +
+    scale_y_continuous(expand = expansion(mult = c(0.05, 0.3 * length(annotation)))) +
+    scale_x_continuous(expand = expansion(mult = c(0.05,0.2 * length(annotation)))) +
+    scale_color_discrete(name = 'V gene deviation from naive frequency',
+                         labels = c('negative','non-significant','positive'))
+  
+  if(length(annotation) == 1 & all(annotation == 'v_gene')){
+    pl <- pl + 
+      geom_point(aes(color = deviation_from_naive)) +
+      geom_text(aes(x = clone_rank + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
+                             label = annotation), show.legend = F, size = 3.5) 
+  }else{
+    pl <- pl + geom_point() +
+      geom_text(aes(x = clone_rank + 0.3, angle = 35, hjust = 0,
+                             label = annotation), show.legend = F, size = 3.5)
+  }
+  
+  return(pl)
+
         
 }
 plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
-plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.8,0.35))
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'd_gene')
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'j_gene')
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('v_gene','j_gene',
+                                                                               'clone_consensus_cdr3_partis'))
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('d_gene','j_gene',
+                                                                               'clone_consensus_cdr3_partis'))
+
 
 plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
-plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
+plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
+plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'd_gene')
+plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'j_gene')
+
 
 plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
 plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.66,0.9))

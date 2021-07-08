@@ -12,15 +12,19 @@ do
 #SBATCH --partition=cobey
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16
-#SBATCH --mem-per-cpu=3000
+#SBATCH --mem-per-cpu=4000
 #SBATCH --time=200:00:00
+
+# For these datasets, partis is crashing if I don't load the mafft module separately
+module load mafft/7.310 
 
 input_file=${mouse_dir}/${dataset_name}_processed_reads.fasta
 output_file=../results/partis/seq_data_Greiff2017/${dataset_name}.yaml" > $sbatch_file
 
 
-    
-echo '/project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --infname $input_file --outfname $output_file --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa
+# Running partis, randomly picking a subset of the sequences
+
+echo '/project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --n-random-queries 200000 --infname $input_file --outfname $output_file --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa
 
 ' >> $sbatch_file
 
@@ -28,3 +32,5 @@ sbatch $sbatch_file
 rm $sbatch_file
     
 done
+
+#

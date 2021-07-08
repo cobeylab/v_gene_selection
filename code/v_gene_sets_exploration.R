@@ -10,30 +10,17 @@ theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
 clone_info <- read_csv('../processed_data/clone_info.csv')
-seq_counts <- read_csv('../processed_data/seq_counts.csv')
-
-seq_counts <- left_join(seq_counts,
-                                     clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
-  select(mouse_id, clone_id, v_gene, everything())
-
-seq_counts <- get_info_from_mouse_id(seq_counts)
+# clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
 
 # Load pre-computed gene frequencies
 load('../results/precomputed_gene_freqs.RData')
-
+# load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
 
 
 
 # ==========================================================================================
 # How many genes do mice use?
 # ==========================================================================================
-gene_freqs <- calc_gene_freqs(exp_seq_counts = exp_unique_seq_counts,
-                              naive_seq_counts = naive_unique_seq_counts,
-                              clone_info = clone_info, long_format = T, by_tissue = T)
-
-gene_freqs$tissue[gene_freqs$cell_type == 'naive'] <- 'naive_seq_source_tissues'
-
-
 
 obs_n_genes <- gene_freqs %>% filter(n_vgene_seqs > 0) %>%
   group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue,
