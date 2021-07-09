@@ -75,6 +75,12 @@ unique_seq_counts <- annotated_seqs %>%
   ungroup()
 write_csv(unique_seq_counts, '../processed_data/unique_seq_counts.csv')
 
+
+
+
+
+
+
 # From the now-discontinued clustering analysis...
 #unique_seq_cluster_files <-  list.files('../processed_data/unique_seq_clusters_files/', pattern = 'csv', full.names = T)
 

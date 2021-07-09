@@ -5,6 +5,8 @@ library(stringr)
 theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
+# ======== Per-base, per-v-gene analyses (across clones) =======
+
 mutations_per_vgene_base <- read_csv('../results/mutations_per_vgene_base.csv')
 germline_v_genes <- read_csv('../results/germline_genes.csv') %>%
   mutate(v_gene_length = nchar(v_gene_seq))

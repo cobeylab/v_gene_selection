@@ -91,7 +91,6 @@ identify_vgene_mutations <- function(naive_v_gene_region_seq, v_gene_region_seqs
   # Retain sequences up to last complete codon
   character_matrix <- character_matrix[, 1:(complete_codon_positions * 3)]
   
-  
   # Find all nucleotide posititions where naive sequence isn't 'N' and at least one observed sequence is mutated
   position_is_mutated <- apply(character_matrix, MARGIN = 2, FUN = function(column){
     naive_char <- column[1]

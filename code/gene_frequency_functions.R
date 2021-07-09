@@ -841,4 +841,71 @@ estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
   
 }
 
+get_mutation_frequencies_within_clones <- function(annotated_seqs, seq_counts, by_tissue_and_cell_type){
+  
+  grouping_vars <- c('mouse_id', 'clone_id')
+  
+  # IF this is true, will compute mutation frequencies relative to the number of productive sequences from the 
+  # clone in each cell type / tissue combination
+  if(by_tissue_and_cell_type){
+    grouping_vars <- c(grouping_vars, 'tissue', 'cell_type')
+    compartment_totals <- seq_counts
+  }else{
+    # Otherwise, compute frequencies relative to the clone's total number of productive sequences across tissues and cell types
+    compartment_totals <- seq_counts %>%
+      group_by(mouse_id, clone_id) %>%
+      dplyr::summarise(prod_seqs = sum(prod_seqs)) %>%
+      ungroup()
+  }
+  
+  # Count how many times each mutation occurs in each clone
+  mutation_counts_within_clones <- annotated_seqs %>%
+    filter(productive_partis) %>%
+    filter(!is.na(vgene_mutations_list_partis_aa)) %>%
+    group_by(across(grouping_vars)) %>%
+    dplyr::summarise(mutation = str_split(paste0(vgene_mutations_list_partis_aa, collapse = ';'), ';')[[1]]) %>%
+    group_by(across(c(grouping_vars, 'mutation'))) %>%
+    dplyr::summarise(n_seqs_with_mutation = dplyr::n()) %>%
+    ungroup()
+  
+  # Arrange mutations by the position number in which they occurred
+  mutation_counts_within_clones <- mutation_counts_within_clones %>%
+    mutate(position = as.integer(str_remove_all(mutation, '[A-Z]'))) %>%
+    arrange(across(c(grouping_vars, 'position')))
+  
+  
+  # Count what fraction of the clone's sequences each mutation is present in
+  mutation_freqs_within_clones <- left_join(mutation_counts_within_clones, compartment_totals) %>%
+    dplyr::rename(prod_clone_seqs_in_compartment = prod_seqs) %>%
+    mutate(mutation_freq_in_compartment = n_seqs_with_mutation / prod_clone_seqs_in_compartment)
+  
+  return(mutation_freqs_within_clones)
+
+}
+
+# For each clone, finds list of V gene mutations that are present at or above the chosen frequency threshold.
+list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, threshold){
+  
+  grouping_vars <- c('mouse_id', 'clone_id')
+  
+  if(all(c('tissue','cell_type') %in% names(mutation_counts_within_clones))){
+    grouping_vars <- c(grouping_vars, 'tissue', 'cell_type')
+  }else{
+    stopifnot(!any(c('tissue','cell_type') %in% names(mutation_counts_within_clones)))
+  }
+  
+  mutations_above_threshold <-  mutation_freqs_within_clones %>%
+    filter(mutation_freq_in_compartment >= threshold) %>%
+    group_by(across(c(grouping_vars, 'prod_clone_seqs_in_compartment'))) %>%
+    summarise(mutations_above_threshold = paste0(mutation, collapse = ';'),
+              mutation_freqs = paste0(round(mutation_freq_in_compartment,2), collapse = ';')) %>%
+    mutate(frequency_threshold = threshold) %>%
+    dplyr::rename(n_seqs_in_denominator = prod_clone_seqs_in_compartment) %>%
+    ungroup() %>%
+    select(mouse_id, clone_id, matches('tissue'), matches('cell_type'), frequency_threshold,
+           mutations_above_threshold, n_seqs_in_denominator)
+    
+  return(mutations_above_threshold)
+}
+
 
