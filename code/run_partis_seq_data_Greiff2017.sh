@@ -6,9 +6,9 @@ do
     sbatch_file=run_partis_${dataset_name}.sbatch
     
     echo "#!/bin/bash
-#SBATCH --job-name=run_partis_${dataset_name}
-#SBATCH --output=out_err_files/run_partis_${dataset_name}.out
-#SBATCH --error=out_err_files/run_partis_${dataset_name}.err
+#SBATCH --job-name=run_partis_${dataset_name}_20k
+#SBATCH --output=out_err_files/run_partis_${dataset_name}_20k.out
+#SBATCH --error=out_err_files/run_partis_${dataset_name}_20k.err
 #SBATCH --partition=cobey
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=16
@@ -19,14 +19,19 @@ do
 module load mafft/7.310 
 
 input_file=${mouse_dir}/${dataset_name}_processed_reads.fasta
-output_file=../results/partis/seq_data_Greiff2017/${dataset_name}.yaml" > $sbatch_file
+output_file=../results/partis/seq_data_Greiff2017/${dataset_name}_20k.yaml" > $sbatch_file
 
 
 # Running partis, randomly picking a subset of the sequences
 
-echo '/project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --n-random-queries 200000 --infname $input_file --outfname $output_file --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa
+echo '/project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --n-random-queries 20000 --infname $input_file --outfname $output_file --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa
+#' >> $sbatch_file
 
-' >> $sbatch_file
+# After running partis, run R script to process output
+
+echo 'module load R/3.6.1
+
+Rscript process_partis_output_seq_data_Greiff2017.R $output_file' >> $sbatch_file
 
 sbatch $sbatch_file
 rm $sbatch_file

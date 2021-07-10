@@ -328,19 +328,30 @@ clone_size_dist_by_tissue_and_cell_type <- seq_counts %>%
         ungroup() %>%
         mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
 
+# Add general clone information
 clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type, clone_info)
 
 
+# Add information on whether the V gene used by each clone has evidence of gene-level selection
 clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
                                                      deviation_from_naive %>%
                                                        select(mouse_id, day, infection_status, group_controls_pooled,
                                                               tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
-
-
 clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
                                                      gene_freqs %>% select(mouse_id, total_mouse_naive_seqs) %>% unique()) %>%
         mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
                cell_type = factor(cell_type, levels = c('naive', 'nonnaive_IgD+B220+','GC','PC','mem')))
+
+# For each clone, include a list of mutations above a certain frequency threshold
+# (For now, frequency is calculated relative to the number of productive sequences from a clone in a particular cell type and tissue combination)
+
+mutations_above_threshold <- list_clone_mutations_above_threshold(mutation_freqs_within_clones_by_tissue_and_cell_type,
+                                                                  threshold = 0.5)
+
+clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
+                                                     mutations_above_threshold %>% select(mouse_id, clone_id, tissue, cell_type,
+                                                                                          mutations_above_threshold)) %>%
+  mutate(mutations_above_threshold = ifelse(is.na(mutations_above_threshold), '', mutations_above_threshold))
 
 
 # Fraction of sequences in the largest 10 clones
@@ -420,6 +431,7 @@ plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('
                                                                                'clone_consensus_cdr3_partis'))
 plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('d_gene','j_gene',
                                                                                'clone_consensus_cdr3_partis'))
+plot_clone_size_dist('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('v_gene', 'mutations_above_threshold'))
 
 
 plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
@@ -429,16 +441,22 @@ plot_clone_size_dist('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'j
 
 
 plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
-plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.66,0.9))
+plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
+plot_clone_size_dist('PC','LN', 'primary-24', plot_abs_size = F, annotation = c('v_gene', 'mutations_above_threshold'))
+
 
 plot_clone_size_dist('GC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
 plot_clone_size_dist('GC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
 
 plot_clone_size_dist('GC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
 plot_clone_size_dist('GC','LN', 'primary-16', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
+plot_clone_size_dist('GC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold')) 
 
 plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
 plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
+plot_clone_size_dist('GC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+
+plot_clone_size_dist('PC','BM', 'primary-16', plot_abs_size = F, c('v_gene', 'mutations_above_threshold')) 
 
 
 plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, cdr3_only){

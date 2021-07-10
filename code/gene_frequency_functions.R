@@ -888,10 +888,10 @@ list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, t
   
   grouping_vars <- c('mouse_id', 'clone_id')
   
-  if(all(c('tissue','cell_type') %in% names(mutation_counts_within_clones))){
+  if(all(c('tissue','cell_type') %in% names(mutation_freqs_within_clones))){
     grouping_vars <- c(grouping_vars, 'tissue', 'cell_type')
   }else{
-    stopifnot(!any(c('tissue','cell_type') %in% names(mutation_counts_within_clones)))
+    stopifnot(!any(c('tissue','cell_type') %in% names(mutation_freqs_within_clones)))
   }
   
   mutations_above_threshold <-  mutation_freqs_within_clones %>%
