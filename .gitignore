@@ -8,6 +8,7 @@ processed_data
 code/_output
 code/.Rhistory
 *.out
+*.html
 *.err
 *.pyc
 *.sbatch

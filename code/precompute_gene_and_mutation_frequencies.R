@@ -87,9 +87,22 @@ mutation_freqs_within_clones <- get_mutation_frequencies_within_clones(annotated
 mutation_freqs_within_clones_by_tissue_and_cell_type <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = T)
 
 
+# =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH TISSUE / CELL TYPE COMBINATION ==========
+clone_freqs_by_tissue_and_cell_type <- seq_counts %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
+  summarise(clone_size = sum(prod_seqs)) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
+  mutate(total_seqs = sum(clone_size),
+         clone_freq = clone_size / total_seqs) %>%
+  mutate(clone_rank = rank(-clone_freq, ties.method = 'first')) %>%
+  ungroup() %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
+
+
 
 # =========== EXPORT RData ==========
 save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_freqs_adj_naive_zeros,
+     clone_freqs_by_tissue_and_cell_type, 
           neutral_realizations, pairwise_gene_freqs,
           pairwise_correlations,
           neutral_pairwise_correlations,

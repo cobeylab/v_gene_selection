@@ -1,0 +1,239 @@
+---
+title: "Tissue and cell type composition of clones"
+author: "Marcos Vieira"
+date: "7/12/2021"
+output: html_document
+---
+
+## Tissue composition of clones ##
+
+Cell sorting data suggests sequences from lymph node plasma cells and germinal center cells are likely induced by the infecting influenza virus. Are the clones represented in those populations constrained to the lymph node, or do they span multiple tissues? 
+
+
+
+```{r setup, include=FALSE, echo = FALSE, warnings = FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(dplyr)
+library(readr)
+library(plotly)
+library(ggplot2)
+library(cowplot)
+theme_set(theme_cowplot())
+source('gene_frequency_functions.R')
+```
+
+
+```{r read_data, echo = F, warnings = F}
+# Read clone info
+#clone_info <- read_csv('../processed_data/clone_info.csv')
+clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+
+# Exclude clones without productive sequences 
+clone_info <- clone_info %>%
+  filter(!is.na(total_clone_prod_seqs))
+
+clone_info <- get_info_from_mouse_id(clone_info) %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
+```
+
+```{r, echo = F}
+
+# This function gets the distribution of other cell types for clones dominated by each cell type
+# For instance, if a clone is concentrated in the LN, it finds the distribution of the remaining sequences across the other tissues
+# Similary for tissues (controlled by argument 'variable')
+
+get_freqs_by_dominant_compartment <- function(clone_info, variable){
+  
+  if(variable == 'cell_type'){
+    fraction_seq_vars <- c('fraction_prod_seqs_naive', 'fraction_prod_seqs_nonnaive_IgD+B220+',
+         'fraction_prod_seqs_GC', 'fraction_prod_seqs_PC', 'fraction_prod_seqs_mem')
+  }else{
+    stopifnot(variable == 'tissue')
+    fraction_seq_vars <- c('fraction_prod_seqs_LN', 'fraction_prod_seqs_spleen', 'fraction_prod_seqs_BM')
+  }
+  
+  output <- clone_info %>% 
+    select(mouse_id, group_controls_pooled, clone_id, total_clone_prod_seqs, any_of(fraction_seq_vars)) %>%
+    pivot_longer(cols = matches('fraction'), names_to = 'compartment', values_to = 'fraction') %>%
+    mutate(compartment = str_remove(compartment,'fraction_prod_seqs_')) %>%
+    group_by(mouse_id, group_controls_pooled, clone_id) %>%
+    mutate(is_biggest_compartment = (fraction == max(fraction)),
+           dominant_compartment = paste0(compartment[is_biggest_compartment], collapse = ';'),
+           fraction_seqs_in_dominant_compartment = max(fraction)) %>%
+    dplyr::rename(other_compartment = compartment,
+                fraction_seqs_in_other_compartment = fraction) %>%
+    filter(!is_biggest_compartment) %>%
+    select(mouse_id, group_controls_pooled, clone_id, total_clone_prod_seqs,
+           dominant_compartment, fraction_seqs_in_dominant_compartment, other_compartment, fraction_seqs_in_other_compartment) %>%
+    group_by(mouse_id, group_controls_pooled, clone_id, total_clone_prod_seqs, dominant_compartment, fraction_seqs_in_dominant_compartment) %>%
+    mutate(normalized_fraction_seqs_in_other_compartment = fraction_seqs_in_other_compartment / sum(fraction_seqs_in_other_compartment)) %>%
+    ungroup()
+
+}
+
+```
+
+Considering clones with 10 or more sequences, most clones are concentrated in a single tissue
+```{r, echo = F}
+min_clone_size = 10
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_tissue_fraction)) +
+  geom_histogram(binwidth = 0.025, color = 'white', size = 0.3) +
+  #geom_vline(xintercept = 0.97) +
+  xlab('Biggest fraction of clone sequences in a single tissue \n(mLN, BM or spleen)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)'))
+```
+
+There seems to be a trend for clones to become less concentrated in individual tissues 16 days after primary infection, then again 8 days after secondary infection
+
+```{r, echo = F}
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_tissue_fraction)) +
+  #geom_density(aes(group = mouse_id)) +
+  geom_histogram() + 
+  facet_wrap('group_controls_pooled', scales = 'free') + 
+  xlab('Biggest fraction of clone sequences in a single tissue \n(mLN, BM or spleen)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)')) +
+  scale_y_log10() +
+  geom_hline(yintercept = 100, color = 'red', linetype = 2)
+
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  ggplot(aes(x = group_controls_pooled, y = simpson_diversity_tissues)) +
+  #geom_violin() 
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(alpha = 0.01, position = position_jitter(width = 0.1)) +
+  xlab('group') +
+  ylab('Simpson diversity of tissues within clone')
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  group_by(mouse_id, group_controls_pooled, biggest_tissue_fraction > 0.9) %>%
+  dplyr::count() %>%
+  group_by(mouse_id, group_controls_pooled) %>%
+  mutate(fraction = n/sum(n)) %>%
+  filter(`biggest_tissue_fraction > 0.9` == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = fraction)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  xlab('Group') +
+  ylim(0.4,1) + 
+  ylab('Fraction of clones with 90%\nor more sequences in a single tissue')
+
+```
+
+
+Considering clones that are concentrated in a tissue but have sequences from other tissues, it looks like LN-concentrated clones have more sequences in the spleen than in the bone marrow (and spleen-concentrated clones have more sequences in the LN than in the BM), while clones concentrated in the bone marrow have, on average, similar frequencies of sequences in the LN and spleen.
+
+
+```{r, echo = F}
+
+freq_other_tissues_by_dominant_tissue <- get_freqs_by_dominant_compartment(clone_info, variable = 'tissue') 
+  
+freq_other_tissues_by_dominant_tissue %>% 
+  # Consider only clones above min_clone_size, exclude clones with all singles in only one tissue, exactly co-dominant tissues
+  filter(total_clone_prod_seqs >= min_clone_size, fraction_seqs_in_dominant_compartment < 1,
+         !grepl(";", dominant_compartment)) %>%
+  mutate(dominant_compartment = factor(dominant_compartment, levels = c('LN','spleen','BM')),
+         other_compartment = factor(other_compartment, levels = c('LN','spleen','BM'))) %>%
+  ggplot(aes(x = other_compartment, y = normalized_fraction_seqs_in_other_compartment)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(alpha = 0.01, position = position_jitter(0.05)) +
+  facet_wrap('dominant_compartment') +
+  ggtitle('Predominant clone tissue \n(excluding clones 100% contained in a single tissue)') +
+  xlab('Other tissues') +
+  ylab('Fraction of the remaining\nsequences in other tissues') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  background_grid()
+```
+
+## Cell type composition of clones ##
+```{r, echo =F}
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_ctype_fraction)) +
+  geom_histogram(binwidth = 0.025, color = 'white', size = 0.3) +
+  #geom_vline(xintercept = 0.97) +
+  xlab('Biggest fraction of clone sequences from a single cell type \n(naive, non-naive IgD+B220+, GC, PC or mem)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)'))
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_ctype_fraction)) +
+  #geom_density(aes(group = mouse_id)) +
+  geom_histogram() + 
+  facet_wrap('group_controls_pooled', scales = 'free') + 
+  xlab('Biggest fraction of clone sequences from a single cell type \n(naive, non-naive IgD+B220+, GC, PC or mem)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)')) +
+  scale_y_log10() +
+  geom_hline(yintercept = 100, color = 'red', linetype = 2)
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  ggplot(aes(x = group_controls_pooled, y = simpson_diversity_ctypes)) +
+  #geom_violin() 
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(alpha = 0.01, position = position_jitter(width = 0.1)) +
+  xlab('group') +
+  ylab('Cell-type Simpson diversity within clone')
+
+clone_info %>%
+  filter(total_clone_prod_seqs >= min_clone_size) %>%
+  group_by(mouse_id, group_controls_pooled, biggest_ctype_fraction > 0.9) %>%
+  dplyr::count() %>%
+  group_by(mouse_id, group_controls_pooled) %>%
+  mutate(fraction = n/sum(n)) %>%
+  filter(`biggest_ctype_fraction > 0.9` == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = fraction)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  xlab('Group') +
+  ylim(0.3,1) + 
+  ylab('Fraction of clones with 90%\nor more sequences from a single cell type')
+
+```
+
+```{r, echo = F}
+
+freq_other_cell_types_by_dominant_cell_type <- get_freqs_by_dominant_compartment(clone_info, 'cell_type')
+
+freq_other_cell_types_by_dominant_cell_type %>% 
+  # Consider only clones above min_clone_size, exclude clones with all singles in only one cell type, exactly co-dominant cell
+  filter(total_clone_prod_seqs >= min_clone_size, fraction_seqs_in_dominant_compartment < 1,
+         !grepl(";", dominant_compartment)) %>%
+  mutate(dominant_compartment = factor(dominant_compartment, levels = c('naive','nonnaive_IgD+B220+','GC','PC','mem')),
+         other_compartment = factor(other_compartment, levels = c('naive','nonnaive_IgD+B220+','GC','PC','mem'))) %>%
+  ggplot(aes(x = other_compartment, y = normalized_fraction_seqs_in_other_compartment)) +
+  geom_point(alpha = 0.01, position = position_jitter(0.05)) +
+  geom_boxplot(outlier.alpha = 0, color = 'red') +
+  facet_wrap('dominant_compartment') +
+  ggtitle('Predominant cell type \n(excluding clones 100% composed of a single type)') +
+  xlab('Other cell types') +
+  ylab('Fraction of the remaining\nsequences in other cell types') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  background_grid() +
+  scale_x_discrete(labels = function(x){str_replace(x,'_','\n')})
+
+
+```
+
+
+
+```{r ternary, echo = F}
+# Trying to make a ternary plot with plotly
+#clone_tissue_composition_plot <- plot_ly(clone_tissue_composition %>% filter(mouse_id == '40-7'),
+#        a = ~LN, b = ~BM, c = ~spleen,
+#        mode = "markers", marker = list(color = ~total_clone_seqs, colorscale='Viridis'),
+#        type = "scatterternary")
+
+#clone_tissue_composition_plot 
+#orca(clone_tissue_composition_plot, "~/Desktop/test_plot.pdf")
+
+```
+

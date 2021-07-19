@@ -14,7 +14,7 @@ clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info  <- read_csv('~/Desktop/clone_info.csv')
 
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') 
-# annotated_seqs <- read_csv('~/Desktop/annotated_seqs.csv')
+# annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
 
 
 annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene))

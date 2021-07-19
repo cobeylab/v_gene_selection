@@ -317,27 +317,18 @@ plot_most_common_genes('nonnaive_IgD+B220+','spleen','primary-8') +
 
 # ============== CLONE SIZE DISTRIBUTIONS
 
-# Clone size distributions over time
-clone_size_dist_by_tissue_and_cell_type <- seq_counts %>%
-        group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
-        summarise(clone_size = sum(prod_seqs)) %>%
-        group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
-        mutate(total_seqs = sum(clone_size),
-               clone_freq = clone_size / total_seqs) %>%
-        mutate(clone_rank = rank(-clone_freq, ties.method = 'first')) %>%
-        ungroup() %>%
-        mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
 
-# Add general clone information
-clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type, clone_info)
+# Add general clone information to object with clone size distributions
+clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type, clone_info)
 
 
 # Add information on whether the V gene used by each clone has evidence of gene-level selection
-clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
+clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                      deviation_from_naive %>%
                                                        select(mouse_id, day, infection_status, group_controls_pooled,
                                                               tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
-clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
+
+clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                      gene_freqs %>% select(mouse_id, total_mouse_naive_seqs) %>% unique()) %>%
         mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
                cell_type = factor(cell_type, levels = c('naive', 'nonnaive_IgD+B220+','GC','PC','mem')))
@@ -348,14 +339,14 @@ clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_a
 mutations_above_threshold <- list_clone_mutations_above_threshold(mutation_freqs_within_clones_by_tissue_and_cell_type,
                                                                   threshold = 0.5)
 
-clone_size_dist_by_tissue_and_cell_type <- left_join(clone_size_dist_by_tissue_and_cell_type,
+clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                      mutations_above_threshold %>% select(mouse_id, clone_id, tissue, cell_type,
                                                                                           mutations_above_threshold)) %>%
   mutate(mutations_above_threshold = ifelse(is.na(mutations_above_threshold), '', mutations_above_threshold))
 
 
 # Fraction of sequences in the largest 10 clones
-clone_size_dist_by_tissue_and_cell_type %>% 
+clone_freqs_by_tissue_and_cell_type %>% 
         filter(total_seqs >= 100, tissue == 'LN', group_controls_pooled != 'control') %>%
         #filter(tissue == 'LN', group_controls_pooled != 'control') %>%
         filter(clone_rank <=10) %>% 
@@ -388,7 +379,7 @@ plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_a
         y_axis_label <- 'Clone frequency'
       }
   
-  plotting_data <- clone_size_dist_by_tissue_and_cell_type %>%
+  plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
     mutate(across(c('v_gene','d_gene','j_gene'),
                   function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
     unite('annotation', annotation, sep = ' ; ') 
@@ -473,7 +464,7 @@ plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, c
                 y_axis_label <- 'Mean number of amino acid mutations'
         }
         
-        clone_size_dist_by_tissue_and_cell_type %>%
+        clone_freqs_by_tissue_and_cell_type %>%
                 filter(tissue == plot_tissue, cell_type == plot_cell_type, group_controls_pooled == plot_group) %>%
                 filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
                 filter(clone_rank <= 100) %>%
@@ -644,82 +635,6 @@ clone_size_dist_by_tissue_and_cell_type %>%
 
 
 
-# Clustering based on Spearman correlation of V gene frequencies as an inverse measure of distance.
-get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric){
-  
-  if(metric == 'freqs'){
-    data_subset <- pairwise_correlations$freqs %>%
-      rename(cor_coef = cor_coef_freqs)
-    color_key_title <- 'Spearman correlation\nin V gene frequencies'
-  }else{
-    stopifnot(metric == 'freq_ratios')
-    data_subset <- pairwise_correlations$freq_ratios %>%
-      rename(cor_coef = cor_coef_freq_ratios)
-    color_key_title <- 'Spearman correlation\nin V gene frequency deviations\nfrom the naive repertoire\n'
-  }
-  
-  data_subset <- data_subset %>%
-    filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
-    filter(cell_type == !!cell_type, tissue == !!tissue) %>%
-    select(mouse_id_i, mouse_id_j, cor_coef)
-  
-  # Add a diagonal to the correlation matrix (each mouse has correlation 1 with itself)
-  data_subset <- bind_rows(data_subset, 
-                           tibble(mouse_id_i = unique(c(data_subset$mouse_id_i, data_subset$mouse_id_j))) %>%
-                             mutate(mouse_id_j = mouse_id_i, cor_coef = 1)) %>%
-    arrange(mouse_id_i, mouse_id_j)
-  
-  wide_format_correlations <- data_subset %>%
-    pivot_wider(names_from = mouse_id_j, values_from = cor_coef)
-  
-  correlation_matrix <- as.matrix(wide_format_correlations[colnames(wide_format_correlations) != 'mouse_id_i'])
-  rownames(correlation_matrix) <- wide_format_correlations$mouse_id_i
-  
-  # Fill lower triangle
-  for(i in 1:nrow(correlation_matrix)){
-    for(j in 1:ncol(correlation_matrix)){
-      if(j < i){
-        correlation_matrix[i,j] <- correlation_matrix[j,i]
-      }
-    }
-  }
-  
-  # Convert correlations into distances.
-  dist_matrix <- as.dist(1 - correlation_matrix)
-  cluster <- hclust(dist_matrix, method = 'complete')
-  dendrogram <- as.dendrogram(cluster)
-
-  # Within topological constraints of dendrogram, tries to order mice with day 8 on top, then day 16, 
-  #etc.
-  leaf_weights <- 1/as.integer(str_extract(cluster$labels, '[0-9]+'))
-  dendrogram <- reorder(dendrogram,
-                        wts = leaf_weights)
-  
-  annotation <- get_info_from_mouse_id(
-    tibble(mouse_id = cluster$labels)
-  )
-
-  
-  dendro_heatmap <- heatmaply(x = correlation_matrix,
-            scale_fill_gradient_fun = ggplot2::scale_fill_gradient2(
-              low = "blue", 
-              high = "red", 
-              midpoint = 0, 
-              limits = c(-1, 1)
-            ),
-            Rowv = dendrogram,
-            Colv = dendrogram,
-            row_side_colors = annotation %>% select(group_controls_pooled) %>%
-              rename(group = group_controls_pooled),
-            col_side_colors = annotation %>% select(group_controls_pooled) %>%
-              rename(group = group_controls_pooled),
-            seriate = 'none',
-            key.title = color_key_title)
-  
-  return(dendro_heatmap)
-  
-  
-}
 
 # ----- Dendrograms and heatmaps based on correlation in V gene frequencies -------
 

@@ -4,6 +4,7 @@ library(cowplot)
 library(stringr)
 library(viridis)
 library(reshape2)
+library(heatmaply)
 
 estimated_seq_error_rate <- 0.0018
 
@@ -29,6 +30,7 @@ group_controls_pooled_factor_levels <- c('control','primary-8','primary-16',
 
 get_info_from_mouse_id <- function(data){
   mouse_info <- data %>% 
+    filter(grepl('untreated', mouse_id) == F) %>% # Excludes mouse labels from Greiff et al. 2017 data
     select(mouse_id) %>%
     unique() %>%
     mutate(day = str_extract(mouse_id,'[0-9]*[^-]'),
@@ -44,6 +46,14 @@ get_info_from_mouse_id <- function(data){
     mutate(group_controls_pooled = ifelse(grepl('control',group_controls_pooled), 'control', group_controls_pooled)) %>%
     select(-mouse_id_number) 
   
+  if(any(grepl('untreated', unique(data$mouse_id)))){
+    Greiff2017_mouse_info <- tibble(mouse_id = unique(data$mouse_id)[grepl('untreated',unique(data$mouse_id))],
+                                    day = NA, infection_status = 'Greiff2017', group = 'Greiff2017',
+                                    group_controls_pooled = 'Greiff2017')
+    mouse_info <- bind_rows(mouse_info, Greiff2017_mouse_info)
+  }
+  
+ 
   return(left_join(data, mouse_info, by = 'mouse_id') %>%
            select(mouse_id, day, infection_status, group, group_controls_pooled, everything()))
 }
@@ -560,7 +570,7 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
 }
 
 # Calculates pairwise correlations v gene freqs. or v genes experienced-to-naive freq.ratios between pairs of mice.
-get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparison = 10){
+get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparison = 10, include_freq_ratios = T){
   
   grouping_vars <- c('mouse_pair','pair_type','mouse_id_i','mouse_id_j','day_i','day_j',
                      'cell_type', 'total_compartment_seqs_i','total_compartment_seqs_j',
@@ -581,12 +591,17 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
                                   method = 'spearman')$estimate) %>%
     ungroup()
   
-  pairwise_correlations_freq_ratios <- pairwise_correlations %>%
-    filter(n_genes_in_freq_ratio_comparison >= min_genes_in_comparison) %>%
-    dplyr::summarise(cor_coef_freq_ratios = cor.test(exp_naive_ratio_i, exp_naive_ratio_j,
-                                  method = 'spearman')$estimate) %>%
-    ungroup()
-  return(list(freqs = pairwise_correlations_freqs, freq_ratios = pairwise_correlations_freq_ratios))
+  if(include_freq_ratios){
+    pairwise_correlations_freq_ratios <- pairwise_correlations %>%
+      filter(n_genes_in_freq_ratio_comparison >= min_genes_in_comparison) %>%
+      dplyr::summarise(cor_coef_freq_ratios = cor.test(exp_naive_ratio_i, exp_naive_ratio_j,
+                                                       method = 'spearman')$estimate) %>%
+      ungroup()
+    return(list(freqs = pairwise_correlations_freqs, freq_ratios = pairwise_correlations_freq_ratios))
+  }else{
+    return(pairwise_correlations_freqs)
+  }
+
 } 
 
 
@@ -694,6 +709,10 @@ get_distribution_of_mutations <- function(annotated_seqs, n_mutations_variable, 
   
   if(disable_grouping == T){ # computes distribution across the entire tibble (used to analyze separate naive seq datasets)
     grouping_vars <- n_mutations_variable
+    if('mouse_id' %in% names(annotated_seqs)){
+      grouping_vars <- c('mouse_id', grouping_vars)
+    }
+    
   }else{
     grouping_vars <- c('mouse_id','day','infection_status','group_controls_pooled',
                        'tissue', 'cell_type', n_mutations_variable)
@@ -724,6 +743,9 @@ get_seq_length_distribution <- function(annotated_seqs, seq_length_variable, dis
 
   if(disable_grouping == T){ # computes distribution across the entire tibble (used to analyze separate naive seq datasets)
     grouping_vars <- seq_length_variable
+    if('mouse_id' %in% names(annotated_seqs)){
+      grouping_vars <- c('mouse_id', grouping_vars)
+    }
   }else{
     grouping_vars <- c('mouse_id', 'day', 'infection_status', 'group_controls_pooled', 'tissue', 'cell_type',
                        seq_length_variable)
@@ -756,6 +778,9 @@ get_null_mutation_distribution_given_length_distribution <- function(annotated_s
   
   if(disable_grouping == T){
     grouping_vars <- 'n_mutations'
+    if('mouse_id' %in% names(annotated_seqs)){
+      grouping_vars <- c('mouse_id', grouping_vars)
+    }
   }else{
     grouping_vars <- c('mouse_id','tissue','cell_type','n_mutations')
   }
@@ -907,5 +932,91 @@ list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, t
     
   return(mutations_above_threshold)
 }
+
+# Clustering based on Spearman correlation of V gene frequencies as an inverse measure of distance.
+get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric,
+                                                  annotation_variable = 'group_controls_pooled'){
+  
+  if(metric == 'freqs'){
+    data_subset <- pairwise_correlations$freqs %>%
+      rename(cor_coef = cor_coef_freqs)
+    color_key_title <- 'Spearman correlation\nin V gene frequencies'
+  }else{
+    stopifnot(metric == 'freq_ratios')
+    data_subset <- pairwise_correlations$freq_ratios %>%
+      rename(cor_coef = cor_coef_freq_ratios)
+    color_key_title <- 'Spearman correlation\nin V gene frequency deviations\nfrom the naive repertoire\n'
+  }
+  
+  data_subset <- data_subset %>%
+    filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
+    filter(cell_type == !!cell_type) 
+  
+  if(!is.null(tissue)){
+    data_subset <- data_subset %>%
+      filter(tissue == !!tissue)
+  }
+  
+  data_subset <- data_subset %>%
+    select(mouse_id_i, mouse_id_j, cor_coef)
+  
+  # Add a diagonal to the correlation matrix (each mouse has correlation 1 with itself)
+  data_subset <- bind_rows(data_subset, 
+                           tibble(mouse_id_i = unique(c(data_subset$mouse_id_i, data_subset$mouse_id_j))) %>%
+                             mutate(mouse_id_j = mouse_id_i, cor_coef = 1)) %>%
+    arrange(mouse_id_i, mouse_id_j)
+  
+  wide_format_correlations <- data_subset %>%
+    pivot_wider(names_from = mouse_id_j, values_from = cor_coef)
+  
+  correlation_matrix <- as.matrix(wide_format_correlations[colnames(wide_format_correlations) != 'mouse_id_i'])
+  rownames(correlation_matrix) <- wide_format_correlations$mouse_id_i
+  
+  # Fill lower triangle
+  for(i in 1:nrow(correlation_matrix)){
+    for(j in 1:ncol(correlation_matrix)){
+      if(j < i){
+        correlation_matrix[i,j] <- correlation_matrix[j,i]
+      }
+    }
+  }
+  
+  # Convert correlations into distances.
+  dist_matrix <- as.dist(1 - correlation_matrix)
+  cluster <- hclust(dist_matrix, method = 'complete')
+  dendrogram <- as.dendrogram(cluster)
+  
+  # Within topological constraints of dendrogram, tries to order mice with day 8 on top, then day 16, 
+  #etc.
+  leaf_weights <- 1/as.integer(str_extract(cluster$labels, '[0-9]+'))
+  dendrogram <- reorder(dendrogram,
+                        wts = leaf_weights)
+  
+  annotation <- get_info_from_mouse_id(
+    tibble(mouse_id = cluster$labels)
+  )
+  
+  
+  dendro_heatmap <- heatmaply(x = correlation_matrix,
+                              scale_fill_gradient_fun = ggplot2::scale_fill_gradient2(
+                                low = "blue", 
+                                high = "red", 
+                                midpoint = 0, 
+                                limits = c(-1, 1)
+                              ),
+                              Rowv = dendrogram,
+                              Colv = dendrogram,
+                              row_side_colors = annotation %>% select(matches(annotation_variable)) %>%
+                                rename(group = group_controls_pooled),
+                              col_side_colors = annotation %>% select(matches(annotation_variable)) %>%
+                                rename(group = group_controls_pooled),
+                              seriate = 'none',
+                              key.title = color_key_title)
+  
+  return(dendro_heatmap)
+  
+  
+}
+
 
 
