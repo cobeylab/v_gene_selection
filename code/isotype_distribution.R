@@ -10,6 +10,7 @@ theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') 
+# annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
 
 annotated_seqs <- annotated_seqs %>%
   mutate(across(c('clone_id_partis','partis_uniq_ref_seq','seq_id'), as.character))

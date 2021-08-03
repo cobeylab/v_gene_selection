@@ -16,6 +16,7 @@ source('gene_frequency_functions.R')
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
 
 load('../results/precomputed_gene_freqs.RData')
+#load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
 
 seq_counts <- bind_rows(exp_seq_counts, naive_seq_counts)
 
@@ -302,6 +303,9 @@ plot_most_common_genes('GC','LN','primary-16') +
 plot_most_common_genes('GC','LN','primary-24') +
         theme(legend.position = c(0.85,0.35))
 
+plot_most_common_genes('nonnaive_IgD+B220+','LN','control') +
+  theme(legend.position = c(0.85,0.3))
+
 plot_most_common_genes('nonnaive_IgD+B220+','LN','primary-8') +
   theme(legend.position = c(0.8,0.2))
 plot_most_common_genes('nonnaive_IgD+B220+','LN','primary-16') +
@@ -326,12 +330,13 @@ clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                      deviation_from_naive %>%
                                                        select(mouse_id, day, infection_status, group_controls_pooled,
-                                                              tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
+                                                              tissue, cell_type, v_gene, matches('rho'), deviation_from_naive) %>%
+                                                   dplyr::rename(compartment_tissue = tissue, compartment_cell_type = cell_type))
 
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                      gene_freqs %>% select(mouse_id, total_mouse_naive_seqs) %>% unique()) %>%
-        mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-               cell_type = factor(cell_type, levels = c('naive', 'nonnaive_IgD+B220+','GC','PC','mem')))
+        mutate(compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')),
+               compartment_cell_type = factor(compartment_cell_type, levels = c('naive', 'nonnaive_IgD+B220+','GC','PC','mem')))
 
 # For each clone, include a list of mutations above a certain frequency threshold
 # (For now, frequency is calculated relative to the number of productive sequences from a clone in a particular cell type and tissue combination)
@@ -341,20 +346,19 @@ mutations_above_threshold <- list_clone_mutations_above_threshold(mutation_freqs
 
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                      mutations_above_threshold %>% select(mouse_id, clone_id, tissue, cell_type,
-                                                                                          mutations_above_threshold)) %>%
+                                                                                          mutations_above_threshold) %>%
+                                                   dplyr::rename(compartment_tissue = tissue, compartment_cell_type = cell_type)) %>%
   mutate(mutations_above_threshold = ifelse(is.na(mutations_above_threshold), '', mutations_above_threshold))
 
 
 # Fraction of sequences in the largest 10 clones
 clone_freqs_by_tissue_and_cell_type %>% 
-        filter(total_seqs >= 100, tissue == 'LN', group_controls_pooled != 'control') %>%
-        #filter(tissue == 'LN', group_controls_pooled != 'control') %>%
-        filter(clone_rank <=10) %>% 
-        group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_seqs) %>%
-        summarise(seqs_in_top_clones = sum(clone_size)) %>%
-        mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs) %>%
+        filter(total_seqs_in_compartment >= 100, compartment_tissue == 'LN', group_controls_pooled != 'control') %>%
+        filter(clone_rank_in_compartment <=10) %>% 
+        group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_seqs_in_compartment) %>%
+        summarise(seqs_in_top_clones = sum(n_clone_seqs_in_compartment)) %>%
+        mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs_in_compartment) %>%
         ungroup() %>%
-        # Effectively a primary infection mouse
         ggplot(aes(x = group_controls_pooled, y = fraction_seqs_in_top_clones, color = infection_status)) +
         geom_boxplot(outlier.alpha =  F) +
         geom_point() +
@@ -372,10 +376,10 @@ plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_a
   
   
     if(plot_abs_size){
-      y_axis_var <- 'clone_size'
-      y_axis_label <- 'Number of unique sequences'
+      y_axis_var <- 'n_clone_seqs_in_compartment'
+      y_axis_label <- 'Number of sequences'
       }else{
-        y_axis_var <- 'clone_freq'
+        y_axis_var <- 'clone_freq_in_compartment'
         y_axis_label <- 'Clone frequency'
       }
   
@@ -385,10 +389,11 @@ plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_a
     unite('annotation', annotation, sep = ' ; ') 
 
   pl <- plotting_data %>%
-    filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
-    filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, clone_rank <= 20) %>%
+    filter(total_seqs_in_compartment >= 100) %>%
+    filter(compartment_cell_type == plot_cell_type, compartment_tissue == plot_tissue, group_controls_pooled == plot_group,
+           clone_rank_in_compartment <= 20) %>%
     ungroup() %>%
-    ggplot(aes_string(x = 'clone_rank', y = y_axis_var, group = 'mouse_id')) +
+    ggplot(aes_string(x = 'clone_rank_in_compartment', y = y_axis_var, group = 'mouse_id')) +
     geom_line() +
     facet_wrap('mouse_id', scales = 'free') +
     xlab('Clone rank (top 20 clones only)') +
@@ -402,11 +407,11 @@ plot_clone_size_dist <- function(plot_cell_type, plot_tissue, plot_group, plot_a
   if(length(annotation) == 1 & all(annotation == 'v_gene')){
     pl <- pl + 
       geom_point(aes(color = deviation_from_naive)) +
-      geom_text(aes(x = clone_rank + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
+      geom_text(aes(x = clone_rank_in_compartment + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
                              label = annotation), show.legend = F, size = 3.5) 
   }else{
     pl <- pl + geom_point() +
-      geom_text(aes(x = clone_rank + 0.3, angle = 35, hjust = 0,
+      geom_text(aes(x = clone_rank_in_compartment + 0.3, angle = 35, hjust = 0,
                              label = annotation), show.legend = F, size = 3.5)
   }
   
@@ -465,19 +470,20 @@ plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, c
         }
         
         clone_freqs_by_tissue_and_cell_type %>%
-                filter(tissue == plot_tissue, cell_type == plot_cell_type, group_controls_pooled == plot_group) %>%
-                filter(total_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
-                filter(clone_rank <= 100) %>%
-                ggplot(aes_string(x = 'clone_rank', y = y_axis_var)) +
+                filter(compartment_tissue == plot_tissue, compartment_cell_type == plot_cell_type,
+                       group_controls_pooled == plot_group) %>%
+                filter(total_seqs_in_compartment >= 100) %>%
+                filter(clone_rank_in_compartment <= 100) %>%
+                ggplot(aes_string(x = 'clone_rank_in_compartment', y = y_axis_var)) +
                 geom_hline(yintercept = c(1), linetype = 2) +
                 geom_linerange(aes_string(ymin = ymin, ymax = ymax)) +
-                geom_point(aes(size = clone_size), color = 'dodgerblue') +
+                geom_point(aes(size = n_clone_seqs_in_compartment), color = 'dodgerblue') +
                 #geom_text(aes(label = clone_id)) +
                 facet_wrap('mouse_id', scales = 'free') +
                 scale_x_log10() +
                 xlab('Clone rank (top 100 clones only)') +
                 ylab(paste0(y_axis_label,'\n(whisker = min, max)')) +
-                scale_size_continuous(name = 'Clone size\n(unique sequences)') +
+                scale_size_continuous(name = 'Clone size\n(n sequences)') +
                 scale_y_continuous(limits = c(0,NA))
 }
 plot_mutations_top_clones('PC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
@@ -643,53 +649,54 @@ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlati
                                       cell_type = 'PC',
                                       tissue = 'LN')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'GC',
                                       tissue = 'LN')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'GC',
                                       tissue = 'spleen')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'GC',
                                       tissue = 'BM')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'PC',
                                       tissue = 'BM')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'PC',
                                       tissue = 'spleen')
 
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'mem',
                                       tissue = 'LN')
   
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'mem',
                                       tissue = 'spleen')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'nonnaive_IgD+B220+',
                                       tissue = 'LN')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'nonnaive_IgD+B220+',
                                       tissue = 'BM')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations_freqs = pairwise_correlations,
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'nonnaive_IgD+B220+',
                                       tissue = 'spleen')
@@ -708,6 +715,11 @@ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlati
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freq_ratios',
                                       cell_type = 'mem',
+                                      tissue = 'LN')
+
+get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+                                      metric = 'freq_ratios',
+                                      cell_type = 'nonnaive_IgD+B220+',
                                       tissue = 'LN')
 
 

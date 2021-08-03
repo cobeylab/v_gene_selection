@@ -1,4 +1,5 @@
 library(dplyr)
+library(purrr)
 library(tidyr)
 library(readr)
 library(stringr)
@@ -74,55 +75,110 @@ unique_seq_counts <- annotated_seqs %>%
   ungroup()
 write_csv(unique_seq_counts, '../processed_data/unique_seq_counts.csv')
 
-# Annotate clone_info with clone tissue composition and clone cell type composition
-# (Based on total, not unique sequences)
+# ========= Annotate clone_info with clone tissue composition and clone cell type composition =======
+# Numbers of productive sequences (as opposed to only unique seqs) in each tissue and cell type in each clone
 
-clone_tissue_composition <- seq_counts %>%
+clone_tissue_composition_prod_seqs <- seq_counts %>%
   group_by(mouse_id, clone_id, tissue) %>%
   # For each clone, sum across cell types within each tissue
-  dplyr::summarise(clone_seqs_in_tissue = sum(prod_seqs)) %>%
+  dplyr::summarise(prod_seqs_in_tissue = sum(prod_seqs)) %>%
   group_by(mouse_id, clone_id) %>%
   # Now compute the fraction of sequences in a clone that came from each tissue
-  mutate(total_clone_prod_seqs = sum(clone_seqs_in_tissue),
-         fraction_seqs_in_tissue = clone_seqs_in_tissue / total_clone_prod_seqs) %>%
+  mutate(total_clone_prod_seqs = sum(prod_seqs_in_tissue)) %>%
   ungroup() %>%
   pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_prod_seqs')),
-              names_from = tissue, values_from = fraction_seqs_in_tissue,
-              values_fill = 0, names_prefix = 'fraction_prod_seqs_') 
+              names_from = tissue, values_from = prod_seqs_in_tissue,
+              values_fill = 0, names_prefix = 'prod_seqs_') 
 
-clone_cell_type_composition <- seq_counts %>%
+clone_cell_type_composition_prod_seqs <- seq_counts %>%
   group_by(mouse_id, clone_id, cell_type) %>%
   # For each clone, sum across tissue within each cell type
-  dplyr::summarise(clone_seqs_in_cell_type = sum(prod_seqs)) %>%
+  dplyr::summarise(prod_seqs_in_cell_type = sum(prod_seqs)) %>%
   group_by(mouse_id, clone_id) %>%
   # Now compute the fraction of sequences in a clone that came from each cell_type
-  mutate(total_clone_prod_seqs = sum(clone_seqs_in_cell_type),
-         fraction_seqs_in_cell_type= clone_seqs_in_cell_type / total_clone_prod_seqs) %>%
+  mutate(total_clone_prod_seqs = sum(prod_seqs_in_cell_type)) %>%
   ungroup() %>%
   pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_prod_seqs')),
-              names_from = cell_type, values_from = fraction_seqs_in_cell_type,
-              values_fill = 0, names_prefix = 'fraction_prod_seqs_') 
+              names_from = cell_type, values_from = prod_seqs_in_cell_type,
+              values_fill = 0, names_prefix = 'prod_seqs_') 
 
 # Total number of productive sequences should be equal for each clone in both tibbles
-stopifnot(all(clone_cell_type_composition$total_clone_prod_seqs == clone_tissue_composition$total_clone_prod_seqs))
+stopifnot(all(clone_tissue_composition_prod_seqs$total_clone_prod_seqs == clone_tissue_composition_prod_seqs$total_clone_prod_seqs))
 
 
-clone_info <- left_join(clone_info, clone_tissue_composition)
-clone_info <- left_join(clone_info, clone_cell_type_composition %>% select(-total_clone_prod_seqs))
+clone_info <- left_join(clone_info, clone_tissue_composition_prod_seqs)
+clone_info <- left_join(clone_info, clone_cell_type_composition_prod_seqs %>% select(-total_clone_prod_seqs))
 
-# Calculate Simpson diversity for tissues and cell types within each clone
-# (i.e. that probability that two sequences sampled with replacement in the same clone came from different tissues or cell types)
+
+# Numbers of *unique* productive sequences 
+# (identical sequences from different tissues, cell types or isotypes are counted as separate unique sequences)
+clone_tissue_composition_unique_seqs <- unique_seq_counts %>%
+  group_by(mouse_id, clone_id, tissue) %>%
+  dplyr::summarise(unique_seqs_in_tissue = sum(unique_prod_seqs)) %>%
+  group_by(mouse_id, clone_id) %>%
+  mutate(total_clone_unique_seqs = sum(unique_seqs_in_tissue)) %>%
+  ungroup() %>%
+  pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_unique_seqs')),
+              names_from = tissue, values_from = unique_seqs_in_tissue,
+              values_fill = 0, names_prefix = 'unique_seqs_') 
+
+clone_cell_type_composition_unique_seqs <- unique_seq_counts %>%
+  group_by(mouse_id, clone_id, cell_type) %>%
+  dplyr::summarise(unique_seqs_in_cell_type = sum(unique_prod_seqs)) %>%
+  group_by(mouse_id, clone_id) %>%
+  # Now compute the fraction of sequences in a clone that came from each cell_type
+  mutate(total_clone_unique_seqs = sum(unique_seqs_in_cell_type)) %>%
+  ungroup() %>%
+  pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_unique_seqs')),
+              names_from = cell_type, values_from = unique_seqs_in_cell_type,
+              values_fill = 0, names_prefix = 'unique_seqs_') 
+
+stopifnot(all(clone_cell_type_composition_unique_seqs$total_clone_unique_seqs ==
+                clone_tissue_composition_unique_seqs$total_clone_unique_seqs))
+
+clone_info <- left_join(clone_info, clone_tissue_composition_unique_seqs)
+clone_info <- left_join(clone_info, clone_cell_type_composition_unique_seqs %>% select(-total_clone_unique_seqs))
+
+
+# Compute Simpson diversity of tissues and cell types within each clone
+# Both with frequencies relative to all productive sequences and with freqs relative to unique seqs only.
+
+clone_info <- clone_info %>%
+  # Compute fractions in each compartment (tissue or cell type)
+  mutate(across(matches('prod_seqs_'), function(x){x/total_clone_prod_seqs},
+                .names = "fraction_{.col}")) %>%
+  mutate(across(matches('unique_seqs_'), function(x){x/total_clone_unique_seqs},
+                .names = "fraction_{.col}")) %>%
+  mutate(across(matches('fraction_'), function(x){x^2},
+                .names = 'squared_{.col}'))
+
+tissues <- unique(seq_counts$tissue)
+cell_types <- unique(seq_counts$cell_type)
+
+clone_info <- clone_info %>%
+  mutate(
+    simpson_diversity_tissues_prod_seqs = 1 - purrr::reduce(
+      clone_info %>% select(any_of(paste0('squared_fraction_prod_seqs_', tissues))), `+`),
+    simpson_diversity_tissues_unique_seqs = 1 - purrr::reduce(
+      clone_info %>% select(any_of(paste0('squared_fraction_unique_seqs_', tissues))), `+`),
+    simpson_diversity_cell_types_prod_seqs = 1 - purrr::reduce(
+      clone_info %>% select(any_of(paste0('squared_fraction_prod_seqs_', cell_types))), `+`),
+    simpson_diversity_cell_types_unique_seqs = 1 - purrr::reduce(
+      clone_info %>% select(any_of(paste0('squared_fraction_unique_seqs_', cell_types))), `+`)
+    ) %>%
+  select(-matches('squared_fraction'))
+
 clone_info <- clone_info %>%
   rowwise() %>%
-  mutate(biggest_tissue_fraction = max(fraction_prod_seqs_BM, fraction_prod_seqs_spleen, fraction_prod_seqs_LN),
-         biggest_ctype_fraction = max(fraction_prod_seqs_naive, `fraction_prod_seqs_nonnaive_IgD+B220+`,
-                                      fraction_prod_seqs_GC, fraction_prod_seqs_PC, fraction_prod_seqs_mem)) %>%
-  mutate(simpson_diversity_tissues = (1 - fraction_prod_seqs_BM^2 - fraction_prod_seqs_LN^2 - fraction_prod_seqs_spleen^2),
-         simpson_diversity_ctypes = (1 - fraction_prod_seqs_naive^2 - `fraction_prod_seqs_nonnaive_IgD+B220+`^2 -
-                                       fraction_prod_seqs_GC^2 - fraction_prod_seqs_PC^2 - fraction_prod_seqs_mem^2)) %>%
-  ungroup() 
+  mutate(biggest_tissue_fraction_prod_seqs = max(c(fraction_prod_seqs_BM, fraction_prod_seqs_LN, fraction_prod_seqs_spleen)),
+         biggest_tissue_fraction_unique_seqs =  max(c(fraction_unique_seqs_BM, fraction_unique_seqs_LN, fraction_unique_seqs_spleen)),
+         biggest_cell_type_fraction_prod_seqs = max(c(fraction_prod_seqs_naive, `fraction_prod_seqs_nonnaive_IgD+B220+`,
+                                                      fraction_prod_seqs_GC, fraction_prod_seqs_PC, fraction_prod_seqs_mem)),
+         biggest_cell_type_fraction_unique_seqs = max(c(fraction_unique_seqs_naive, `fraction_unique_seqs_nonnaive_IgD+B220+`,
+                                                        fraction_unique_seqs_GC, fraction_unique_seqs_PC, fraction_unique_seqs_mem))) %>%
+  ungroup()
+    
 
-  
 write_csv(clone_info, '../processed_data/clone_info.csv')
 
 

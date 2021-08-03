@@ -89,25 +89,40 @@ mutation_freqs_within_clones_by_tissue_and_cell_type <- get_mutation_frequencies
 
 # =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH TISSUE / CELL TYPE COMBINATION ==========
 clone_freqs_by_tissue_and_cell_type <- seq_counts %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
-  summarise(clone_size = sum(prod_seqs)) %>%
+  dplyr::rename(n_clone_seqs_in_compartment = prod_seqs) %>%
+  #group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
+  #summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
   group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
-  mutate(total_seqs = sum(clone_size),
-         clone_freq = clone_size / total_seqs) %>%
-  mutate(clone_rank = rank(-clone_freq, ties.method = 'first')) %>%
+  mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
+         clone_freq_in_compartment = n_clone_seqs_in_compartment / total_seqs_in_compartment) %>%
+  mutate(clone_rank_in_compartment = rank(-clone_freq_in_compartment, ties.method = 'first')) %>%
   ungroup() %>%
-  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
+  dplyr::rename(compartment_tissue = tissue, compartment_cell_type = cell_type)
+
+clone_freqs_by_tissue <- seq_counts %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, clone_id, v_gene) %>%
+  summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue) %>%
+  mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
+         clone_freq_in_compartment = n_clone_seqs_in_compartment / total_seqs_in_compartment) %>%
+  mutate(clone_rank_in_compartment = rank(-clone_freq_in_compartment, ties.method = 'first')) %>%
+  ungroup() %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
+  dplyr::rename(compartment_tissue = tissue)
 
 
 
 # =========== EXPORT RData ==========
 save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_freqs_adj_naive_zeros,
      clone_freqs_by_tissue_and_cell_type, 
-          neutral_realizations, pairwise_gene_freqs,
-          pairwise_correlations,
-          neutral_pairwise_correlations,
-          mutation_freqs_within_clones,
-          mutation_freqs_within_clones_by_tissue_and_cell_type,
+     clone_freqs_by_tissue,
+     neutral_realizations,
+     pairwise_gene_freqs,
+     pairwise_correlations,
+     neutral_pairwise_correlations,
+     mutation_freqs_within_clones,
+     mutation_freqs_within_clones_by_tissue_and_cell_type,
      file = '../results/precomputed_gene_freqs.RData')
 
 

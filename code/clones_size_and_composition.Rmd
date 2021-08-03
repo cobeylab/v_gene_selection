@@ -1,0 +1,769 @@
+---
+title: "Size distribution and tissue/cell type composition of clones"
+author: "Marcos Vieira"
+output: html_document
+---
+
+
+
+```{r setup, include=FALSE, echo = FALSE, warnings = FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F, message = F)
+library(tidyverse)
+library(dplyr)
+library(readr)
+library(ggplot2)
+library(cowplot)
+theme_set(theme_cowplot())
+source('gene_frequency_functions.R')
+```
+
+
+```{r read_data, echo = F, include = F, warnings =F}
+# Read clone info
+#clone_info <- read_csv('../processed_data/clone_info.csv')
+clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+
+#annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
+#annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
+
+seq_counts <- read_csv('../processed_data/seq_counts.csv')
+
+# Clone frequencies in each cell type / tissue combination (not included in clone_info) is in a precomputed object
+# NOTE: currently these cell type / tissue combination are relative to the total number of productive sequences
+#load('../results/precomputed_gene_freqs.RData')
+load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
+clone_freqs_by_tissue <- clone_freqs_by_tissue %>%
+  mutate(compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')))
+clone_freqs_by_tissue_and_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
+  mutate(compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')),
+         compartment_cell_type = factor(compartment_cell_type, 
+                                        levels = c('naive','nonnaive_IgD+B220+',
+                                                   'GC','PC','mem')))
+
+# Exclude clones with no productive sequences 
+clone_info <- clone_info %>%
+  filter(!is.na(total_clone_prod_seqs))
+
+clone_info <- get_info_from_mouse_id(clone_info) %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
+  mutate(mouse_id = factor(mouse_id, levels = mouse_id_factor_levels))
+
+```
+
+
+```{r, echo = F, warnings = F}
+# Decide which denominator to use for the frequencies of tissues and cell types within clones: total productive sequences or unique productive sequences
+denominator <- 'prod_seqs'
+
+#### NOTE ::: THIS CURRENTLY DOES NOT AFFECT THE clone_freqs OBJECTS. THOSE ONLY HAVE TOTAL PRODUCTIVE SEQUENCES CURRENTLY
+
+
+if(denominator == 'prod_seqs'){
+  
+  clone_info <- clone_info %>% select(-matches("unique_seqs"))
+  varnames <- names(clone_info)[grepl('prod_seqs', names(clone_info))]
+  
+  new_varnames <- str_remove(varnames,'_prod_seqs')
+  new_varnames <- str_remove(new_varnames, 'prod_seqs_')
+  
+  names(clone_info)[names(clone_info) %in% varnames] <- new_varnames
+  
+}else{
+  stopifnot(denominator == 'unique_seqs')
+  clone_info <- clone_info %>% select(-matches("prod_seqs"))
+  varnames <- names(clone_info)[grepl('unique_seqs', names(clone_info))]
+  
+  new_varnames <- str_remove(varnames,'_unique_seqs')
+  new_varnames <- str_remove(new_varnames, 'unique_seqs_')
+  
+  names(clone_info)[names(clone_info) %in% varnames] <- new_varnames
+  
+}
+
+# Adjust compartment variable names
+compartment_varnames <- c("total_clone", "BM", "spleen", "LN", "GC", "nonnaive_IgD+B220+",
+                          "PC", "mem", "naive")
+
+names(clone_info)[names(clone_info) %in% compartment_varnames] <- paste(compartment_varnames, 'seqs', sep = '_')
+
+# Add clone ranks across entire mice
+clone_info <- clone_info %>%
+  group_by(mouse_id) %>%
+  mutate(total_clone_rank = rank(-total_clone_seqs, ties.method = 'random'),
+         total_mouse_seqs = sum(total_clone_seqs)) %>%
+  mutate(clone_freq_in_mouse = total_clone_seqs / total_mouse_seqs) %>%
+  ungroup() 
+
+```
+
+
+## Clone size distributions ##
+
+How many clones does each mouse have? Mouse typically have tens of thousands of clones. including naive cells and singletons. They have thousands of clones with at least 10 sequences, hundreds of clones with at least 100 sequences, and tens of clones with at least a thousand sequence.
+
+
+
+
+```{r echo = F}
+get_n_clones_above_certain_size <- function(clone_info, min_clone_size){
+  clone_info %>%
+    filter(total_clone_seqs >= min_clone_size) %>%
+    group_by(mouse_id, infection_status, group_controls_pooled) %>%
+    summarise(n_clones = length(unique(clone_id))) %>%
+    mutate(min_clone_size = min_clone_size) %>%
+    select(mouse_id, infection_status, group_controls_pooled, min_clone_size, n_clones)
+}
+
+n_clones_per_mouse <- bind_rows(lapply(as.list(c(0,10,100,1000)), FUN = get_n_clones_above_certain_size,
+                                       clone_info = clone_info)) %>%
+  rowwise() %>%
+  mutate(min_clone_size = ifelse(min_clone_size == 0, 'All clones (including singletons)',
+                                 paste0('Clones with ', min_clone_size, '+ seqs.')))
+
+n_clones_per_mouse %>%
+  ggplot(aes(x = group_controls_pooled,
+             y = n_clones,
+             color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  background_grid() +
+  theme(legend.position = 'none', 
+        axis.text.x = element_text(size = 8, angle = 40,
+                                     vjust = 0.5)) +
+  xlab('Group') +
+  ylab('Number of clones') +
+  facet_wrap('min_clone_size', scales = 'free')
+```
+
+
+
+```{r echo = F}
+
+rank_size_plot <- clone_info %>%
+  filter(total_clone_rank <= 1000) %>%
+  ggplot(aes(x = total_clone_rank, y = total_clone_seqs, group = mouse_id, color = infection_status)) +
+  geom_line(alpha = 0.7) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme(legend.position = 'none') +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Number of sequences in each clone') +
+  background_grid()
+  
+rank_freq_plot <- clone_info %>%
+  filter(total_clone_rank <= 1000) %>%
+  ggplot(aes(x = total_clone_rank, y = clone_freq_in_mouse, group = mouse_id, color = infection_status)) +
+  geom_line(alpha = 0.7) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme(legend.position = c(0.5,0.9)) +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Fraction of mouse sequences in each clone') +
+  scale_color_discrete(name = 'Infection') +
+  background_grid()
+
+plot_grid(rank_size_plot, rank_freq_plot)
+
+
+```
+
+Now patterns by tissue
+
+
+```{r echo = F}
+rank_size_plot_by_tissue <- clone_freqs_by_tissue %>%
+  filter(clone_rank_in_compartment <= 1000) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_clone_seqs_in_compartment, group = mouse_id, color = infection_status)) +
+  geom_line(alpha = 0.7) +
+  scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
+  scale_x_log10() +
+  theme(legend.position = 'none') +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Number of sequences\nin each clone') +
+  facet_wrap('compartment_tissue', ncol = 3) + 
+  background_grid()
+
+rank_freq_plot_by_tissue <- clone_freqs_by_tissue %>%
+  filter(clone_rank_in_compartment <= 1000) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = clone_freq_in_compartment, group = mouse_id, color = infection_status)) +
+  #geom_vline(xintercept = c(10,100), linetype = 2) +
+  #geom_hline(yintercept = c(1000, 100), linetype = 2) +
+  geom_line(alpha = 0.7) +
+  scale_y_log10(breaks = c(1,0.1,0.01,0.001,0.0001)) +
+  scale_x_log10() +
+  theme(legend.position = c(0.8,0.9)) +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Fraction of sequences\nin each clone') +
+  facet_wrap('compartment_tissue', ncol = 3) +
+  background_grid()
+
+plot_grid(rank_size_plot_by_tissue, rank_freq_plot_by_tissue, nrow = 2)
+
+
+
+```
+
+And by tissue / cell type:
+
+
+```{r echo = F}
+
+clone_freqs_by_tissue_and_cell_type %>%
+  filter(compartment_cell_type != 'naive') %>%
+  filter(clone_rank_in_compartment <= 1000) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_clone_seqs_in_compartment, group = mouse_id, color = infection_status)) +
+  geom_line(alpha = 0.7) +
+  scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
+  scale_x_log10() +
+  theme(legend.position = 'top') +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Number of sequences in each clone') +
+  facet_grid(compartment_tissue~compartment_cell_type) +
+  background_grid()
+
+clone_freqs_by_tissue_and_cell_type %>%
+  filter(compartment_cell_type != 'naive') %>%
+  filter(clone_rank_in_compartment <= 1000) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = clone_freq_in_compartment, group = mouse_id, color = infection_status)) +
+  geom_line(alpha = 0.7) +
+  scale_y_log10() +
+  scale_x_log10() +
+  theme(legend.position = 'top') +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Number of sequences in each clone') +
+  facet_grid(compartment_tissue~compartment_cell_type) +
+  background_grid()
+```
+
+Cumulative curves:
+
+```{r echo = F}
+cumulative_curve_by_tissue_and_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
+  arrange(mouse_id, compartment_tissue, compartment_cell_type, desc(n_clone_seqs_in_compartment)) %>%
+  select(mouse_id, infection_status, group_controls_pooled, compartment_tissue, compartment_cell_type,
+         clone_id, n_clone_seqs_in_compartment,
+         clone_freq_in_compartment, clone_rank_in_compartment) %>%
+  group_by(mouse_id, group_controls_pooled, compartment_tissue, compartment_cell_type) %>%
+  mutate(cumulative_fraction_seqs = cumsum(clone_freq_in_compartment)) %>%
+  ungroup()
+
+cumulative_curve_by_tissue_and_cell_type %>%
+  filter(compartment_cell_type != 'naive') %>%
+  filter(clone_rank_in_compartment <= 100) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = cumulative_fraction_seqs, group = mouse_id,
+             color = infection_status)) +
+  #geom_vline(xintercept = c(10,100), linetype = 2) +
+  #geom_hline(yintercept = c(1000, 100), linetype = 2) +
+  geom_line(alpha = 0.7) +
+  #scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
+  #scale_x_log10() +
+  theme(legend.position = 'top') +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Cumulative fraction of sequences') +
+  facet_grid(compartment_tissue~compartment_cell_type)
+
+ 
+cumulative_curve_by_tissue_and_cell_type %>%
+  filter(compartment_cell_type != 'naive', compartment_tissue == 'LN') %>%
+  filter(clone_rank_in_compartment <= 500) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = cumulative_fraction_seqs, group = mouse_id,
+             color = group_controls_pooled)) +
+  #geom_vline(xintercept = c(10,100), linetype = 2) +
+  #geom_hline(yintercept = c(1000, 100), linetype = 2) +
+  geom_line(alpha = 0.7) +
+  #scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
+  #scale_x_log10() +
+  theme(legend.position = 'top') +
+  xlab('Clone rank (top 1000 clones only)') +
+  ylab('Cumulative fraction of sequences') +
+  facet_grid(.~compartment_cell_type) +
+  scale_color_discrete(name = 'Group') +
+  geom_hline(yintercept = 0.95, linetype = 2)
+
+```
+
+
+
+## Tissue composition of clones ##
+
+Cell sorting data suggests sequences from lymph node plasma cells and germinal center cells are likely induced by the infecting influenza virus. Are the clones represented in those populations constrained to the lymph node, or do they span multiple tissues? 
+
+
+
+
+
+```{r, echo = F, warnings = F}
+
+# This function gets the distribution of other cell types for clones dominated by each cell type
+# For instance, if a clone is concentrated in the LN, it finds the distribution of the remaining sequences across the other tissues
+# Similary for tissues (controlled by argument 'variable')
+
+get_freqs_by_dominant_compartment <- function(clone_info, variable){
+  
+  if(variable == 'cell_type'){
+    fraction_seq_vars <- paste('fraction', c('naive','nonnaive_IgD+B220+','GC','PC','mem'), sep = '_')
+    
+  }else{
+    stopifnot(variable == 'tissue')
+    fraction_seq_vars <- paste('fraction', c('LN','spleen','BM'), sep = '_')
+  }
+  
+  output <- clone_info %>% 
+    select(mouse_id, group_controls_pooled, clone_id, total_clone_seqs, any_of(fraction_seq_vars)) %>%
+    pivot_longer(cols = matches('fraction'), names_to = 'compartment', values_to = 'fraction') %>%
+    mutate(compartment = str_remove(compartment,'fraction_')) %>%
+    group_by(mouse_id, group_controls_pooled, clone_id) %>%
+    mutate(is_biggest_compartment = (fraction == max(fraction)),
+           dominant_compartment = paste0(compartment[is_biggest_compartment], collapse = ';'),
+           fraction_seqs_in_dominant_compartment = max(fraction)) %>%
+    dplyr::rename(other_compartment = compartment,
+                fraction_seqs_in_other_compartment = fraction) %>%
+    filter(!is_biggest_compartment) %>%
+    select(mouse_id, group_controls_pooled, clone_id, total_clone_seqs,
+           dominant_compartment, fraction_seqs_in_dominant_compartment, other_compartment, fraction_seqs_in_other_compartment) %>%
+    group_by(mouse_id, group_controls_pooled, clone_id, total_clone_seqs, dominant_compartment, fraction_seqs_in_dominant_compartment) %>%
+    mutate(normalized_fraction_seqs_in_other_compartment = fraction_seqs_in_other_compartment / sum(fraction_seqs_in_other_compartment)) %>%
+    ungroup()
+
+}
+
+```
+
+
+
+Considering clones with 10 or more sequences, most clones are concentrated in a single tissue
+
+
+```{r, echo = F, warnings = F}
+min_clone_size = 10
+
+clone_info %>%
+  select(mouse_id, group_controls_pooled, clone_id, total_clone_seqs, BM_seqs, spleen_seqs,
+         LN_seqs) %>%
+  pivot_longer(cols = c('BM_seqs', 'spleen_seqs', 'LN_seqs'), values_to = 'n_seqs',
+               names_to = 'tissue') %>%
+  mutate(tissue = str_remove(tissue, '_seqs')) %>%
+  filter(group_controls_pooled == 'primary-8') %>%
+  filter(total_clone_rank <= 100) %>%
+  ggplot(aes(x = total_clone_rank, y = n_seqs, color = tissue, fill = tissue)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free') +
+  theme(legend.position = 'top') +
+  xlab('Clone rank') +
+  ylab('Number of productive sequences')
+  
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_tissue_fraction)) +
+  geom_histogram(binwidth = 0.025, color = 'white', size = 0.3) +
+  #geom_vline(xintercept = 0.97) +
+  xlab('Size of biggest tissue compartment within clone \n(mLN, BM or spleen)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)'))
+```
+
+
+
+There seems to be a trend for clones to become less concentrated in individual tissues 16 days after primary infection, then again 8 days after secondary infection (day 40 after primary infection).
+
+
+```{r, echo = F, warnings = F}
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  mutate(size_filter = (biggest_tissue_fraction > 0.9)) %>%
+  group_by(mouse_id, group_controls_pooled, size_filter) %>%
+  dplyr::count() %>%
+  group_by(mouse_id, group_controls_pooled) %>%
+  mutate(fraction = n/sum(n)) %>%
+  filter(size_filter == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = fraction)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  xlab('Group') +
+  ylim(0,1.05) + 
+  ylab('Fraction of clones with 90%\nor more sequences in a single tissue')
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_tissue_fraction)) +
+  #geom_density(aes(group = mouse_id)) +
+  geom_histogram() + 
+  facet_wrap('group_controls_pooled', scales = 'free') + 
+  xlab('Size of biggest tissue compartment within clone \n(mLN, BM or spleen)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)')) +
+  scale_y_log10() +
+  geom_hline(yintercept = 100, color = 'red', linetype = 2)
+
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  ggplot(aes(x = group_controls_pooled, y = simpson_diversity_tissues)) +
+  #geom_violin() 
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(alpha = 0.01, position = position_jitter(width = 0.1)) +
+  xlab('group') +
+  ylab('Simpson diversity of tissues within clone')
+
+
+
+```
+
+
+
+Considering clones that are concentrated in a tissue but have sequences from other tissues, it looks like LN-concentrated clones have more sequences in the spleen than in the bone marrow (and spleen-concentrated clones have more sequences in the LN than in the BM), while clones concentrated in the bone marrow have, on average, similar frequencies of sequences in the LN and spleen.
+
+
+
+```{r, echo = F, warnings = F}
+
+freq_other_tissues_by_dominant_tissue <- get_freqs_by_dominant_compartment(clone_info, variable = 'tissue') 
+  
+freq_other_tissues_by_dominant_tissue %>% 
+  # Consider only clones above min_clone_size, exclude clones with all singles in only one tissue, exactly co-dominant tissues
+  filter(total_clone_seqs >= min_clone_size, fraction_seqs_in_dominant_compartment < 1,
+         !grepl(";", dominant_compartment)) %>%
+  mutate(dominant_compartment = factor(dominant_compartment, levels = c('LN','spleen','BM')),
+         other_compartment = factor(other_compartment, levels = c('LN','spleen','BM'))) %>%
+  ggplot(aes(x = other_compartment, y = normalized_fraction_seqs_in_other_compartment)) +
+  geom_boxplot(outlier.alpha = 0, color = 'red') +
+  geom_point(alpha = 0.01, position = position_jitter(0.05)) +
+  facet_wrap('dominant_compartment') +
+  ggtitle('Predominant clone tissue \n(excluding clones 100% contained in a single tissue)') +
+  xlab('Other tissues') +
+  ylab('Fraction of the remaining\nsequences in other tissues') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  background_grid()
+```
+
+## Cell type composition of clones ##
+Like the pattern for tissues, most clones are dominated by sequences from a single cell type
+
+```{r, echo =F, warnings = F}
+
+clone_info %>%
+  select(mouse_id, group_controls_pooled, clone_id, total_clone_seqs, naive_seqs, `nonnaive_IgD+B220+_seqs`, GC_seqs,
+                        PC_seqs, mem_seqs) %>%
+  group_by(mouse_id) %>%
+  mutate(total_clone_rank = rank(-total_clone_seqs, ties.method = 'random')) %>%
+  ungroup() %>%
+  pivot_longer(cols = c('naive_seqs', 'nonnaive_IgD+B220+_seqs', 'GC_seqs',
+                        'PC_seqs','mem_seqs'), values_to = 'n_seqs',
+               names_to = 'cell_type') %>%
+  mutate(cell_type = str_remove(cell_type, '_seqs')) %>%
+  filter(group_controls_pooled == 'primary-8') %>%
+  filter(total_clone_rank <= 100) %>%
+  ggplot(aes(x = total_clone_rank, y = n_seqs, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free') +
+  theme(legend.position = 'top') +
+  xlab('Clone rank') +
+  ylab('Number of productive sequences')
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_cell_type_fraction)) +
+  geom_histogram(binwidth = 0.025, color = 'white', size = 0.3) +
+  #geom_vline(xintercept = 0.97) +
+  xlab('Size of biggest cell type compartment within clone \n(naive, non-naive IgD+B220+, GC, PC or mem)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)'))
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  group_by(mouse_id, group_controls_pooled, biggest_cell_type_fraction > 0.9) %>%
+  dplyr::count() %>%
+  group_by(mouse_id, group_controls_pooled) %>%
+  mutate(fraction = n/sum(n)) %>%
+  filter(`biggest_cell_type_fraction > 0.9` == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = fraction)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point() +
+  xlab('Group') +
+  ylim(0,1.05) + 
+  ylab('Fraction of clones with 90%\nor more sequences from a single cell type')
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  ggplot(aes(x = biggest_cell_type_fraction)) +
+  #geom_density(aes(group = mouse_id)) +
+  geom_histogram() + 
+  facet_wrap('group_controls_pooled', scales = 'free') + 
+  xlab('Size of biggest cell type compartment within clone \n(naive, non-naive IgD+B220+, GC, PC or mem)') +
+  ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)')) +
+  scale_y_log10() +
+  geom_hline(yintercept = 100, color = 'red', linetype = 2)
+
+clone_info %>%
+  filter(total_clone_seqs >= min_clone_size) %>%
+  ggplot(aes(x = group_controls_pooled, y = simpson_diversity_cell_types)) +
+  #geom_violin() 
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(alpha = 0.01, position = position_jitter(width = 0.1)) +
+  xlab('group') +
+  ylab('Cell-type Simpson diversity within clone')
+
+```
+
+```{r, echo = F, warnings = F}
+
+freq_other_cell_types_by_dominant_cell_type <- get_freqs_by_dominant_compartment(clone_info, 'cell_type')
+
+freq_other_cell_types_by_dominant_cell_type %>% 
+  # Consider only clones above min_clone_size, exclude clones with all singles in only one cell type, exactly co-dominant cell
+  filter(total_clone_seqs >= min_clone_size, fraction_seqs_in_dominant_compartment < 1,
+         !grepl(";", dominant_compartment)) %>%
+  mutate(dominant_compartment = factor(dominant_compartment, levels = c('naive','nonnaive_IgD+B220+','GC','PC','mem')),
+         other_compartment = factor(other_compartment, levels = c('naive','nonnaive_IgD+B220+','GC','PC','mem'))) %>%
+  ggplot(aes(x = other_compartment, y = normalized_fraction_seqs_in_other_compartment)) +
+  geom_boxplot(outlier.alpha = 0, color = 'red') +
+  geom_point(alpha = 0.01, position = position_jitter(0.05)) +
+  facet_wrap('dominant_compartment') +
+  ggtitle('Predominant cell type \n(excluding clones 100% composed of a single type)') +
+  xlab('Other cell types') +
+  ylab('Fraction of the remaining\nsequences in other cell types') +
+  theme(plot.title = element_text(hjust = 0.5)) +
+  background_grid() +
+  scale_x_discrete(labels = function(x){str_replace(x,'_','\n')})
+
+
+```
+
+
+## Cell type and tissue distribution of the biggest clones in the lymph node ##
+
+Lymph node populations seem to be flu-induced. The biggest clones in the lymph node are usually confined to the lymph node:
+
+
+```{r echo = F, warnings = F}
+
+top_clones_in_LNs <- clone_freqs_by_tissue %>%
+  filter(compartment_tissue == 'LN', clone_rank_in_compartment <= 50) %>%
+  mutate(universal_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
+  select(universal_clone_id, everything())
+
+freq_other_tissues_in_top_LN_clones <- left_join(top_clones_in_LNs ,
+          clone_info %>% mutate(universal_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
+            filter(universal_clone_id %in% top_clones_in_LNs $universal_clone_id)) %>%
+  mutate(mouse_id = factor(mouse_id, levels = mouse_id_factor_levels)) %>%
+  select(mouse_id, group_controls_pooled, compartment_tissue, clone_id, clone_rank_in_compartment,
+         BM_seqs, LN_seqs, spleen_seqs) %>%
+  pivot_longer(cols = c('BM_seqs', 'LN_seqs', 'spleen_seqs'),
+               names_to = 'tissue', values_to = 'n_seqs') %>%
+  mutate(tissue = str_remove(tissue, '_seqs'))
+  
+
+
+LN_freqs_of_other_cell_types_in_top_LN_clones <- left_join(top_clones_in_LNs,
+                                                           seq_counts %>% 
+                                                             filter(tissue == 'LN') %>%
+                                                             pivot_wider(names_from = 'cell_type',
+                                                                         values_from = 'prod_seqs',
+                                                                         values_fill = 0) %>% select(-tissue)) %>%
+  pivot_longer(cols = c('naive','nonnaive_IgD+B220+','GC','mem','PC'),
+               names_to = 'cell_type', values_to = 'n_seqs_in_LN')
+
+
+freq_other_tissues_in_top_LN_clones %>%
+  filter(group_controls_pooled %in% c('primary-8')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs, color = tissue, fill = tissue)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node') +
+  ylab('Number of sequences in each clone by tissue') +
+  theme(legend.position = 'top') +
+  background_grid()
+
+freq_other_tissues_in_top_LN_clones %>%
+  filter(group_controls_pooled %in% c('primary-24')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs, color = tissue, fill = tissue)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node') +
+  ylab('Number of sequences in each clone by tissue') +
+  theme(legend.position = 'top') +
+  background_grid()
+```
+
+In control mice and in some of the infected mice, the biggest clones in the lymph nodes are dominated by sequences from the mysterious non-naive IgD+B220+ cells.
+
+
+```{r echo = F, warnings = F}
+LN_freqs_of_other_cell_types_in_top_LN_clones %>%
+  filter(group_controls_pooled %in% c('control')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+
+LN_freqs_of_other_cell_types_in_top_LN_clones %>%
+  filter(group_controls_pooled %in% c('primary-8')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+
+```
+
+
+
+
+
+## What about the most common clones specifically among lymph node plasma cells? Do they have representatives in other cell types and tissues? ##
+
+(*Note*: clone frequencies in tissue/cell type combinations are currently with respect to all productive (not just unique) sequences in each compartment)
+
+Despite evidence that day-8 LN PCs represent an extrafollicular response, some of the biggest clones among them have some members in germinal centers.
+
+
+```{r, echo = F, warnings = F}
+top_clones_in_LN_PCs <- clone_freqs_by_tissue_and_cell_type %>%
+  filter(compartment_tissue == 'LN', compartment_cell_type == 'PC') %>%
+  filter(clone_rank_in_compartment <= 50) %>%
+  mutate(universal_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
+  select(universal_clone_id, everything())
+
+
+LN_freqs_of_other_cell_types_in_top_LN_PC_clones <- left_join(top_clones_in_LN_PCs,
+                                                           seq_counts %>% 
+                                                             filter(tissue == 'LN') %>%
+                                                             pivot_wider(names_from = 'cell_type',
+                                                                         values_from = 'prod_seqs',
+                                                                         values_fill = 0) %>% select(-tissue)) %>%
+  pivot_longer(cols = c('naive','nonnaive_IgD+B220+','GC','mem','PC'),
+               names_to = 'cell_type', values_to = 'n_seqs_in_LN')
+
+LN_freqs_of_other_cell_types_in_top_LN_PC_clones %>%
+  filter(group_controls_pooled %in% c('primary-8')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node plasma cells') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+
+```
+
+
+
+By day 16 there's perhaps more top LN PC clones with members among memory cells?
+
+
+
+```{r echo=F, warnings = F}
+LN_freqs_of_other_cell_types_in_top_LN_PC_clones %>%
+  filter(group_controls_pooled %in% c('primary-16')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node plasma cells') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+```
+
+
+
+But overall, even late into the primary response many of the topLN PC clones are almost exclusively made up of plasma cells. Perhaps the extrafollicular response is still dominant?
+
+
+```{r echo=F, warnings = F}
+LN_freqs_of_other_cell_types_in_top_LN_PC_clones %>%
+  filter(group_controls_pooled %in% c('primary-24')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node plasma cells') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+```
+
+
+8 days after reinfection, there's almost no evidence that the major LN PC clones descended from GC or memory cells (i.e., we don't find cells of those types in these clones). Perhaps despite pre-existing memory the early response to a secondary infection is still mostly extrafollicular?
+
+
+```{r echo=F, warnings = F}
+LN_freqs_of_other_cell_types_in_top_LN_PC_clones %>%
+  filter(group_controls_pooled %in% c('secondary-40')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node plasma cells') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+```
+
+
+
+Late (24 days) into the secondary response, we see some large lymph node plasma cell clones with members in GC and memory populations.
+
+
+```{r echo=F, warnings = F}
+LN_freqs_of_other_cell_types_in_top_LN_PC_clones %>%
+  filter(group_controls_pooled %in% c('secondary-56')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node plasma cells') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+```
+
+```{r ternary, echo = F}
+# Trying to make a ternary plot with plotly
+#clone_tissue_composition_plot <- plot_ly(clone_tissue_composition %>% filter(mouse_id == '40-7'),
+#        a = ~LN, b = ~BM, c = ~spleen,
+#        mode = "markers", marker = list(color = ~total_clone_seqs, colorscale='Viridis'),
+#        type = "scatterternary")
+
+#clone_tissue_composition_plot 
+#orca(clone_tissue_composition_plot, "~/Desktop/test_plot.pdf")
+
+```
+
+
+
+
+What about the top clones represented in lymph node germinal center cells? By the peak of the GC response, we see that those clones have often been exported as plasma or memory cells
+
+
+
+```{r, echo = F, warnings = F}
+top_clones_in_LN_GCs <- clone_freqs_by_tissue_and_cell_type %>%
+  filter(compartment_tissue == 'LN', compartment_cell_type == 'GC') %>%
+  filter(clone_rank_in_compartment <= 50) %>%
+  mutate(universal_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
+  select(universal_clone_id, everything())
+
+
+LN_freqs_of_other_cell_types_in_top_LN_GC_clones <- left_join(top_clones_in_LN_GCs,
+                                                           seq_counts %>% 
+                                                             filter(tissue == 'LN') %>%
+                                                             pivot_wider(names_from = 'cell_type',
+                                                                         values_from = 'prod_seqs',
+                                                                         values_fill = 0) %>% select(-tissue)) %>%
+  pivot_longer(cols = c('naive','nonnaive_IgD+B220+','GC','mem','PC'),
+               names_to = 'cell_type', values_to = 'n_seqs_in_LN') %>%
+  mutate(cell_type = factor(cell_type, levels = c('naive','nonnaive_IgD+B220+','mem','PC','GC')))
+
+LN_freqs_of_other_cell_types_in_top_LN_GC_clones %>%
+  filter(group_controls_pooled %in% c('primary-16')) %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_seqs_in_LN, color = cell_type, fill = cell_type)) +
+  geom_col() +
+  facet_wrap('mouse_id', scales = 'free', ncol = 4) +
+  xlab('Top clones in lymph node plasma cells') +
+  ylab('Number of sequences in each clone by cell type') +
+  theme(legend.position = 'top') +
+  background_grid()
+```
+
+
+
