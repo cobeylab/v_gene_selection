@@ -41,8 +41,8 @@ LN_PC_freqs_primary8  %>%
         mutate(v_gene = factor(v_gene, levels = vgene_order)) %>%
         ggplot(aes(x = v_gene)) +
         geom_point(aes(y = vgene_seq_freq)) +
-        facet_wrap('mouse_id', nrow = 3) +
-        scale_y_log10() +
+        facet_wrap('mouse_id', nrow = 2) +
+        scale_y_log10(breaks = c(1e-4,1e-3,1e-2,1e-1)) +
         background_grid(minor = 'none', major = 'y') +
         theme(axis.text.x = element_blank()) +
         xlab('V genes\n(ordered by median frequency across mice)') +
@@ -104,15 +104,21 @@ naive_exp_corr_weighted_means <- naive_exp_correlations_obs %>%
 
 naive_exp_correlations_obs %>%
         filter(tissue == 'LN', group_controls_pooled != 'control') %>%
+  filter(cell_type %in% c('GC','PC','mem')) %>%
+  mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
         ggplot(aes(x = group_controls_pooled, y = naive_exp_corr, color = infection_status)) +
-        geom_boxplot(data = naive_exp_correlations_neutral %>% filter(tissue == 'LN', group_controls_pooled != 'control'),
+        geom_boxplot(data = naive_exp_correlations_neutral %>%
+                       filter(tissue == 'LN', group_controls_pooled != 'control',
+                              cell_type %in% c('GC','PC','mem')),
                      outlier.alpha = 0) +
+        geom_boxplot(outlier.alpha = 0) +
         geom_point(aes(size = total_compartment_seqs), shape = 1,
                    position = position_jitter(width = 0.1)) +
-        geom_point(data = naive_exp_corr_weighted_means %>%
-                           filter(tissue == 'LN', group_controls_pooled != 'control'),
-                   aes(y = naive_exp_corr_weighted_mean),
-                   shape = 4, size = 4, stroke = 2, show.legend = F) +
+       
+        #geom_point(data = naive_exp_corr_weighted_means %>%
+        #                   filter(tissue == 'LN', group_controls_pooled != 'control'),
+        #           aes(y = naive_exp_corr_weighted_mean),
+        #           shape = 4, size = 4, stroke = 2, show.legend = F) +
         facet_grid(.~cell_type, scales = 'free') +
         theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'top') +
         xlab('Group') +
@@ -353,16 +359,19 @@ clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_
 
 # Fraction of sequences in the largest 10 clones
 clone_freqs_by_tissue_and_cell_type %>% 
-        filter(total_seqs_in_compartment >= 100, compartment_tissue == 'LN', group_controls_pooled != 'control') %>%
+        filter(total_seqs_in_compartment >= 100, compartment_tissue == 'LN',
+               group_controls_pooled != 'control') %>%
         filter(clone_rank_in_compartment <=10) %>% 
-        group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_seqs_in_compartment) %>%
+        filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
+        mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('GC','PC','mem'))) %>%
+        group_by(mouse_id, day, infection_status, group_controls_pooled, compartment_cell_type, compartment_tissue, total_seqs_in_compartment) %>%
         summarise(seqs_in_top_clones = sum(n_clone_seqs_in_compartment)) %>%
         mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs_in_compartment) %>%
         ungroup() %>%
         ggplot(aes(x = group_controls_pooled, y = fraction_seqs_in_top_clones, color = infection_status)) +
         geom_boxplot(outlier.alpha =  F) +
         geom_point() +
-        facet_grid(.~cell_type) +
+        facet_grid(.~compartment_cell_type) +
         background_grid() +
         scale_color_manual(values = c('green3','dodgerblue2')) +
         #ggtitle() +
@@ -557,7 +566,7 @@ pairwise_correlations$freq_ratios <- pairwise_correlations$freq_ratios %>%
 
 pairwise_correlations$freqs %>%
   filter(cell_type == 'naive') %>%
-  filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
+  #filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
   ggplot(aes(x = pair_type, y = cor_coef_freqs, color = pair_type)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(position = position_jitter(width = 0.1),
@@ -566,7 +575,8 @@ pairwise_correlations$freqs %>%
   theme(legend.position = 'top') +
   xlab('Type of pair') +
   ylab('Correlation in gene naive frequencies between mouse pairs') +
-  theme(legend.position = 'none')
+  theme(legend.position = 'none') +
+  background_grid()
 
 pairwise_correlations$freqs %>%
   filter(cell_type != 'naive') %>%
@@ -589,31 +599,39 @@ pairwise_correlations$freqs %>%
 
 
 pairwise_correlations$freqs %>%
-  filter(cell_type != 'experienced') %>%
+  filter(cell_type %in% c('GC','PC','mem')) %>%
+  mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
   filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
-         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+         tissue == 'LN', pair_type %in% c('control','primary','secondary')) %>%
+  mutate(day_i = as.character(day_i),
+         day_i = ifelse(pair_type == 'control', 'control', day_i)) %>%
+  mutate(day_i = factor(day_i, levels = c('control','8','16','24','40','56'))) %>%
   ggplot(aes(x = day_i, y = cor_coef_freqs)) +
   geom_boxplot(outlier.alpha = 0) +
-  geom_point(position = position_jitter(width =0.1), alpha = 1, size = 5,
-             aes(color = null_percentile_of_obs_value)) +
+  geom_point(position = position_jitter(width =0.1), alpha = 0.8, size = 5,
+             aes(color = pair_type),
+             ) +
   facet_wrap('cell_type') +
-  scale_color_distiller(name = 'Probability of weaker\ncorrelation under null model\n',
-                        palette = 'RdBu') +
   background_grid() +
+  scale_color_discrete(name = 'Infection status') +
   xlab('Days after primary infection') +
-  ylab('Correlation in lymph node V gene frequencies between pairs of mice')
+  ylab('Correlation in lymph node V gene\nfrequencies between pairs of infected mice') +
+  theme(legend.position = 'top')
 
 pairwise_correlations$freq_ratios %>%
+  filter(cell_type %in% c('GC','PC','mem')) %>%
+  mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
   filter(cell_type != 'experienced') %>%
   filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
          tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
   ggplot(aes(x = day_i, y = cor_coef_freq_ratios)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(position = position_jitter(width =0.1), alpha = 1, size = 5,
-             aes( color = null_percentile_of_obs_value)) +
+             aes( color = pair_type)) +
   facet_wrap('cell_type') +
-  scale_color_distiller(name = 'Probability of weaker\ncorrelation under null model\n',
-                        palette = 'RdBu') +
+  theme(legend.position = 'top') +
+  scale_color_manual(values = c('green3','dodgerblue2'),
+                     name = 'Infection status') +
   background_grid() +
   xlab('Days after primary infection') +
   ylab('Correlation between pairs of mice in\nV gene frequency deviations from naive repertoire')
@@ -717,11 +735,18 @@ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlati
                                       cell_type = 'mem',
                                       tissue = 'LN')
 
-get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freq_ratios',
                                       cell_type = 'nonnaive_IgD+B220+',
                                       tissue = 'LN')
 
+ 
+ 
+ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
+                                       metric = 'freq_ratios',
+                                       cell_type = 'PC',
+                                       tissue = 'spleen')
+ 
 
 
 # Clustering based on Euclidean distance of V gene frequencies

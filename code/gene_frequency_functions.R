@@ -904,6 +904,11 @@ get_mutation_frequencies_within_clones <- function(annotated_seqs, seq_counts, b
     dplyr::rename(prod_clone_seqs_in_compartment = prod_seqs) %>%
     mutate(mutation_freq_in_compartment = n_seqs_with_mutation / prod_clone_seqs_in_compartment)
   
+  if(by_tissue_and_cell_type){
+    mutation_freqs_within_clones <- mutation_freqs_within_clones %>%
+      dplyr::rename(compartment_tissue = tissue, compartment_cell_type = cell_type)
+  }
+  
   return(mutation_freqs_within_clones)
 
 }

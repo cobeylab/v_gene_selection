@@ -86,8 +86,8 @@ neutral_pairwise_correlations <- list(freqs = neutral_pairwise_correlations_freq
 mutation_freqs_within_clones <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = F)
 mutation_freqs_within_clones_by_tissue_and_cell_type <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = T)
 
-
 # =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH TISSUE / CELL TYPE COMBINATION ==========
+
 clone_freqs_by_tissue_and_cell_type <- seq_counts %>%
   dplyr::rename(n_clone_seqs_in_compartment = prod_seqs) %>%
   #group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
@@ -111,12 +111,22 @@ clone_freqs_by_tissue <- seq_counts %>%
   mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
   dplyr::rename(compartment_tissue = tissue)
 
+# Clone frequencies across the entire mouse
+clone_freqs <- clone_freqs_by_tissue %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, clone_id) %>%
+  summarise(n_clone_seqs_in_compartment = sum(n_clone_seqs_in_compartment)) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled) %>%
+  mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment)) %>%
+  mutate(compartment_tissue = 'all') %>%
+  ungroup()
+
 
 
 # =========== EXPORT RData ==========
 save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_freqs_adj_naive_zeros,
      clone_freqs_by_tissue_and_cell_type, 
      clone_freqs_by_tissue,
+     clone_freqs,
      neutral_realizations,
      pairwise_gene_freqs,
      pairwise_correlations,

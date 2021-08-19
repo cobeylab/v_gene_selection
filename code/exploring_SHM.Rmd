@@ -31,13 +31,15 @@ mutation_freqs_within_clones <- left_join(mutation_freqs_within_clones, clone_in
 mutation_freqs_within_clones_by_tissue_and_cell_type <- left_join(
   mutation_freqs_within_clones_by_tissue_and_cell_type,
   clone_info
-)
+) %>%
+  mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('naive','GC','PC','mem','nonnaive_IgD+B220+')),
+         compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')),
+         group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
 ```
 
 
 Across all clones in all mice (and considering mutation frequencies within the clone as a whole, as opposed to tissue or cell type-specific parts of the clone), most amino acid mutations stay at low frequencies, especially when we remove clones with fewer than 10 sequences
-
 
 
 ```{r echo = F, fig.width= 10, fig.height = 6}
@@ -58,7 +60,7 @@ pl2 <- mutation_freqs_within_clones %>%
   xlab('Mutation frequency within clone') +
   ylab('Fraction of mutations')
 
-plot_grid(pl1, pl2, labels = c('All (productive) clones', paste0('Clones with at least', min_clone_size, ' productive seqs.')))
+plot_grid(pl1, pl2, labels = c('All (productive) clones', paste0('Clones with at least ', min_clone_size, ' productive seqs.')))
   
 ```
 
@@ -71,19 +73,35 @@ Does the number of clones with mutations above a certain threshold increase over
 ```{r echo = F, warning = F}
 mutation_freq_threshold <- 0.5
 
-count_mutations_above_threshold_by_clone <- function(clone_info, mutation_freqs_within_clones,
+# For each productive clone, counts the number of mutations within the clone at or above a chosen frequency
+# If the clone_freqs and mutation_freqs_within_clones objects are not broken down by compartment (cell type / tissue),
+# the frequency of each mutation is computed across the entire clone, including sequences from different cell types and tissues
+# If clone_freqs and mutation_freqs_within_clones are broken down by compartment, it will count the number of mutations in each clone 
+# at or above the threshold specifically in each compartment
+
+count_mutations_above_threshold_by_clone <- function(clone_freqs, mutation_freqs_within_clones,
                                                    mutation_freq_threshold){
   
-  # Left join to all clones with at least one productive sequence 
-  # (so that clones with no mutations above threshold or no mutations at all are represented)
+  # Clone freqs is used to ensure clones so that clones with no mutations at all (thus missing from mutation_freqs_within_clones) 
+  # are counted (as having 0 mutations at above any chosen frequency threshold except 0)
   
-  all_productive_clones <- clone_info %>%
-    filter(!is.na(total_clone_prod_seqs)) %>%
-    select(mouse_id, group_controls_pooled, infection_status, clone_id, total_clone_prod_seqs) %>%
-    unique()
-
+  stopifnot(any(clone_freqs$n_clone_seqs_in_compartment == 0) == F)
+  
+  
+  all_productive_clones <- clone_freqs %>%
+    select(mouse_id, group_controls_pooled, infection_status, clone_id, matches('compartment_tissue'),
+           matches('compartment_cell_type'), n_clone_seqs_in_compartment)
+  
+  grouping_vars <- c('mouse_id', 'group_controls_pooled', 'infection_status', 'clone_id')
+  
+  compartment_vars <- c('compartment_cell_type','compartment_tissue')
+  
+  if(all(compartment_vars %in% names(clone_freqs))){
+    grouping_vars <- c(grouping_vars, compartment_vars)
+  }
+  
   mutations_above_threshold_by_clone <- mutation_freqs_within_clones %>%
-    group_by(mouse_id, group_controls_pooled, infection_status, clone_id) %>%
+    group_by(across(grouping_vars)) %>%
     filter(mutation_freq_in_compartment >= mutation_freq_threshold) %>%
     dplyr::summarise(n_mutations_above_threshold = n())
 
@@ -99,18 +117,29 @@ count_mutations_above_threshold_by_clone <- function(clone_info, mutation_freqs_
   
 }
 
-mutations_above_threshold_by_clone <- count_mutations_above_threshold_by_clone(clone_info,
+
+
+mutations_above_threshold_by_clone <- count_mutations_above_threshold_by_clone(clone_freqs,
                                                                              mutation_freqs_within_clones,
                                                                              mutation_freq_threshold)
 
 get_distribution_n_mutations_above_threshold <- function(mutations_above_threshold_by_clone,
                                                                   min_clone_size){
+  
+  grouping_vars <- c('mutation_freq_threshold', 'mouse_id', 'group_controls_pooled', 'infection_status',
+                     'n_mutations_above_threshold')
+  
+  compartment_vars <- c('compartment_cell_type', 'compartment_tissue')
+  if(all(compartment_vars %in% names(mutations_above_threshold_by_clone))){
+    grouping_vars <- c(grouping_vars, compartment_vars)
+  }
+
+  
   mutations_above_threshold_by_clone %>%
-    filter(total_clone_prod_seqs >= min_clone_size) %>%
-    group_by(mutation_freq_threshold, mouse_id, group_controls_pooled, infection_status,
-             n_mutations_above_threshold) %>%
+    filter(n_clone_seqs_in_compartment >= min_clone_size) %>%
+    group_by(across(grouping_vars)) %>%
     dplyr::summarise(n_clones = n()) %>%
-    group_by(mutation_freq_threshold, mouse_id, group_controls_pooled, infection_status) %>%
+    group_by(across(grouping_vars[grouping_vars != 'n_mutations_above_threshold'])) %>%
     mutate(fraction_clones = n_clones / sum(n_clones)) %>%
     ungroup()
   
@@ -123,7 +152,8 @@ get_distribution_n_mutations_above_threshold(mutations_above_threshold_by_clone,
              color = infection_status)) +
   #geom_col() +
   #geom_point() +
-  geom_line(aes(group = mouse_id)) +
+  geom_line(aes(group = mouse_id), alpha = 0.3) +
+  geom_smooth(aes(group = infection_status), linetype = 2, se = F) +
   #facet_wrap('group_controls_pooled') +
   scale_y_log10(breaks = c(1,0.5,0.25,0.1,0.05,0.01),
                 labels = c(1,0.5,0.25,0.1,0.05,0.01)) +
@@ -138,9 +168,7 @@ get_distribution_n_mutations_above_threshold(mutations_above_threshold_by_clone,
 
 
 
-
-
-To more easily visualize these data, we plot, for clones with at least a given number of sequences, what fraction of them have at least a certain number of mutations above the 50% threshold. For instance, for each mouse (each point), we plot the fraction of clones with at least 100 sequences that have at least one mutation at or above 50% threshold:
+To more easily visualize these data, we plot, for clones with at least a given number of sequences, what fraction of them have at least a certain number of mutations above the 50% threshold. For instance, for each mouse (each point), we plot the fraction of clones with at least 100 sequences that have at least one mutation at or above 50% threshold. 
 
 
 
@@ -153,15 +181,25 @@ get_fraction_clones_with_n_mutations_above_threshold <- function(mutations_above
     mutations_above_threshold_by_clone, min_clone_size = min_clone_size
   )
   
+  grouping_vars <- c('mutation_freq_threshold', 'mouse_id', 'group_controls_pooled', 'infection_status')
+  
+  compartment_vars <- c('compartment_cell_type', 'compartment_tissue')
+  if(all(compartment_vars %in% names(dist_mutations_above_threshold))){
+    grouping_vars <- c(grouping_vars, compartment_vars)
+  }
+  
+  
   dist_mutations_above_threshold %>%
-    group_by(mutation_freq_threshold, mouse_id, group_controls_pooled, infection_status) %>%
+    group_by(across(grouping_vars)) %>%
+    mutate(n_clones_denominator = sum(n_clones)) %>%
     filter(n_mutations_above_threshold >= n_mutations_threshold) %>%
+    group_by(across(c(grouping_vars, 'n_clones_denominator'))) %>%
     dplyr::summarise(fraction_clones_with_at_least_n_mutations =
                        sum(fraction_clones),
                      n_clones_with_at_least_n_mutations = sum(n_clones)) %>%
     mutate(n_mutations_threshold = n_mutations_threshold,
            min_clone_size = min_clone_size) %>%
-    select(mutation_freq_threshold, min_clone_size, n_mutations_threshold, everything()) %>%
+    select(matches('compartment_tissue'), matches('compartment_cell_type'), mutation_freq_threshold, min_clone_size, n_mutations_threshold, everything()) %>%
     ungroup()
   
 
@@ -206,12 +244,12 @@ plot_combinations %>%
   scale_y_continuous(limits = c(0,NA))
 
 ```
-
+We see that, compared with controls, there's a burst of mostly unmutated clones early in the response, with clones accumulating high frequency mutations as the response progresses. This result is consistent with the observation by [Nielsen et al.] (https://www.sciencedirect.com/science/article/pii/S1931312820305035?via%3Dihub) that there's an influx of mostly unmutated clones early in the response to SARS-CoV-2, followed by an increase in the average % of sites mutated (they're looking at all mutations, not just mutations above a certain threshold, but still). Like we're doing for the plot above, their analysis is also not constrained to subpopulations likely to be specific for the antigen (they're looking at PBMCs, we're looking at clones from all tissues we sampled).
 
 
 We can now do that for several minimum clone sizes and for several number of mutations above the threshold. We find that late in the primary response and in the secondary response, mice have more clones with several mutations at or above 50% frequency, especially among the largest clones.
 
-```{r echo = F, fig.width=12, fig.height=10, warning = F}
+```{r echo = F, fig.width=6, fig.height=4, warning = F}
 plot_combinations %>%
   ggplot(aes(x = group_controls_pooled,
              y = fraction_clones_with_at_least_n_mutations,
@@ -230,67 +268,157 @@ plot_combinations %>%
 ```
 
 
-```{r echo = F}
-top_clones_in_LN_PCs <- clone_freqs_by_tissue_and_cell_type %>%
-  filter(compartment_tissue == 'LN', compartment_cell_type == 'PC', clone_rank_in_compartment <= 100) %>%
-  select(mouse_id, clone_id) %>%
-  mutate(global_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
-  pull(global_clone_id)
+Now we break things down into compartments (tissue / cell type combinations). For each cell type in each tissue, we consider clones with at least 10 sequences in that compartment. 
+The number of clones with at least 1 mutation at or above 50% frequency (with the frequency measured relative to number of sequences from the clone in the corresponding compartment) increases over time among GC cells and PCs in the lymph node.
 
-mutations_above_threshold_top_clones_LN_PCs <- mutations_above_threshold_by_clone %>%
-  mutate(global_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
-  filter(global_clone_id %in% top_clones_in_LN_PCs)
 
-fraction_clones_with_1plus_mutations_top_clones_LN_PCs <- get_fraction_clones_with_n_mutations_above_threshold(mutations_above_threshold_top_clones_LN_PCs,                                                                                                               n_mutations_threshold = 1, min_clone_size = 100)
-fraction_clones_with_1plus_mutations_top_clones_LN_PCs %>%
+```{r echo = F, fig.width= 6, fig.height=4}
+
+mutations_above_threshold_by_clone_by_compartment <- count_mutations_above_threshold_by_clone(clone_freqs_by_tissue_and_cell_type,
+                                                                                              mutation_freqs_within_clones_by_tissue_and_cell_type,
+                                                                                              mutation_freq_threshold = 0.5) %>%
+   mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('naive','GC','PC','mem','nonnaive_IgD+B220+')), 
+          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels),
+          compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM'))) %>%
+  filter(n_clone_seqs_in_compartment >= 10)
+
+
+  
+fraction_clones_with_1plus_mutations_by_compartment <-
+  get_fraction_clones_with_n_mutations_above_threshold(mutations_above_threshold_by_clone_by_compartment,
+                                                       n_mutations_threshold = 1, min_clone_size = 10) 
+
+# Add clone rank in each compartment
+mutations_above_threshold_by_clone_by_compartment <- left_join(
+  mutations_above_threshold_by_clone_by_compartment,
+  clone_freqs_by_tissue_and_cell_type %>% select(mouse_id, clone_id, compartment_tissue, compartment_cell_type,
+                                                 clone_rank_in_compartment)
+) %>%
+   mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('naive','GC','PC','mem','nonnaive_IgD+B220+')), 
+          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels),
+          compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')))
+
+
+fraction_clones_with_1plus_mutations_by_compartment %>%
+  filter(compartment_cell_type != 'naive') %>%
   ggplot(aes(x = group_controls_pooled,
-             y = n_clones_with_at_least_n_mutations,
+             y = fraction_clones_with_at_least_n_mutations,
              color = infection_status)) +
   geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
+  geom_point(position = position_jitter(width = 0.1), aes(size = n_clones_denominator), alpha = 0.8) +
   background_grid() +
   theme(legend.position = 'top', 
         axis.text.x = element_text(size = 8, angle = 40,
                                      vjust = 0.5)) +
   xlab('Group') +
-  ylab('Number of top LN plasma cell clones 100+ seqs)\nwith 1+ mutations >= 50%') +
+  ylab('Fraction of clones with at least 10 sequences\nthat have mutations at or above 50% frequency') +
   scale_color_discrete(name = 'Infection status') +
-  scale_y_continuous(limits = c(0,NA))
+  scale_size_continuous(name = 'Number of clones') +
+  scale_y_continuous(limits = c(0,NA)) +
+  facet_grid(compartment_tissue~compartment_cell_type)
+
+```
+Does the average number of mutations in expanded clones increase over time?
+
+```{r echo =F,  fig.width= 6, fig.height=4}
+mean_n_mutations_above_threshold_by_compartment <- mutations_above_threshold_by_clone_by_compartment %>%
+  group_by(mouse_id, group_controls_pooled, infection_status,
+           compartment_tissue, compartment_cell_type) %>%
+  dplyr::summarise(mean_n_mutations_above_threshold = mean(n_mutations_above_threshold),
+                   n_clones_in_compartment = dplyr::n()) %>%
+  ungroup()
 
 
+mean_n_mutations_above_threshold_by_compartment %>%
+  filter(compartment_cell_type != 'naive', compartment_tissue == 'LN') %>%
+  ggplot(aes(x = group_controls_pooled,
+             y = mean_n_mutations_above_threshold,
+             color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width = 0.2), aes(size = n_clones_in_compartment), alpha = 0.9) +
+  background_grid() +
+  theme(legend.position = 'top', 
+        axis.text.x = element_text(size = 8, angle = 40,
+                                     vjust = 0.5)) +
+  xlab('Group') +
+  ylab('Average number of mutations at or\nabove 50% frequency in clones with at least 10 seqs.') +
+  scale_color_discrete(name = 'Infection status') +
+  scale_y_continuous(limits = c(-0.05,NA)) +
+  facet_grid(.~compartment_cell_type) +
+  scale_size_continuous(name = 'Number of clones')
 
+
+mean_n_mutations_above_threshold_by_compartment %>%
+  filter(compartment_cell_type != 'naive') %>%
+  ggplot(aes(x = group_controls_pooled,
+             y = mean_n_mutations_above_threshold,
+             color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width = 0.2), aes(size = n_clones_in_compartment), alpha = 0.9) +
+  background_grid() +
+  theme(legend.position = 'top', 
+        axis.text.x = element_text(size = 8, angle = 40,
+                                     vjust = 0.5)) +
+  xlab('Group') +
+  ylab('Average number of mutations at or\nabove 50% frequency in clones with at least 10 seqs.') +
+  scale_color_discrete(name = 'Infection status') +
+  scale_y_continuous(limits = c(-0.05,NA)) +
+  facet_grid(compartment_tissue~compartment_cell_type) +
+  scale_size_continuous(name = 'Number of clones')
 
 ```
 
 
 
-(Work in progress) plot on number of how often mutations are shared between clones.
-
-```{r echo =F, warning = F}
-mutation_freqs_within_clones_by_tissue_and_cell_type %>%
-  filter(cell_type != 'naive') %>%
-  filter(total_clone_prod_seqs >= min_clone_size, mutation_freq_in_compartment >= 0.5) %>%
-  group_by(tissue, cell_type, mutation, v_gene) %>%
-  summarise(n_clones = length(unique(clone_id))) %>%
-  group_by(tissue, cell_type, n_clones) %>%
-  summarise(n_mutations = n()) %>%
-  group_by(tissue, cell_type) %>%
-  mutate(fraction_mutations = n_mutations / sum(n_mutations)) %>%
-  filter(n_clones > 1) %>%
-  ggplot(aes(x = n_clones, y = fraction_mutations)) +
-  geom_col() +
-  #geom_line() +
-  #geom_point() +
-  #scale_y_log10() +
-  facet_grid(tissue~cell_type, scales = 'free') +
-  xlim(0,50)
-
-```
+Do the most abundant clones in lymph node PC and GC cell populations tend to have more mutations at or above 50% frequency? No, the number of high frequency mutations within a clone does not seem to be associated with the clone's rank
 
 ```{r echo = F}
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(compartment_cell_type == 'PC', compartment_tissue == 'LN') %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_mutations_above_threshold)) +
+  geom_point(aes(group = mouse_id, color = infection_status), alpha = 0.2) +
+  facet_wrap('group_controls_pooled', nrow = 2, scales = 'free') +
+  theme(legend.position = 'none') +
+  geom_smooth(se = T, color = 'black') +
+  #scale_y_log10() +
+  ylim(-0.05,20) +
+  scale_color_discrete(name = 'Infection status') +
+  xlab('Clone rank in lymph node plasma cells') +
+  ylab('Number of mutations at\nor above 50% frequency')
+
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(compartment_cell_type == 'GC', compartment_tissue == 'LN') %>%
+  ggplot(aes(x = clone_rank_in_compartment, y = n_mutations_above_threshold)) +
+  geom_point(aes(group = mouse_id,  color = infection_status), alpha = 0.2) +
+  facet_wrap('group_controls_pooled', nrow = 2, scales = 'free') +
+  theme(legend.position = 'none') +
+  geom_smooth(se = T, color = 'black') +
+  #scale_y_log10() +
+  scale_color_discrete(name = 'Infection status') +
+  xlab('Clone rank in lymph node germinal center cells') +
+  ylab('Number of mutations at\nor above 50% frequency')
+
+```
 
 
+
+
+
+## Parallel evolution in clones using the same V gene ##
+
+
+
+```{r echo = F}
+n_clones_with_each_mutation_above_threshold <- mutation_freqs_within_clones_by_tissue_and_cell_type %>%
+  mutate(global_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
+  filter(mutation_freq_in_compartment >= 0.5, prod_clone_seqs_in_compartment >= 10) %>%
+  group_by(compartment_tissue, compartment_cell_type, mouse_id, group_controls_pooled, v_gene, mutation) %>% 
+  dplyr::summarise(n_clones_with_mutation_above_threshold = length(unique(global_clone_id))) %>%
+  arrange(desc(n_clones_with_mutation_above_threshold)) %>%
+  filter(grepl('IGHV1-82', v_gene))
   
+  
+
 
 ```
 

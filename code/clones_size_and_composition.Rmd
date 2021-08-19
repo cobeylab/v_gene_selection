@@ -99,9 +99,7 @@ clone_info <- clone_info %>%
 
 ## Clone size distributions ##
 
-How many clones does each mouse have? Mouse typically have tens of thousands of clones. including naive cells and singletons. They have thousands of clones with at least 10 sequences, hundreds of clones with at least 100 sequences, and tens of clones with at least a thousand sequence.
-
-
+How many clones does each mouse have? Mice typically have tens of thousands of clones, including naive cells and singletons. They have thousands of clones with at least 10 sequences, hundreds of clones with at least 100 sequences, and tens of clones with at least a thousand sequences.
 
 
 ```{r echo = F}
@@ -141,8 +139,9 @@ n_clones_per_mouse %>%
 
 rank_size_plot <- clone_info %>%
   filter(total_clone_rank <= 1000) %>%
-  ggplot(aes(x = total_clone_rank, y = total_clone_seqs, group = mouse_id, color = infection_status)) +
-  geom_line(alpha = 0.7) +
+  ggplot(aes(x = total_clone_rank, y = total_clone_seqs,  color = infection_status)) +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = infection_status), se = F, linetype = 2) +
   scale_y_log10() +
   scale_x_log10() +
   theme(legend.position = 'none') +
@@ -152,8 +151,9 @@ rank_size_plot <- clone_info %>%
   
 rank_freq_plot <- clone_info %>%
   filter(total_clone_rank <= 1000) %>%
-  ggplot(aes(x = total_clone_rank, y = clone_freq_in_mouse, group = mouse_id, color = infection_status)) +
-  geom_line(alpha = 0.7) +
+  ggplot(aes(x = total_clone_rank, y = clone_freq_in_mouse, color = infection_status)) +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = infection_status), se = F, linetype = 2) +
   scale_y_log10() +
   scale_x_log10() +
   theme(legend.position = c(0.5,0.9)) +
@@ -164,7 +164,6 @@ rank_freq_plot <- clone_info %>%
 
 plot_grid(rank_size_plot, rank_freq_plot)
 
-
 ```
 
 Now patterns by tissue
@@ -173,8 +172,9 @@ Now patterns by tissue
 ```{r echo = F}
 rank_size_plot_by_tissue <- clone_freqs_by_tissue %>%
   filter(clone_rank_in_compartment <= 1000) %>%
-  ggplot(aes(x = clone_rank_in_compartment, y = n_clone_seqs_in_compartment, group = mouse_id, color = infection_status)) +
-  geom_line(alpha = 0.7) +
+  ggplot(aes(x = clone_rank_in_compartment, y = n_clone_seqs_in_compartment, color = infection_status)) +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = infection_status), se = F, linetype = 2) +
   scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
   scale_x_log10() +
   theme(legend.position = 'none') +
@@ -185,17 +185,19 @@ rank_size_plot_by_tissue <- clone_freqs_by_tissue %>%
 
 rank_freq_plot_by_tissue <- clone_freqs_by_tissue %>%
   filter(clone_rank_in_compartment <= 1000) %>%
-  ggplot(aes(x = clone_rank_in_compartment, y = clone_freq_in_compartment, group = mouse_id, color = infection_status)) +
+  ggplot(aes(x = clone_rank_in_compartment, y = clone_freq_in_compartment, color = infection_status)) +
   #geom_vline(xintercept = c(10,100), linetype = 2) +
   #geom_hline(yintercept = c(1000, 100), linetype = 2) +
-  geom_line(alpha = 0.7) +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = infection_status), se = F, linetype = 2) +
   scale_y_log10(breaks = c(1,0.1,0.01,0.001,0.0001)) +
   scale_x_log10() +
-  theme(legend.position = c(0.8,0.9)) +
+  theme(legend.position = c(0.83,0.9)) +
   xlab('Clone rank (top 1000 clones only)') +
   ylab('Fraction of sequences\nin each clone') +
   facet_wrap('compartment_tissue', ncol = 3) +
-  background_grid()
+  background_grid() +
+  scale_color_discrete(name = '')
 
 plot_grid(rank_size_plot_by_tissue, rank_freq_plot_by_tissue, nrow = 2)
 
@@ -203,36 +205,40 @@ plot_grid(rank_size_plot_by_tissue, rank_freq_plot_by_tissue, nrow = 2)
 
 ```
 
-And by tissue / cell type:
+Focusing on the LN, where flu-induced B cell populations seem to be:
 
 
 ```{r echo = F}
 
-clone_freqs_by_tissue_and_cell_type %>%
-  filter(compartment_cell_type != 'naive') %>%
+rank_size_plot_LN_by_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
+  filter(compartment_cell_type != 'naive', compartment_tissue == 'LN') %>%
   filter(clone_rank_in_compartment <= 1000) %>%
-  ggplot(aes(x = clone_rank_in_compartment, y = n_clone_seqs_in_compartment, group = mouse_id, color = infection_status)) +
-  geom_line(alpha = 0.7) +
+  ggplot(aes(x = clone_rank_in_compartment, y = n_clone_seqs_in_compartment, color = infection_status)) +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = infection_status), se = F, linetype = 2) +
   scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
   scale_x_log10() +
-  theme(legend.position = 'top') +
+  theme(legend.position = 'none') +
   xlab('Clone rank (top 1000 clones only)') +
   ylab('Number of sequences in each clone') +
   facet_grid(compartment_tissue~compartment_cell_type) +
   background_grid()
 
-clone_freqs_by_tissue_and_cell_type %>%
-  filter(compartment_cell_type != 'naive') %>%
+rank_freq_plot_LN_by_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
+  filter(compartment_cell_type != 'naive', compartment_tissue == 'LN') %>%
   filter(clone_rank_in_compartment <= 1000) %>%
-  ggplot(aes(x = clone_rank_in_compartment, y = clone_freq_in_compartment, group = mouse_id, color = infection_status)) +
-  geom_line(alpha = 0.7) +
+  ggplot(aes(x = clone_rank_in_compartment, y = clone_freq_in_compartment,  color = infection_status)) +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = infection_status), se = F, linetype = 2) +
   scale_y_log10() +
   scale_x_log10() +
-  theme(legend.position = 'top') +
+  theme(legend.position = c(0.7,0.9)) +
   xlab('Clone rank (top 1000 clones only)') +
-  ylab('Number of sequences in each clone') +
+  ylab('Fraction of sequences in each clone') +
   facet_grid(compartment_tissue~compartment_cell_type) +
   background_grid()
+
+plot_grid(rank_size_plot_LN_by_cell_type, rank_freq_plot_LN_by_cell_type, nrow = 2)
 ```
 
 Cumulative curves:
@@ -248,37 +254,19 @@ cumulative_curve_by_tissue_and_cell_type <- clone_freqs_by_tissue_and_cell_type 
   ungroup()
 
 cumulative_curve_by_tissue_and_cell_type %>%
-  filter(compartment_cell_type != 'naive') %>%
-  filter(clone_rank_in_compartment <= 100) %>%
-  ggplot(aes(x = clone_rank_in_compartment, y = cumulative_fraction_seqs, group = mouse_id,
-             color = infection_status)) +
-  #geom_vline(xintercept = c(10,100), linetype = 2) +
-  #geom_hline(yintercept = c(1000, 100), linetype = 2) +
-  geom_line(alpha = 0.7) +
-  #scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
-  #scale_x_log10() +
-  theme(legend.position = 'top') +
-  xlab('Clone rank (top 1000 clones only)') +
-  ylab('Cumulative fraction of sequences') +
-  facet_grid(compartment_tissue~compartment_cell_type)
-
- 
-cumulative_curve_by_tissue_and_cell_type %>%
-  filter(compartment_cell_type != 'naive', compartment_tissue == 'LN') %>%
+  filter(compartment_cell_type %in% c('GC','PC','mem'), compartment_tissue == 'LN') %>%
   filter(clone_rank_in_compartment <= 500) %>%
-  ggplot(aes(x = clone_rank_in_compartment, y = cumulative_fraction_seqs, group = mouse_id,
+  ggplot(aes(x = clone_rank_in_compartment, y = cumulative_fraction_seqs,
              color = group_controls_pooled)) +
-  #geom_vline(xintercept = c(10,100), linetype = 2) +
-  #geom_hline(yintercept = c(1000, 100), linetype = 2) +
-  geom_line(alpha = 0.7) +
-  #scale_y_log10(breaks = c(1,10,100,1000,10000,100000)) +
-  #scale_x_log10() +
-  theme(legend.position = 'top') +
-  xlab('Clone rank (top 1000 clones only)') +
+  geom_line(alpha = 0.3, aes(group = mouse_id)) +
+  geom_smooth(aes(group = group_controls_pooled), se = F, linetype = 2, method = 'loess') +
+  theme(legend.position = 'top', axis.text.x = element_text(size = 8)) +
+  xlab('Clone rank (top 500 clones only)') +
   ylab('Cumulative fraction of sequences') +
   facet_grid(.~compartment_cell_type) +
   scale_color_discrete(name = 'Group') +
-  geom_hline(yintercept = 0.95, linetype = 2)
+  geom_hline(yintercept = 0.95, linetype = 2) +
+  geom_vline(xintercept = 100, linetype = 2)
 
 ```
 
@@ -338,7 +326,7 @@ Considering clones with 10 or more sequences, most clones are concentrated in a 
 min_clone_size = 10
 
 clone_info %>%
-  select(mouse_id, group_controls_pooled, clone_id, total_clone_seqs, BM_seqs, spleen_seqs,
+  select(mouse_id, group_controls_pooled, clone_id, total_clone_seqs, total_clone_rank, BM_seqs, spleen_seqs,
          LN_seqs) %>%
   pivot_longer(cols = c('BM_seqs', 'spleen_seqs', 'LN_seqs'), values_to = 'n_seqs',
                names_to = 'tissue') %>%
