@@ -8,6 +8,8 @@ library(cowplot)
 library(vegan)
 theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
+source('plot_options.R')
+library(ggh4x)
 
 clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
@@ -142,14 +144,18 @@ obs_n_genes %>%
   theme(legend.position = 'top',
         axis.text.x = element_text(size = 10, angle = 40, vjust = 0.5)) +
   scale_color_discrete(guide = 'none') +
-  scale_size(name = 'Number of oroductive sequences', breaks = c(1000,10000,100000)) +
+  scale_size(name = 'Number of productive sequences', breaks = c(1000,10000,100000)) +
   background_grid() +
   xlab('Group') +
   ylab('Number of V genes (chao1 estimate)')
 
 
+
+
+# PLOTS TO BE EXPORTED
+
 # Number of genes shared by pairs of mice
-pairwise_gene_freqs %>%
+n_shared_genes <- pairwise_gene_freqs %>%
   filter(cell_type == 'naive') %>%
   filter(vgene_seq_freq_i != 0, vgene_seq_freq_j != 0) %>%
   group_by(mouse_pair, pair_type) %>%
@@ -157,13 +163,54 @@ pairwise_gene_freqs %>%
   ungroup() %>%
   ggplot(aes(x = pair_type, y = n_genes_shared, color = pair_type)) +
   geom_boxplot(outlier.alpha = 0) +
-  geom_point(position = position_jitter(width = 0.1)) +
+  geom_point(position = position_jitter(width = 0.1), alpha = 0.5) +
   xlab('Type of pair') +
   ylab('Number of genes shared by mouse pair') +
-  ylim(40,90) +
+  #ylim(40,90) +
   background_grid() +
-  geom_hline(yintercept = 75, linetype = 2) +
   theme(legend.position = 'none')
+
+total_genes_and_genes_in_LN_pops <- 
+  bind_rows(obs_n_genes %>%
+              filter(tissue == 'all', cell_type %in% c('naive', 'experienced')) %>%
+              mutate(cell_type = case_when(
+                cell_type == 'naive' ~ 'Naive cells (all tissues)',
+                cell_type == 'experienced' ~ 'Experienced cells (all tissues)'
+              )) %>%
+              select(-tissue),
+            obs_n_genes %>%
+              filter(tissue == 'LN', cell_type %in% c('GC','PC','mem')) %>%
+              mutate(cell_type = case_when(
+                cell_type == 'GC' ~ 'Lymph node GC cells',
+                cell_type == 'PC' ~ 'Lymph node plasma cells',
+                cell_type == 'mem' ~ 'Lymph node memory cells'
+              )) %>%
+              select(-tissue)) %>%
+  mutate(cell_type = factor(cell_type,
+         levels = c('Naive cells (all tissues)',
+                    'Experienced cells (all tissues)',
+                    'Lymph node GC cells',
+                    'Lymph node plasma cells',
+                    'Lymph node memory cells'))) %>%
+  ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(aes(size = total_compartment_seqs),
+             position = position_jitter(height = 0, width = point_jitter_width),
+             alpha = point_alpha) +
+  facet_grid(.~cell_type) +
+  theme(legend.position = 'top',
+        axis.text.x = axis_text_x) +
+  scale_color_discrete(name = 'Infection') +
+  scale_size(name = 'Number of sequences') +
+  background_grid() +
+  xlab('Group') +
+  ylab('Number of V genes (Chao1 estimate)')
+
+save(total_genes_and_genes_in_LN_pops, n_shared_genes,
+     file = '../figures/exported_ggplot_objects/n_genes.RData')
+
+
+
 
 
 

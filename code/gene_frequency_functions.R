@@ -4,12 +4,12 @@ library(cowplot)
 library(stringr)
 library(viridis)
 library(reshape2)
-library(heatmaply)
+#library(heatmaply)
+library(gplots)
+
+source('plot_options.R')
 
 estimated_seq_error_rate <- 0.0018
-
-# Remove mouse/cell-type combinations with fewer than <min_seqs> sequences and mice with fewer than <min_seqs> naive seqs.
-min_seqs <- 1000 # Passed down to other scripts that use the functions defined here.
 
 cell_type_list <- list('GC','PC','mem','experienced')
 names(cell_type_list) <- c('GC','PC','mem','experienced')
@@ -35,8 +35,8 @@ get_info_from_mouse_id <- function(data){
     unique() %>%
     mutate(day = str_extract(mouse_id,'[0-9]*[^-]'),
            mouse_id_number = str_replace(str_extract(mouse_id,'-[0-9]*'),'-',''),
-           infection_status = assign_infection_status(day, mouse_id_number),
-           day = factor(day, levels = sort(unique(as.numeric(day)))))
+           #day = factor(day, levels = sort(unique(as.numeric(day)))),
+           infection_status = assign_infection_status(day, mouse_id_number))
   
   mouse_info$day[mouse_info$mouse_id == '40-7'] <- '8'
   
@@ -940,22 +940,34 @@ list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, t
 
 # Clustering based on Spearman correlation of V gene frequencies as an inverse measure of distance.
 get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric,
-                                                  annotation_variable = 'group_controls_pooled'){
+                                                  min_seqs){
+  
+  
+  cell_type_full_name <- case_when(
+    cell_type == 'PC' ~ 'plasma cells',
+    cell_type == 'GC' ~ 'germinal center cells',
+    cell_type == 'mem' ~ 'memory cells'
+  )
+  
   
   if(metric == 'freqs'){
     data_subset <- pairwise_correlations$freqs %>%
       rename(cor_coef = cor_coef_freqs)
-    color_key_title <- 'Spearman correlation\nin V gene frequencies'
+    plot_title <- paste0('Mouse-pair correlations in ',
+                         str_sub(cell_type_full_name,1,-2),
+                         '\nV gene frequencies')
   }else{
     stopifnot(metric == 'freq_ratios')
     data_subset <- pairwise_correlations$freq_ratios %>%
       rename(cor_coef = cor_coef_freq_ratios)
-    color_key_title <- 'Spearman correlation\nin V gene frequency deviations\nfrom the naive repertoire\n'
-  }
+    plot_title <- paste0('Mouse-pair correlations in frequency deviations\nbetween ',
+           cell_type_full_name,
+           ' and the naive repertoire')
+    }
   
   data_subset <- data_subset %>%
-    filter(total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100) %>%
-    filter(cell_type == !!cell_type) 
+    filter(total_compartment_seqs_i >= min_seqs, total_compartment_seqs_j >= min_seqs) %>%
+    filter(cell_type == !!cell_type, !str_detect(pair_type, 'control')) 
   
   if(!is.null(tissue)){
     data_subset <- data_subset %>%
@@ -1001,24 +1013,28 @@ get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_ty
     tibble(mouse_id = cluster$labels)
   )
   
+  margin_colors <- left_join(annotation, group_controls_pooled_palette)$group_color
   
-  dendro_heatmap <- heatmaply(x = correlation_matrix,
-                              scale_fill_gradient_fun = ggplot2::scale_fill_gradient2(
-                                low = "blue", 
-                                high = "red", 
-                                midpoint = 0, 
-                                limits = c(-1, 1)
-                              ),
-                              Rowv = dendrogram,
-                              Colv = dendrogram,
-                              row_side_colors = annotation %>% select(matches(annotation_variable)) %>%
-                                rename(group = group_controls_pooled),
-                              col_side_colors = annotation %>% select(matches(annotation_variable)) %>%
-                                rename(group = group_controls_pooled),
-                              seriate = 'none',
-                              key.title = color_key_title)
+  rwb <- colorRampPalette(colors = c("blueviolet", "white", "darkorange2"))
+  heatmap.2(correlation_matrix,
+            trace = 'none',
+            #col = rev(brewer.pal(11, name = 'RdBu')),
+            col = rwb(100),
+            Rowv = dendrogram,
+            Colv = rev(dendrogram),
+            RowSideColors = margin_colors,
+            ColSideColors = margin_colors,
+            key.xlab = 'Spearman correlation',
+            key.ylab = '',
+            denscol = 'black',
+            key.title = '',
+            main = plot_title,
+            xlab = 'Individual mice',
+            ylab = 'Individual mice')
+
+
   
-  return(dendro_heatmap)
+  #return()
   
   
 }
