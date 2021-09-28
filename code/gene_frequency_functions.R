@@ -497,17 +497,22 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
     # Parse mouse_pair, determine type of pair (e.g. 'primary', 'primary/control', 'secondary/control')
     mice <- str_split(mouse_pair,';')[[1]]
     
-    days <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][1]})
-    mouse_id_numbers <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][2]})
-    infection_status = assign_infection_status(days, mouse_id_numbers)
+    pair_info <- mouse_info %>%
+      filter(mouse_id %in% mice) %>%
+      mutate(mouse_id = factor(mouse_id, levels = mice)) %>%
+      arrange(mouse_id)
     
-
+    days <- pair_info$day
+    
+    infection_status <- pair_info$infection_status
+    #mouse_id_numbers <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][2]})
+   
     pair_type = ifelse(length(unique(infection_status)) == 1,
                        infection_status,
                        paste(sort(unique(infection_status)),collapse = '/'))
     time_i <- days[1]
     time_j <- days[2]
-    pair_time <- paste(sort(as.numeric(days)), collapse=';')
+    #pair_time <- paste(sort(as.numeric(days)), collapse=';')
     
     mouse1_freqs <- gene_freqs %>% filter(mouse_id == mice[1]) %>% 
       select(-day, -infection_status, -group, -group_controls_pooled, - total_compartment_seqs)
@@ -1038,6 +1043,42 @@ get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_ty
   
   
 }
+
+randomize_noncontrol_groups <- function(tibble_with_mouse_id){
+  
+  # Distributes non-control mice randomly between groups (primary-8, secondary-40, etc.), keeping the original number of mice in each group.
+  
+  mouse_info <- get_info_from_mouse_id(tibble_with_mouse_id %>% select(mouse_id) %>% unique())
+  non_id_vars <- names(mouse_info)[names(mouse_info) != 'mouse_id']
+  
+  
+  noncontrols <- mouse_info %>% filter(group_controls_pooled != 'control')
+  controls <- mouse_info %>% filter(group_controls_pooled == 'control')
+  
+  randomized_noncontrols <- noncontrols %>%
+    select(mouse_id, group_controls_pooled) %>%
+    mutate(group_controls_pooled = sample(group_controls_pooled, size = length(group_controls_pooled), replace = F)) %>%
+    mutate(group = group_controls_pooled,
+           day = str_extract(group_controls_pooled,'[0-9]+'),
+           infection_status = str_extract(group_controls_pooled, '[a-z]*'))
+
+  
+  randomized_mouse_info <- bind_rows(controls, randomized_noncontrols)
+  
+
+  randomized_tibble <- left_join(tibble_with_mouse_id %>% select(-any_of(non_id_vars)),
+                                 randomized_mouse_info, by = 'mouse_id') %>%
+    select(mouse_id, any_of(non_id_vars), everything())
+  
+  return(randomized_tibble)
+  
+  
+}
+
+
+
+
+
 
 
 

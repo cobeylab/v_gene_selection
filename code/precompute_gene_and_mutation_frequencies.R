@@ -54,32 +54,59 @@ neutral_realizations <- simulate_selection_freq_changes(exp_seq_counts = exp_seq
                                                         n_reps = 100)
 
 # =========== PAIRWISE CORRELATIONS IN GENE FREQUENCIES BETWEEN MICE ==========
+
+# Pairwise correlations in observed data
 pairwise_gene_freqs <- get_pairwise_freqs(gene_freqs, adjust_naive_zeros = T)
 pairwise_correlations <- get_pairwise_correlations(pairwise_gene_freqs)
 
+# Pairwise correlations with randomized noncontrol groups
+gene_freqs_randomized_noncontrol_groups <- replicate(100, randomize_noncontrol_groups(gene_freqs),
+                                   simplify = F)
 
-neutral_pairwise_correlations_freqs <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
-                                              FUN = function(x){
-                                                get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freqs
-                                              })
 
-neutral_pairwise_correlations_freq_ratios <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
-                                                    FUN = function(x){
-                                                      get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freq_ratios
-                                                    })
+pairwise_gene_freqs_randomized_noncontrol_groups <- lapply(gene_freqs_randomized_noncontrol_groups,
+                                                           FUN = get_pairwise_freqs, adjust_naive_zeros = T)
 
-for(i in 1:length(neutral_pairwise_correlations_freqs)){
-  neutral_pairwise_correlations_freqs[[i]] <- neutral_pairwise_correlations_freqs[[i]] %>%
-    mutate(replicate = i) %>% select(replicate, everything())
-  neutral_pairwise_correlations_freq_ratios[[i]] <- neutral_pairwise_correlations_freq_ratios[[i]] %>%
-    mutate(replicate = i) %>% select(replicate, everything())
-}
+pairwise_correlations_randomized_noncontrol_groups_FREQS <- lapply(pairwise_gene_freqs_randomized_noncontrol_groups,
+                                                             FUN = function(x){get_pairwise_correlations(x)$freqs})
 
-neutral_pairwise_correlations_freqs <- bind_rows(neutral_pairwise_correlations_freqs)
-neutral_pairwise_correlations_freq_ratios <- bind_rows(neutral_pairwise_correlations_freq_ratios)
+pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS <- lapply(pairwise_gene_freqs_randomized_noncontrol_groups,
+                                                                   FUN = function(x){get_pairwise_correlations(x)$freq_ratios})
 
-neutral_pairwise_correlations <- list(freqs = neutral_pairwise_correlations_freqs,
-                                      freq_ratios = neutral_pairwise_correlations_freq_ratios)
+pairwise_correlations_randomized_noncontrol_groups_FREQS <- bind_rows(pairwise_correlations_randomized_noncontrol_groups_FREQS,
+                                                                      .id = 'replicate')
+
+pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS <- bind_rows(pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS,
+                                                                            .id = 'replicate')
+
+pairwise_correlations_randomized_noncontrol_groups <- list(freqs = pairwise_correlations_randomized_noncontrol_groups_FREQS ,
+                                                           freq_ratios = pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS)
+
+
+
+# Null model realizations [We're no longer computing pairwise correlations for the null realizations]
+# neutral_pairwise_correlations_freqs <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
+#                                               FUN = function(x){
+#                                                 get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freqs
+#                                               })
+# 
+# neutral_pairwise_correlations_freq_ratios <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
+#                                                     FUN = function(x){
+#                                                       get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freq_ratios
+#                                                     })
+# 
+# for(i in 1:length(neutral_pairwise_correlations_freqs)){
+#   neutral_pairwise_correlations_freqs[[i]] <- neutral_pairwise_correlations_freqs[[i]] %>%
+#     mutate(replicate = i) %>% select(replicate, everything())
+#   neutral_pairwise_correlations_freq_ratios[[i]] <- neutral_pairwise_correlations_freq_ratios[[i]] %>%
+#     mutate(replicate = i) %>% select(replicate, everything())
+# }
+# 
+# neutral_pairwise_correlations_freqs <- bind_rows(neutral_pairwise_correlations_freqs)
+# neutral_pairwise_correlations_freq_ratios <- bind_rows(neutral_pairwise_correlations_freq_ratios)
+# 
+# neutral_pairwise_correlations <- list(freqs = neutral_pairwise_correlations_freqs,
+#                                       freq_ratios = neutral_pairwise_correlations_freq_ratios)
 
 # =========== V-GENE REGION MUTATION FREQUENCIES WITHIN CLONES ==========
 
@@ -130,7 +157,9 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      neutral_realizations,
      pairwise_gene_freqs,
      pairwise_correlations,
-     neutral_pairwise_correlations,
+     #neutral_pairwise_correlations,
+     pairwise_correlations_randomized_noncontrol_groups,
+     pairwise_gene_freqs_randomized_noncontrol_groups,
      mutation_freqs_within_clones,
      mutation_freqs_within_clones_by_tissue_and_cell_type,
      file = '../results/precomputed_gene_freqs.RData')
