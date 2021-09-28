@@ -102,22 +102,54 @@ save_plot(paste0(final_figures_dir, 'freq_and_deviation_correlations.pdf'),
 
 
 # Increasing titers, clonality, mutations over time
+
 titers_figure_path <- '../figures/titers.png'
 titers_figure <- image_read(titers_figure_path)
 
-plot_grid(ggdraw() + draw_image(titers_figure) +
-            theme(plot.margin = margin(t = 20)) +
-            xlab ('Group'),
-          fraction_in_top_10_clones_plot +
-            theme(legend.box.spacing = unit(1,'pt'),
-                  legend.spacing = unit(60,'pt')) +
-            guides(color = guide_legend(keywidth = 1),
-                   size = guide_legend(keywidth = 1)) +
-            ylab('Fraction of sequences\nin the 10 largest clones'),
-          nrow = 1, rel_widths = c(1,3),
-          labels = c('A','B'), label_size = 16)
+left_panel <- plot_grid(NULL,
+                        ggdraw() +
+                        draw_image(titers_figure),
+                        NULL,
+                        nrow = 3,
+                        rel_heights = c(1,2,1),
+                        labels = c('','A [placeholder]',''), label_size = 16,
+                        hjust =  -1)
 
+right_panels_top_row <- fraction_in_top_10_clones_plot +
+  theme(legend.box.spacing = unit(1,'pt'),
+        legend.spacing = unit(50,'pt'),
+        plot.margin = margin(l = 20, r = 10, b = 20)) +
+  guides(color = guide_legend(keywidth = 1),
+         size = guide_legend(keywidth = 1)) +
+  ylab('Fraction of sequences\nin the 10 largest clones')
 
+right_panels_bottom_row <- plot_grid(fraction_clones_with_high_freq_muts_LN_plot +
+                                  xlab('') +
+                                  theme(legend.position = 'none',
+                                        plot.margin = margin(l = 20, r = 10)) +
+                                  ylab('Fraction of clones (10+ seqs.) with at\nleast one high-frequency mutation'),
+                                mean_n_mutations_LN_plot +
+                                  theme(strip.background = element_rect(fill = 'white'),
+                                        strip.text = element_text(color = 'white'),
+                                        legend.position = 'none',
+                                        plot.margin = margin(l = 20, r = 10)) +
+                                  ylab('Average number of high-frequency\nmutations (clones with 10+ seqs)'),
+
+          nrow = 2, 
+          align = 'v')
+bottom_row_legend <- get_legend(fraction_clones_with_high_freq_muts_LN_plot +
+             theme(legend.box.margin = margin(l = 70)))
+right_panels_bottom_row <- plot_grid(bottom_row_legend, right_panels_bottom_row, nrow = 2,
+                                rel_heights = c(0.05,1))
+
+right_panels <- plot_grid(right_panels_top_row, right_panels_bottom_row, nrow = 2, rel_heights = c(1,2),
+          labels = c('B','C'), label_size = 16)
+
+evidence_of_clonal_evolution <- plot_grid(left_panel, right_panels, nrow =1, rel_widths = c(1,2))
+
+save_plot('../figures/evidence_of_clonal_evolution.pdf',
+          evidence_of_clonal_evolution,
+          base_height = 12, base_width = 16)
 
 
 
