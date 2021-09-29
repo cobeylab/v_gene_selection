@@ -894,6 +894,7 @@ get_mutation_frequencies_within_clones <- function(annotated_seqs, seq_counts, b
     filter(!is.na(vgene_mutations_list_partis_aa)) %>%
     group_by(across(grouping_vars)) %>%
     dplyr::summarise(mutation = str_split(paste0(vgene_mutations_list_partis_aa, collapse = ';'), ';')[[1]]) %>%
+    ungroup() %>%
     group_by(across(c(grouping_vars, 'mutation'))) %>%
     dplyr::summarise(n_seqs_with_mutation = dplyr::n()) %>%
     ungroup()

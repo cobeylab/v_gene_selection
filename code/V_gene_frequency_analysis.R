@@ -317,19 +317,25 @@ top_genes_LN_PC_day8_plot <- plot_most_common_genes('PC','LN','primary-8') +
   theme(legend.position = c(0.87,0.35)) + background_grid()
 plot(top_genes_LN_PC_day8_plot)
 
-
-plot_most_common_genes('PC','LN','primary-16') +
+top_genes_LN_PC_day16_plot <- plot_most_common_genes('PC','LN','primary-16') +
   theme(legend.position = c(0.67,0.25))
+plot(top_genes_LN_PC_day16_plot)
+
 plot_most_common_genes('PC','LN','primary-24') +
   theme(legend.position = c(0.85,0.30))
 
 plot_most_common_genes('PC','LN','secondary-56') +
   theme(legend.position = c(0.87,0.35))
 
-plot_most_common_genes('GC','LN','primary-8') +
+top_genes_LN_GC_day8_plot <- plot_most_common_genes('GC','LN','primary-8') +
   theme(legend.position = c(0.8,0.3))
-plot_most_common_genes('GC','LN','primary-16') +
+
+plot(top_genes_LN_GC_day8_plot)
+
+top_genes_LN_GC_day16_plot <- plot_most_common_genes('GC','LN','primary-16') +
   theme(legend.position = c(0.33,0.2))
+plot(top_genes_LN_GC_day16_plot)
+
 plot_most_common_genes('GC','LN','primary-24') +
   theme(legend.position = c(0.85,0.35))
 
@@ -814,6 +820,9 @@ save(naive_exp_correlations_plot,
      )
 
 save(top_genes_LN_PC_day8_plot,
+     top_genes_LN_PC_day16_plot,
+     top_genes_LN_GC_day8_plot,
+     top_genes_LN_GC_day16_plot,
      file = paste0(figures_output_dir, 'top_genes_plots.RData'))
 
 save(fraction_in_top_10_clones_plot,
