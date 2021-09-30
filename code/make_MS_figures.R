@@ -16,8 +16,6 @@ ggplot_object_files <- list.files(exported_objecs_dir, pattern = 'RData',
                                   full.names = T)
 for(f in ggplot_object_files){load(f)}
 
-
-
 # Gene sets and naive freqs
 
 top_2_rows <- plot_grid(total_genes_and_genes_in_LN_pops +
@@ -151,6 +149,52 @@ save_plot('../figures/evidence_of_clonal_evolution.pdf',
           evidence_of_clonal_evolution,
           base_height = 12, base_width = 16)
 
+# Supplementary figs with GC heat maps, GC top genes on days 8 and 16, 
+
+freqs_heatmap_LN_GCs <- image_read_pdf(paste0(exported_objecs_dir,'freqs_heatmap_LN_GCs.pdf'),
+                                       density = 600) %>%
+  image_resize("1688x1125")
+
+deviations_heatmap_LN_GCs <- image_read_pdf(paste0(exported_objecs_dir,'deviations_heatmap_LN_GCs.pdf'),
+                                            density = 600) %>%
+  image_resize("1688x1125")
+
+LN_GC_day16_heatmaps <- plot_grid(ggdraw() + draw_image(freqs_heatmap_LN_GCs),
+                                  NULL,
+                                  group_controls_pooled_legend,
+                                  ggdraw() + draw_image(deviations_heatmap_LN_GCs),
+                                  nrow = 1, rel_widths = c(1,0.1,0.2,1))
+
+save_plot('../figures/LN_GC_day16_heatmaps.pdf',
+          LN_GC_day16_heatmaps,
+          base_width = 15, base_height = 8)
+
+
+
+top_genes_LN_GC_day8_plot$layers[[3]]$aes_params$size <- 2.5
+top_genes_LN_GC_day16_plot$layers[[3]]$aes_params$size <- 3
+top_genes_LN_GC_day16_plot$layers[[3]]$aes_params$angle <- -25
+
+LN_GC_top_genes <- plot_grid(top_genes_LN_GC_day8_plot + background_grid() +
+                               xlab('Top 20 genes in lymph node GC cells from each infected mouse on day 8') +
+                               theme(plot.margin = margin(l = 20, t = 10, b = 10, r = 10)),
+                             top_genes_LN_GC_day16_plot + background_grid() +
+                               xlab('Top 20 genes in lymph node GC cells from each infected mouse on day 16') + 
+                               theme(plot.margin = margin(l = 20, t = 10, b = 10, r = 10)),
+                             nrow = 2, rel_heights = c(2,3), labels = c('A','B'), label_size = 16)
+
+
+save_plot('../figures/LN_GC_top_genes.pdf',
+          LN_GC_top_genes,
+          base_height = 15, base_width = 16)
+
+# Supplementary fig with top genes on day 16 LN plasma cells
+
+top_genes_LN_PC_day16_plot <- top_genes_LN_PC_day16_plot + background_grid() +
+  xlab('Top 20 genes in lymph node plasma cells from each infected mouse on day 16')
+save_plot('../figures/top_genes_LN_PC_day16_plot.pdf',
+          top_genes_LN_PC_day16_plot,
+          base_height = 8, base_width = 14)
 
 
 

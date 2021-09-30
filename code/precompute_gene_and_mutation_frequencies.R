@@ -60,7 +60,7 @@ pairwise_gene_freqs <- get_pairwise_freqs(gene_freqs, adjust_naive_zeros = T)
 pairwise_correlations <- get_pairwise_correlations(pairwise_gene_freqs)
 
 # Pairwise correlations with randomized noncontrol groups
-gene_freqs_randomized_noncontrol_groups <- replicate(100, randomize_noncontrol_groups(gene_freqs),
+gene_freqs_randomized_noncontrol_groups <- replicate(500, randomize_noncontrol_groups(gene_freqs),
                                    simplify = F)
 
 
@@ -159,7 +159,6 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      pairwise_correlations,
      #neutral_pairwise_correlations,
      pairwise_correlations_randomized_noncontrol_groups,
-     pairwise_gene_freqs_randomized_noncontrol_groups,
      mutation_freqs_within_clones,
      mutation_freqs_within_clones_by_tissue_and_cell_type,
      file = '../results/precomputed_gene_freqs.RData')

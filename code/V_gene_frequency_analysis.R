@@ -704,6 +704,102 @@ pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
 
 plot(pairwise_freq_deviations_plot)
 
+# ===== Linear models for correlation vs. time in LN plasma cells ======
+
+# First, we subset values for the LN only, and for pairs of mice from the same time point and with a min. number of seqs.
+
+# For observed data
+freq_correlations_LN_OBS <- pairwise_correlations$freqs %>% filter(cell_type %in% c('GC','PC','mem')) %>%
+  filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
+         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  mutate(time = as.integer(as.character(day_i)))
+
+deviation_correlations_LN_OBS <- pairwise_correlations$freq_ratios %>%
+  filter(cell_type %in% c('GC','PC','mem')) %>%
+  filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
+         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  mutate(time = as.integer(as.character(day_i)))
+
+# And for data with randomized noncontrol mice
+freq_correlations_LN_randomized <- pairwise_correlations_randomized_noncontrol_groups$freqs %>%
+  filter(cell_type %in% c('GC','PC','mem')) %>%
+  filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
+         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  mutate(time = as.integer(as.character(day_i)))
+
+deviation_correlations_LN_randomized <- pairwise_correlations_randomized_noncontrol_groups$freq_ratios %>%
+  filter(cell_type %in% c('GC','PC','mem')) %>%
+  filter(day_i == day_j, total_compartment_seqs_i >= 100, total_compartment_seqs_j >= 100,
+         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+  mutate(time = as.integer(as.character(day_i)))
+  
+# Now we compute the regression coefficient separately for each cell type, first for observed data
+beta_freqs_OBS <- freq_correlations_LN_OBS  %>%
+  group_by(cell_type) %>%
+  summarise(beta_obs = lm(cor_coef_freqs~time)$coefficients[2])
+ 
+beta_deviations_OBS <- deviation_correlations_LN_OBS  %>%
+  group_by(cell_type) %>%
+  summarise(beta_obs = lm(cor_coef_freq_ratios~time)$coefficients[2])
+
+beta_freqs_primary_only_OBS <- freq_correlations_LN_OBS  %>%
+  filter(pair_type == 'primary') %>%
+  group_by(cell_type) %>%
+  summarise(beta_obs = lm(cor_coef_freqs~time)$coefficients[2])
+
+beta_deviations_primary_only_OBS <- deviation_correlations_LN_OBS  %>%
+  filter(pair_type == 'primary') %>%
+  group_by(cell_type) %>%
+  summarise(beta_obs = lm(cor_coef_freq_ratios~time)$coefficients[2])
+
+
+# Then for the randomizations
+
+rdm_beta_freqs <- freq_correlations_LN_randomized %>%
+  group_by(replicate, cell_type) %>%
+  summarise(beta_rdm = lm(cor_coef_freqs~time)$coefficients[2]) %>%
+  group_by(cell_type) 
+
+
+rdm_beta_freqs_primary_only <- freq_correlations_LN_randomized %>%
+  group_by(replicate, cell_type) %>%
+  filter(pair_type == 'primary') %>%
+  summarise(beta_rdm = lm(cor_coef_freqs~time)$coefficients[2]) %>%
+  group_by(cell_type) 
+
+rdm_beta_deviations <- deviation_correlations_LN_randomized %>%
+  group_by(replicate, cell_type) %>%
+  summarise(beta_rdm = lm(cor_coef_freq_ratios~time)$coefficients[2]) %>%
+  group_by(cell_type) 
+
+rdm_beta_deviations_primary_only<- deviation_correlations_LN_randomized %>%
+  group_by(replicate, cell_type) %>%
+  filter(pair_type == 'primary') %>%
+  summarise(beta_rdm = lm(cor_coef_freq_ratios~time)$coefficients[2]) %>%
+  group_by(cell_type) 
+
+# Now we ask what % of randomizations equal to or more negative than observed values
+  
+left_join(rdm_beta_freq, beta_freqs_OBS) %>%
+  group_by(cell_type) %>%
+  summarise(n_replicates = n(),
+            n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs))
+
+left_join(rdm_beta_freqs_primary_only, beta_freqs_primary_only_OBS) %>%
+  group_by(cell_type) %>%
+  summarise(n_replicates = n(),
+            n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs))
+
+left_join(rdm_beta_deviations, beta_deviations_OBS) %>%
+  group_by(cell_type) %>%
+  summarise(n_replicates = n(),
+            n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs))
+
+left_join(rdm_beta_deviations_primary_only, beta_deviations_primary_only_OBS) %>%
+  group_by(cell_type) %>%
+  summarise(n_replicates = n(),
+            n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs))
+
 
 ###### HIERARCHICAL CLUSTERING ANALYSIS
 
@@ -721,16 +817,21 @@ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlati
                                       min_seqs = min_seqs)
 dev.off()
 
+pdf(file = paste0(figures_output_dir, 'freqs_heatmap_LN_GCs.pdf'), height = 7,
+    width = 7.5)
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'GC',
                                       tissue = 'LN',
                                       min_seqs = min_seqs)
+dev.off()
+
 
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'GC',
-                                      tissue = 'spleen')
+                                      tissue = 'spleen',
+                                      min_seqs = min_seqs)
 
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
@@ -747,11 +848,14 @@ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlati
                                       cell_type = 'PC',
                                       tissue = 'spleen')
 
-
+pdf(file = paste0(figures_output_dir, 'freqs_heatmap_LN_mem.pdf'), height = 7,
+    width = 7.5)
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
                                       cell_type = 'mem',
-                                      tissue = 'LN')
+                                      tissue = 'LN',
+                                      min_seqs = min_seqs)
+dev.off()
 
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freqs',
@@ -785,19 +889,23 @@ get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlati
                                       min_seqs = min_seqs)
 dev.off()
 
-
-
-
+pdf(file = paste0(figures_output_dir, 'deviations_heatmap_LN_GCs.pdf'), height = 7,
+    width = 7.5)
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freq_ratios',
                                       cell_type = 'GC',
                                       tissue = 'LN',
                                       min_seqs = min_seqs)
+dev.off()
 
+pdf(file = paste0(figures_output_dir, 'deviations_heatmap_LN_mem.pdf'), height = 7,
+    width = 7.5)
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freq_ratios',
                                       cell_type = 'mem',
-                                      tissue = 'LN')
+                                      tissue = 'LN',
+                                      min_seqs = min_seqs)
+dev.off()
 
 get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
                                       metric = 'freq_ratios',
