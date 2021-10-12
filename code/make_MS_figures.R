@@ -6,8 +6,8 @@ theme_set(theme_cowplot())
 
 source('plot_options.R')
 
-exported_objecs_dir <- '../figures/exported_ggplot_objects/'
-#exported_objecs_dir <- '~/Desktop/v_gene_selection_files/figures/exported_ggplot_objects/'
+exported_objecs_dir <- '../figures/all_seqs_freqs/exported_ggplot_objects/'
+#exported_objecs_dir <- '~/Desktop/v_gene_selection_files_all_seqs/figures/all_seqs_freqs/exported_ggplot_objects/'
 
 final_figures_dir <- paste0(dirname(exported_objecs_dir),'/')
 
@@ -145,9 +145,49 @@ right_panels <- plot_grid(right_panels_top_row, right_panels_bottom_row, nrow = 
 
 evidence_of_clonal_evolution <- plot_grid(left_panel, right_panels, nrow =1, rel_widths = c(1,2))
 
-save_plot('../figures/evidence_of_clonal_evolution.pdf',
+save_plot(paste0(final_figures_dir, 'evidence_of_clonal_evolution.pdf'),
           evidence_of_clonal_evolution,
           base_height = 12, base_width = 16)
+
+# Supp fig. with patterns for all tissues:
+  
+joint_legend <- get_legend(fraction_clones_with_high_freq_muts_all_tissues_plot +
+                             theme(legend.box.margin = margin(l = 50)))
+
+evidence_of_clonal_evolution_all_tissues <-  plot_grid(joint_legend,
+           plot_grid(fraction_clones_with_high_freq_muts_all_tissues_plot +
+                       theme(legend.position = 'none',
+                             axis.text.x = element_blank()) +
+                       xlab('') +
+                       ylab('Fraction of clones (10+ seqs.) with at\nleast one high-frequency mutation'),
+                     mean_n_mutations_all_tissues_plot +
+                       theme(legend.position = 'none',
+                             strip.background.x = element_blank(),
+                             strip.text.x = element_blank(),
+                             axis.text.x = element_text(size = 10, angle = 20)) +
+                       ylab('Average number of high-frequency\nmutations (clones with 10+ seqs)'),
+                     nrow = 2, align = 'v', rel_heights = c(1,1.1)),
+           nrow = 2, rel_heights = c(0.1,2))
+
+save_plot(paste0(final_figures_dir, 'evidence_of_clonal_evolution_all_tissues.pdf'),
+          evidence_of_clonal_evolution_all_tissues,
+          base_height = 14, base_width = 13)           
+           
+
+# Supplementary fig with numbers of sorted cells
+save_plot(paste0(final_figures_dir,'n_sorted_cells.pdf'),
+          n_sorted_cells_plot,
+          base_width = 12, base_height = 8 )
+
+
+# Supplementary fig with top genes on day 16 LN plasma cells
+
+top_genes_LN_PC_day16_plot <- top_genes_LN_PC_day16_plot + background_grid() +
+  xlab('Top 20 genes in lymph node plasma cells from each infected mouse on day 16')
+
+save_plot(paste0(final_figures_dir,'top_genes_LN_PC_day16_plot.pdf'),
+          top_genes_LN_PC_day16_plot,
+          base_height = 8, base_width = 14)
 
 # Supplementary figs with GC heat maps, GC top genes on days 8 and 16, 
 
@@ -165,7 +205,7 @@ LN_GC_day16_heatmaps <- plot_grid(ggdraw() + draw_image(freqs_heatmap_LN_GCs),
                                   ggdraw() + draw_image(deviations_heatmap_LN_GCs),
                                   nrow = 1, rel_widths = c(1,0.1,0.2,1))
 
-save_plot('../figures/LN_GC_day16_heatmaps.pdf',
+save_plot(paste0(final_figures_dir,'LN_GC_day16_heatmaps.pdf'),
           LN_GC_day16_heatmaps,
           base_width = 15, base_height = 8)
 
@@ -184,19 +224,38 @@ LN_GC_top_genes <- plot_grid(top_genes_LN_GC_day8_plot + background_grid() +
                              nrow = 2, rel_heights = c(2,3), labels = c('A','B'), label_size = 16)
 
 
-save_plot('../figures/LN_GC_top_genes.pdf',
+save_plot(paste0(final_figures_dir,'LN_GC_top_genes.pdf'),
           LN_GC_top_genes,
           base_height = 15, base_width = 16)
 
-# Supplementary fig with top genes on day 16 LN plasma cells
+# Clone rank vs. number of high frequency mutations.
+clone_rank_vs_high_freq_muts <- plot_grid(clone_rank_vs_high_freq_muts_LN_GCs_plot +
+                                            background_grid() +
+                                            theme(title = element_text(size = 10)),
+                                          clone_rank_vs_high_freq_muts_LN_PCs_plot +
+                                            background_grid() +
+                                            theme(title = element_text(size = 10)) ,
+                                          nrow=2)
 
-top_genes_LN_PC_day16_plot <- top_genes_LN_PC_day16_plot + background_grid() +
-  xlab('Top 20 genes in lymph node plasma cells from each infected mouse on day 16')
-save_plot('../figures/top_genes_LN_PC_day16_plot.pdf',
-          top_genes_LN_PC_day16_plot,
-          base_height = 8, base_width = 14)
+save_plot(paste0(final_figures_dir,'clone_rank_vs_high_freq_muts.pdf'),
+          clone_rank_vs_high_freq_muts,
+          base_width = 10, base_height = 12)
+  
 
+# Fraction of clones dominated by a single tissue or a single cell type
+joint_legend <- get_legend(fraction_clones_dominated_by_single_tissue_plot +
+                             theme(legend.box.margin = margin(l = 250)))
 
+clonal_composition <- plot_grid(joint_legend,
+          plot_grid(fraction_clones_dominated_by_single_tissue_plot +
+                      theme(legend.position = 'none'),
+                    fraction_clones_dominated_by_single_cell_type_plot +
+                      theme(legend.position = 'none')),
+          nrow = 2, rel_heights = c(0.1,1))
+
+save_plot(paste0(final_figures_dir,'clonal_compostion.pdf'),
+          clonal_composition,
+          base_width = 16, base_height = 7)
 
 
 

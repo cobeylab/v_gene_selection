@@ -4,6 +4,19 @@ library(tidyr)
 
 source('gene_frequency_functions.R')
 
+args <- commandArgs(trailingOnly = T)
+
+frequency_type <- as.character(args[1])
+
+
+if(frequency_type == 'all_seqs'){
+  seq_counts <- read_csv('../processed_data/seq_counts.csv')
+  # seq_counts <- read_csv('~/Desktop/v_gene_selection_files/seq_counts.csv')
+}else{
+  stopifnot(frequency_type == 'unique_seqs')
+  seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
+}
+
 # Annotated sequences
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 # annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
@@ -12,8 +25,6 @@ annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
 
-seq_counts <- read_csv('../processed_data/seq_counts.csv')
-# seq_counts <- read_csv('~/Desktop/v_gene_selection_files/seq_counts.csv')
 
 seq_counts <- get_info_from_mouse_id(seq_counts)
 
@@ -110,10 +121,21 @@ pairwise_correlations_randomized_noncontrol_groups <- list(freqs = pairwise_corr
 
 # =========== V-GENE REGION MUTATION FREQUENCIES WITHIN CLONES ==========
 
-mutation_freqs_within_clones <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = F)
-mutation_freqs_within_clones_by_tissue_and_cell_type <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = T)
+if(frequency_type == 'all_seqs'){
+  mutation_freqs_within_clones <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = F)
+  mutation_freqs_within_clones_by_tissue_and_cell_type <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = T)
+}else{
+  mutation_freqs_within_clones <- 'Not defined when using unique seqs'
+  mutation_freqs_within_clones_by_tissue_and_cell_type <- 'Not defined when using unique seqs'
+}
+
 
 # =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH TISSUE / CELL TYPE COMBINATION ==========
+
+if(frequency_type == 'unique_seqs'){
+  seq_counts <- seq_counts %>%
+    rename(prod_seqs = unique_prod_seqs)
+}
 
 clone_freqs_by_tissue_and_cell_type <- seq_counts %>%
   dplyr::rename(n_clone_seqs_in_compartment = prod_seqs) %>%
@@ -157,10 +179,10 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      neutral_realizations,
      pairwise_gene_freqs,
      pairwise_correlations,
-     #neutral_pairwise_correlations,
+     #neutral_pair  wise_correlations,
      pairwise_correlations_randomized_noncontrol_groups,
      mutation_freqs_within_clones,
      mutation_freqs_within_clones_by_tissue_and_cell_type,
-     file = '../results/precomputed_gene_freqs.RData')
+     file = paste0('/home/mvieira/TEMP_V_GENE_SELECTION/precomputed_gene_freqs_', frequency_type, '.RData'))
 
 

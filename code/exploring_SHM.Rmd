@@ -330,7 +330,22 @@ fraction_clones_with_high_freq_muts_LN_plot <- fraction_clones_with_1plus_mutati
   scale_x_continuous(breaks = c(8,16,24,40,56))
 
 fraction_clones_with_high_freq_muts_all_tissues_plot <- fraction_clones_with_1plus_mutations_by_compartment %>%
-  filter(compartment_cell_type != 'naive') %>%
+  filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
+  mutate(compartment_cell_type = case_when(
+    compartment_cell_type == 'GC' ~ 'Germinal center cells',
+    compartment_cell_type == 'PC' ~ 'Plasma cells',
+    compartment_cell_type == 'mem' ~ 'Memory cells'
+  ),
+  compartment_tissue = case_when(
+           compartment_tissue == 'LN' ~ 'Mediastinal LN',
+           compartment_tissue == 'spleen' ~ 'Spleen',
+           compartment_tissue == 'BM' ~ 'Bone marrow'
+         )) %>%
+  mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('Germinal center cells',
+                                                  'Plasma cells',
+                                                  'Memory cells')),
+         compartment_tissue = factor(compartment_tissue, levels = c('Mediastinal LN',
+                                            'Spleen','Bone marrow'))) %>%
   ggplot(aes(x = group_controls_pooled,
              y = fraction_clones_with_at_least_n_mutations,
              color = infection_status)) +
@@ -392,7 +407,22 @@ mean_n_mutations_LN_plot <- mean_n_mutations_above_threshold_by_compartment %>%
   
 
 mean_n_mutations_all_tissues_plot <- mean_n_mutations_above_threshold_by_compartment %>%
-  filter(compartment_cell_type != 'naive') %>%
+  filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
+  mutate(compartment_cell_type = case_when(
+    compartment_cell_type == 'GC' ~ 'Germinal center cells',
+    compartment_cell_type == 'PC' ~ 'Plasma cells',
+    compartment_cell_type == 'mem' ~ 'Memory cells'
+  ),
+  compartment_tissue = case_when(
+           compartment_tissue == 'LN' ~ 'Mediastinal LN',
+           compartment_tissue == 'spleen' ~ 'Spleen',
+           compartment_tissue == 'BM' ~ 'Bone marrow'
+         )) %>%
+  mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('Germinal center cells',
+                                                  'Plasma cells',
+                                                  'Memory cells')),
+         compartment_tissue = factor(compartment_tissue, levels = c('Mediastinal LN',
+                                            'Spleen','Bone marrow'))) %>%
   ggplot(aes(x = group_controls_pooled,
              y = mean_n_mutations_above_threshold,
              color = infection_status)) +
@@ -418,31 +448,37 @@ plot(mean_n_mutations_all_tissues_plot)
 Do the most abundant clones in lymph node PC and GC cell populations tend to have more mutations at or above 50% frequency? No, the number of high frequency mutations within a clone does not seem to be associated with the clone's rank
 
 ```{r echo = F}
-mutations_above_threshold_by_clone_by_compartment %>%
-  filter(compartment_cell_type == 'PC', compartment_tissue == 'LN') %>%
+
+clone_rank_vs_high_freq_muts_LN_PCs_plot <- mutations_above_threshold_by_clone_by_compartment %>%
+  filter(compartment_cell_type == 'PC', compartment_tissue == 'LN',
+         group_controls_pooled != 'control') %>%
   ggplot(aes(x = clone_rank_in_compartment, y = n_mutations_above_threshold)) +
   geom_point(aes(group = mouse_id, color = infection_status), alpha = 0.2) +
   facet_wrap('group_controls_pooled', nrow = 2, scales = 'free') +
   theme(legend.position = 'none') +
-  geom_smooth(se = T, color = 'black') +
+  geom_smooth(se = T, color = 'black', method = 'loess') +
   #scale_y_log10() +
   ylim(-0.05,20) +
-  scale_color_discrete(name = 'Infection status') +
+  scale_color_manual(values = c('green3','dodgerblue2')) +
   xlab('Clone rank in lymph node plasma cells') +
-  ylab('Number of mutations at\nor above 50% frequency')
+  ylab('Number of amino acid mutations\nat or above 50% frequency') +
+  ggtitle('(Y axis truncated at 20 mutations to improve visualization)')
 
-mutations_above_threshold_by_clone_by_compartment %>%
-  filter(compartment_cell_type == 'GC', compartment_tissue == 'LN') %>%
+clone_rank_vs_high_freq_muts_LN_GCs_plot <- mutations_above_threshold_by_clone_by_compartment %>%
+  filter(compartment_cell_type == 'GC', compartment_tissue == 'LN',
+         group_controls_pooled != 'control') %>%
   ggplot(aes(x = clone_rank_in_compartment, y = n_mutations_above_threshold)) +
-  geom_point(aes(group = mouse_id,  color = infection_status), alpha = 0.2) +
+  geom_point(aes(group = mouse_id, color = infection_status), alpha = 0.2) +
   facet_wrap('group_controls_pooled', nrow = 2, scales = 'free') +
   theme(legend.position = 'none') +
-  geom_smooth(se = T, color = 'black') +
+  geom_smooth(se = T, color = 'black', method = 'loess') +
   #scale_y_log10() +
-  scale_color_discrete(name = 'Infection status') +
+  ylim(-0.05,20) +
+  scale_color_manual(values = c('green3','dodgerblue2')) +
   xlab('Clone rank in lymph node germinal center cells') +
-  ylab('Number of mutations at\nor above 50% frequency')
-
+  ylab('Number of amino acid mutations\nat or above 50% frequency') +
+  ggtitle('(Y axis truncated at 20 mutations to improve visualization)')
+ 
 ```
 
 ```{r echo = F}
@@ -451,6 +487,8 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
      fraction_clones_with_high_freq_muts_all_tissues_plot,
      mean_n_mutations_LN_plot,
      mean_n_mutations_all_tissues_plot,
+     clone_rank_vs_high_freq_muts_LN_PCs_plot,
+     clone_rank_vs_high_freq_muts_LN_GCs_plot,
      file = '../figures/exported_ggplot_objects/high_frequency_mutations.RData')
 
 ```

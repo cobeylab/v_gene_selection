@@ -19,19 +19,35 @@ source('gene_frequency_functions.R')
 
 
 ```{r read_data, echo = F, include = F, warnings =F}
-# Read clone info
-#clone_info <- read_csv('../processed_data/clone_info.csv')
-clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+frequency_type <- 'all_seqs'
 
-#annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
-#annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
+results_directory <- '../results/'
+#results_directory <- paste0('~/Desktop/v_gene_selection_files_', frequency_type,'/results/')
 
-seq_counts <- read_csv('../processed_data/seq_counts.csv')
+processed_data_directory <- '../processed_data/'
+#processed_data_directory <- paste0('~/Desktop/v_gene_selection_files_', frequency_type,'/processed_data/')
 
-# Clone frequencies in each cell type / tissue combination (not included in clone_info) is in a precomputed object
-# NOTE: currently these cell type / tissue combination are relative to the total number of productive sequences
-#load('../results/precomputed_gene_freqs.RData')
-load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
+figure_directory <- paste0('../figures/', frequency_type, '_freqs/')
+#figure_directory <- paste0('~/Desktop/v_gene_selection_files_', frequency_type,'/figures/',frequency_type, '_freqs/')
+
+precomputed_freqs_file <- paste0('precomputed_gene_freqs_', frequency_type, '.RData')
+
+# Load precomputed gene frequencies, neutral realizations, pairwise correlations 
+load(paste0(results_directory, precomputed_freqs_file))
+
+if(frequency_type == 'all_seqs'){
+  seq_counts <- read_csv('../processed_data/seq_counts.csv')
+}else{
+  stopifnot(frequency_type == 'unique_seqs')
+  read_csv('../processed_data/unique_seq_counts.csv')
+}
+
+# Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
+clone_info <- read_csv(paste0(processed_data_directory,'clone_info.csv'))
+
+exported_figure_objects_dir <- paste0(figure_directory,'exported_ggplot_objects/')
+
+
 clone_freqs_by_tissue <- clone_freqs_by_tissue %>%
   mutate(compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')))
 clone_freqs_by_tissue_and_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
@@ -53,10 +69,9 @@ clone_info <- get_info_from_mouse_id(clone_info) %>%
 
 ```{r, echo = F, warnings = F}
 # Decide which denominator to use for the frequencies of tissues and cell types within clones: total productive sequences or unique productive sequences
-denominator <- 'prod_seqs'
 
-#### NOTE ::: THIS CURRENTLY DOES NOT AFFECT THE clone_freqs OBJECTS. THOSE ONLY HAVE TOTAL PRODUCTIVE SEQUENCES CURRENTLY
 
+denominator <- ifelse(frequency_type == 'all_seqs', 'prod_seqs', 'unique_seqs')
 
 if(denominator == 'prod_seqs'){
   
@@ -356,20 +371,27 @@ There seems to be a trend for clones to become less concentrated in individual t
 
 
 ```{r, echo = F, warnings = F}
-clone_info %>%
+fraction_clones_dominated_by_single_tissue_plot <- clone_info %>%
   filter(total_clone_seqs >= min_clone_size) %>%
-  mutate(size_filter = (biggest_tissue_fraction > 0.9)) %>%
-  group_by(mouse_id, group_controls_pooled, size_filter) %>%
+  mutate(size_filter = (biggest_tissue_fraction >= 0.9)) %>%
+  group_by(mouse_id, group_controls_pooled, infection_status, size_filter) %>%
   dplyr::count() %>%
-  group_by(mouse_id, group_controls_pooled) %>%
-  mutate(fraction = n/sum(n)) %>%
+  group_by(mouse_id, group_controls_pooled, infection_status) %>%
+  mutate(clones_above_min_size = sum(n),
+         fraction_dominated_by_single_tissue = n/clones_above_min_size) %>%
   filter(size_filter == T) %>%
-  ggplot(aes(x = group_controls_pooled, y = fraction)) +
+  ggplot(aes(x = group_controls_pooled, y = fraction_dominated_by_single_tissue,
+             color = infection_status)) +
   geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
+  geom_point(aes(size = clones_above_min_size )) +
   xlab('Group') +
   ylim(0,1.05) + 
-  ylab('Fraction of clones with 90%\nor more sequences in a single tissue')
+  ylab('Fraction of clones with 90%\nor more sequences in a single tissue') + 
+  background_grid() +
+  scale_color_discrete(name = 'Infection') +
+  scale_size_continuous(name = paste0('Number of clones\n(', min_clone_size, '+ seqs.)')) +
+  theme(legend.position = 'top')
+plot(fraction_clones_dominated_by_single_tissue_plot)
 
 clone_info %>%
   filter(total_clone_seqs >= min_clone_size) %>%
@@ -455,19 +477,27 @@ clone_info %>%
   xlab('Size of biggest cell type compartment within clone \n(naive, non-naive IgD+B220+, GC, PC or mem)') +
   ylab(paste0('Number of clones\n(excluding clones with fewer than ', min_clone_size, ' seqs.)'))
 
-clone_info %>%
+fraction_clones_dominated_by_single_cell_type_plot <- clone_info %>%
   filter(total_clone_seqs >= min_clone_size) %>%
-  group_by(mouse_id, group_controls_pooled, biggest_cell_type_fraction > 0.9) %>%
+  mutate(size_filter = (biggest_cell_type_fraction >= 0.9)) %>%
+  group_by(mouse_id, group_controls_pooled, infection_status, size_filter) %>%
   dplyr::count() %>%
-  group_by(mouse_id, group_controls_pooled) %>%
-  mutate(fraction = n/sum(n)) %>%
-  filter(`biggest_cell_type_fraction > 0.9` == T) %>%
-  ggplot(aes(x = group_controls_pooled, y = fraction)) +
+  group_by(mouse_id, group_controls_pooled, infection_status) %>%
+  mutate(clones_above_min_size = sum(n),
+         fraction_dominated_by_single_type = n/clones_above_min_size) %>%
+  filter(size_filter == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = fraction_dominated_by_single_type,
+             color = infection_status)) +
   geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
+  geom_point(aes(size = clones_above_min_size )) +
   xlab('Group') +
   ylim(0,1.05) + 
-  ylab('Fraction of clones with 90%\nor more sequences from a single cell type')
+  ylab('Fraction of clones with 90%\nor more sequences from a single cell type') + 
+  background_grid() +
+  scale_color_discrete(name = 'Infection') +
+  scale_size_continuous(name = paste0('Number of clones\n(', min_clone_size, '+ seqs.)')) +
+  theme(legend.position = 'top')
+plot(fraction_clones_dominated_by_single_cell_type_plot)
 
 clone_info %>%
   filter(total_clone_seqs >= min_clone_size) %>%
@@ -753,5 +783,13 @@ LN_freqs_of_other_cell_types_in_top_LN_GC_clones %>%
   background_grid()
 ```
 
+
+Exporting objects
+```{r, echo = F, warnings = F}
+save(fraction_clones_dominated_by_single_cell_type_plot,
+     fraction_clones_dominated_by_single_tissue_plot,
+     file = paste0(exported_figure_objects_dir,'clonal_composition.RData'))
+
+```
 
 

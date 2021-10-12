@@ -25,8 +25,7 @@ processed_data_dir <- '../processed_data/'
 seq_counts <- read_csv(paste0(processed_data_dir, 'seq_counts.csv'))
 unique_seq_counts <- read_csv(paste0(processed_data_dir, 'unique_seq_counts.csv'))
 
-seq_counts <- bind_rows(seq_counts %>% mutate(seq_type = 'all productive sequences') %>%
-                          dplyr::rename(n_seqs = prod_seqs),
+seq_counts <- bind_rows(seq_counts %>% mutate(seq_type = 'all productive sequences'),
                         unique_seq_counts %>% mutate(seq_type = 'unique productive sequences') %>%
                           dplyr::rename(n_seqs = unique_prod_seqs)) %>%
   select(seq_type, everything())
@@ -41,8 +40,6 @@ seq_counts <- seq_counts %>%
   mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
   mutate(tissue = factor(tissue, levels = c('LN','spleen','BM'))) %>%
   mutate(cell_type = factor(cell_type, levels = c('naive','nonnaive_IgD+B220+', 'GC','PC','mem')))
-
-
 ```
 
 
@@ -55,10 +52,24 @@ n_sorted_cells <- get_info_from_mouse_id(n_sorted_cells) %>%
          group = factor(group, levels = group_factor_levels),
          group_controls_pooled = factor(group_controls_pooled,
                                         levels = group_controls_pooled_factor_levels)) %>%
-  mutate(cell_type = factor(cell_type, levels = c('IgD+B220+','GC','PC','mem')),
-         tissue = factor(tissue, levels = c('LN','spleen','BM')))
+  mutate(cell_type = case_when(
+           cell_type == 'IgD+B220+' ~ 'IgD+B220+ (putatively naive) cells',
+           cell_type == 'GC' ~ 'Germinal center cells',
+           cell_type == 'PC' ~ 'Plasma cells',
+           cell_type == 'mem' ~ 'Memory cells'),
+         tissue = case_when(
+           tissue == 'LN' ~ 'Mediastinal LN',
+           tissue == 'spleen' ~ 'Spleen',
+           tissue == 'BM' ~ 'Bone marrow'
+         )
+    ) %>%
+  mutate(cell_type = factor(cell_type, levels = c('IgD+B220+ (putatively naive) cells',
+                                                  'Germinal center cells','Plasma cells',
+                                                  'Memory cells')),
+         tissue = factor(tissue, levels = c('Mediastinal LN',
+                                            'Spleen','Bone marrow')))
 
-n_sorted_cells %>% 
+n_sorted_cells_plot <- n_sorted_cells %>% 
   ggplot(aes(x = group_controls_pooled, y = sorted_cells, color = infection_status)) +
   facet_grid(tissue~cell_type, scales = 'free') +
   geom_boxplot(outlier.alpha = 0) +
@@ -72,7 +83,11 @@ n_sorted_cells %>%
   theme(legend.position = 'top',
         axis.text.x = element_text(size = 8, angle = 40,
                                      vjust = 0.5)) +
-  scale_color_discrete(name = 'Infection status')
+  scale_color_discrete(name = 'Infection')
+plot(n_sorted_cells_plot)
+# Export 
+save(n_sorted_cells_plot,
+     file = '../figures/exported_ggplot_objects/n_cells_sorted.RData')
 ```
 
 
