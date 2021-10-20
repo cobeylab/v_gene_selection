@@ -101,7 +101,7 @@ naive_freqs_Greiff2017 <- annotated_seqs_Greiff2017 %>%
   ungroup()
   
 # Read pre-computed naive frequencies from our data
-load('../results/precomputed_gene_freqs.RData')
+load('../results/precomputed_gene_freqs_all_seqs.RData')
 #load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
 naive_freqs_this_study <- naive_freqs %>%
   dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs,
@@ -215,6 +215,15 @@ pairwise_naive_freqs <- bind_rows(list(pairwise_gene_freqs_this_study,
 pairwise_naive_freq_correlations <- get_pairwise_correlations(
   pairwise_gene_freqs = pairwise_naive_freqs, include_freq_ratios = F)
 
+# Mean and interquartile range of cross-dataset Spearman correlations
+
+pairwise_naive_freq_correlations %>% filter(pair_type == 'cross-dataset') %>%
+  summarise(mean_cross_dataset_correlation = mean(cor_coef_freqs),
+            lower_quartile = quantile(cor_coef_freqs,0.25),
+            upper_quartile = quantile(cor_coef_freqs, 0.75))
+  
+  
+
 
 pairwise_naive_freq_correlations %>%
   filter(pair_type == 'cross-dataset') %>%
@@ -228,7 +237,8 @@ pairwise_naive_freq_correlations %>%
   background_grid() +
   scale_x_continuous()
 
-pairwise_naive_freq_correlations %>%
+
+naive_freq_comparison_with_Greiff2017 <-pairwise_naive_freq_correlations %>%
   ggplot(aes(x = pair_type, y = cor_coef_freqs)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(aes(size = total_compartment_seqs_i + total_compartment_seqs_j),
@@ -237,12 +247,11 @@ pairwise_naive_freq_correlations %>%
   xlab('Type of mouse pair') +
   ylab('Spearman correlation in naive V gene frequencies')
 
+plot(naive_freq_comparison_with_Greiff2017)
 
-get_vgene_freq_correlation_clustering(
-  pairwise_correlations = list(freqs = pairwise_naive_freq_correlations),
-  cell_type = 'naive', tissue = NULL, metric = 'freqs'
-)
+save(naive_freq_comparison_with_Greiff2017,
+     file = '../figures/all_seqs_freqs/exported_ggplot_objects/naive_freq_comparison_with_Greiff2017.RData')
 
-
-
+write_csv(file = '../processed_data/naive_freqs_Greiff2017.csv',
+          naive_freqs_Greiff2017)
 

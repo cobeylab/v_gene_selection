@@ -7,6 +7,11 @@ source('gene_frequency_functions.R')
 args <- commandArgs(trailingOnly = T)
 
 frequency_type <- as.character(args[1])
+use_Greiff2017_naive_freqs <- as.logical(args[2])
+
+if(is.na(use_Greiff2017_naive_freqs)){
+  use_Greiff2017_naive_freqs <- F
+}
 
 
 if(frequency_type == 'all_seqs'){
@@ -14,16 +19,20 @@ if(frequency_type == 'all_seqs'){
   # seq_counts <- read_csv('~/Desktop/v_gene_selection_files/seq_counts.csv')
 }else{
   stopifnot(frequency_type == 'unique_seqs')
+  stopifnot(!use_Greiff2017_naive_freqs)
   seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
 }
 
+output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '.RData')
+
+
 # Annotated sequences
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
-# annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
+# annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files_all_seqs/processed_data/annotated_seqs.csv')
 
 # Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
 clone_info <- read_csv('../processed_data/clone_info.csv')
-# clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+# clone_info <- read_csv('~/Desktop/v_gene_selection_files_all_seqs/processed_data/clone_info.csv')
 
 
 seq_counts <- get_info_from_mouse_id(seq_counts)
@@ -44,12 +53,38 @@ gene_freqs <- calc_gene_freqs(exp_seq_counts = exp_seq_counts,
 naive_freqs <- gene_freqs$naive_freqs
 exp_freqs <- gene_freqs$exp_freqs
 
+if(use_Greiff2017_naive_freqs){
+  naive_freqs_greiff2017 <- read_csv('../processed_data/naive_freqs_Greiff2017.csv')
+  # Compute average naive frequency of each V gene across mice in the naive dataset
+  naive_freqs_greiff2017 <- naive_freqs_greiff2017 %>%
+    group_by(v_gene) %>%
+    summarise(average_greiff2017_naive_freq = mean(vgene_seq_freq)) %>%
+    ungroup() %>%
+    # Re-normalize so frequencies sum to 1
+    mutate(average_greiff2017_naive_freq = average_greiff2017_naive_freq/sum(average_greiff2017_naive_freq))
+  
+  naive_freqs <- left_join(naive_freqs, 
+            naive_freqs_greiff2017) %>%
+    mutate(naive_vgene_seq_freq = case_when(
+      is.na(average_greiff2017_naive_freq) ~ 0,
+      T ~ average_greiff2017_naive_freq
+    )) %>%
+    select(-average_greiff2017_naive_freq) %>%
+    group_by(mouse_id) %>%
+    mutate(naive_vgene_seq_freq = naive_vgene_seq_freq / sum(naive_vgene_seq_freq)) %>%
+    mutate(n_naive_vgene_seqs = round(naive_vgene_seq_freq * total_mouse_naive_seqs)) %>%
+    ungroup()
+ 
+  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_Greiff2017_naive_freqs.RData') 
+}
+
+
 # Combine naive and experienced frequencies into a single tibble
 gene_freqs <- left_join(exp_freqs,naive_freqs) %>%
   mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
-# Gene frequencies with adjusted naive zeroes. 
+# Gene frequencies with adjusted naive zeros. 
 # i.e. genes present in mouse but with 0 obs seqs in naive rep. are assigned 1 sequence, with freqs adjusted accordingly
 gene_freqs_adj_naive_zeros <- left_join(exp_freqs, adjust_zero_naive_freqs(naive_freqs)) %>%
   mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
@@ -183,6 +218,6 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      pairwise_correlations_randomized_noncontrol_groups,
      mutation_freqs_within_clones,
      mutation_freqs_within_clones_by_tissue_and_cell_type,
-     file = paste0('/home/mvieira/TEMP_V_GENE_SELECTION/precomputed_gene_freqs_', frequency_type, '.RData'))
+     file = output_file)
 
 

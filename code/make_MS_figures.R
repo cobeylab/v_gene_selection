@@ -45,10 +45,12 @@ save_plot(paste0(final_figures_dir, 'gene_sets_and_naive_freqs.pdf'),
 # Correlations in V gene freqs and freq deviations
 top_row <- plot_grid(pairwise_freq_correlations_plot +
                        ylab('Mouse-pair correlations in V gene\nfrequencies (mice with >= 100 seqs.)') +
+                       ylim(-0.2,0.9) +
                        theme(axis.title.y = element_text(size = 12),
                              plot.margin = margin(l = 20, r = 10,t = 5, b = 30)),
                      pairwise_freq_deviations_plot +
                        ylab('Mouse-pair correlations in frequency\ndeviations (mice with >= 100 seqs.)') +
+                       ylim(-0.2,0.9) +
                        theme(axis.title.y = element_text(size = 12),
                              plot.margin = margin(r = 20, l = 10, t = 5, b = 30)),
                      align = 'h')
@@ -101,16 +103,15 @@ save_plot(paste0(final_figures_dir, 'freq_and_deviation_correlations.pdf'),
 
 # Increasing titers, clonality, mutations over time
 
-titers_figure_path <- '../figures/titers.png'
-titers_figure <- image_read(titers_figure_path)
-
 left_panel <- plot_grid(NULL,
-                        ggdraw() +
-                        draw_image(titers_figure),
+                        titers_against_NL09 +
+                          theme(legend.position = 'top') +
+                          scale_color_discrete(name = 'Infection') +
+                          scale_x_discrete(labels = function(x){str_replace(x,'-','\n')}),
                         NULL,
                         nrow = 3,
                         rel_heights = c(1,2,1),
-                        labels = c('','A [placeholder]',''), label_size = 16,
+                        labels = c('','A',''), label_size = 16,
                         hjust =  -1)
 
 right_panels_top_row <- fraction_in_top_10_clones_plot +
@@ -143,7 +144,7 @@ right_panels_bottom_row <- plot_grid(bottom_row_legend, right_panels_bottom_row,
 right_panels <- plot_grid(right_panels_top_row, right_panels_bottom_row, nrow = 2, rel_heights = c(1,2),
           labels = c('B','C'), label_size = 16)
 
-evidence_of_clonal_evolution <- plot_grid(left_panel, right_panels, nrow =1, rel_widths = c(1,2))
+evidence_of_clonal_evolution <- plot_grid(left_panel, right_panels, nrow =1, rel_widths = c(1.2,2))
 
 save_plot(paste0(final_figures_dir, 'evidence_of_clonal_evolution.pdf'),
           evidence_of_clonal_evolution,
@@ -257,6 +258,12 @@ save_plot(paste0(final_figures_dir,'clonal_compostion.pdf'),
           clonal_composition,
           base_width = 16, base_height = 7)
 
+# Top genes in day 24 memory cells
+save_plot(paste0(final_figures_dir,'day24_LN_mem_top_genes.pdf'),
+          top_genes_LN_mem_day24_plot +
+            xlab('Top 20 genes in lymph node memory cells from each infected mouse on day 24'),
+          base_height = 5,
+          base_width = 8)
 
 
 
