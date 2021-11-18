@@ -122,7 +122,8 @@ plot(exponential_plots)
 fitted_exp_rate_of_naive_freq_distributions <- 
   exponential_fits %>%
   filter(total_mouse_naive_seqs >= 100) %>%
-  summarise(mean(rate))
+  summarise(M = mean(rate)) %>%
+  pull(M)
 
 # export this value for simulation model
 save(fitted_exp_rate_of_naive_freq_distributions,
