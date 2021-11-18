@@ -10,16 +10,13 @@ theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') 
-# annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
+# annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv')
 
 annotated_seqs <- annotated_seqs %>%
-  mutate(across(c('clone_id_partis','partis_uniq_ref_seq','seq_id'), as.character))
-
-annotated_seqs$specimen_cell_subset[annotated_seqs$specimen_cell_subset == 'naïve'] <- 'naive'
+  mutate(across(c('clone_id','partis_uniq_ref_seq','seq_id'), as.character))
 
 annotated_seqs <- annotated_seqs %>% filter(!is.na(n_mutations_partis_nt), !is.na(vgene_mutations_partis_nt))
 annotated_seqs <- get_info_from_mouse_id(annotated_seqs)
-annotated_seqs <- annotated_seqs %>% dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset)
 
 # Ignore sequences inferred to be unproductive by partis
 annotated_seqs <- annotated_seqs %>% filter(productive_partis)

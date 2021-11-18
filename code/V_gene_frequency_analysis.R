@@ -480,13 +480,22 @@ if(frequency_type == 'all_seqs'){
       y_axis_label <- 'Clone frequency'
     }
     
-    plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
-      mutate(across(c('v_gene','d_gene','j_gene'),
-                    function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
-      unite('annotation', annotation, sep = ' ; ') 
+    if(length(annotation) == 2){
+      plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
+        mutate(across(c('v_gene','d_gene','j_gene'),
+                      function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
+        unite('annotation', annotation, sep = ' (') %>%
+        mutate(annotation = paste0(annotation,')')) %>%
+        mutate(annotation = str_remove(annotation, ' \\(\\)'))
+    }else{
+      plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
+        mutate(across(c('v_gene','d_gene','j_gene'),
+                      function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
+        unite('annotation', annotation, sep = ' ; ') 
+    }
     
     pl <- plotting_data %>%
-      filter(total_seqs_in_compartment >= 100) %>%
+      filter(total_seqs_in_compartment >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
       filter(compartment_cell_type == plot_cell_type, compartment_tissue == plot_tissue, group_controls_pooled == plot_group,
              clone_rank_in_compartment <= 20) %>%
       ungroup() %>%
@@ -516,89 +525,77 @@ if(frequency_type == 'all_seqs'){
     
     
   }
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'd_gene')
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'j_gene')
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('v_gene','j_gene',
-                                                                                 'clone_consensus_cdr3_partis'))
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('d_gene','j_gene',
-                                                                                 'clone_consensus_cdr3_partis'))
-  plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('v_gene', 'mutations_above_threshold'))
+  #plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
+  #plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
+  #plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'd_gene')
+  #plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = 'j_gene')
+  #plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('v_gene','j_gene',
+  #                                                                               'clone_consensus_cdr3_partis'))
+  #plot_top_clones('PC','LN', 'primary-8', plot_abs_size = F, annotation = c('d_gene','j_gene',
+  #                                                                               'clone_consensus_cdr3_partis'))
+  top_clones_LN_PC_day8 <- plot_top_clones('PC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_PC_day16 <- plot_top_clones('PC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_PC_day24 <- plot_top_clones('PC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_PC_day40 <- plot_top_clones('PC','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_PC_day56 <- plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
   
   
-  plot_top_clones('PC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
-  plot_top_clones('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
-  plot_top_clones('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'd_gene')
-  plot_top_clones('PC','LN', 'primary-16', plot_abs_size = F, annotation = 'j_gene')
+  top_clones_LN_GC_day8 <- plot_top_clones('GC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_GC_day16 <- plot_top_clones('GC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_GC_day24 <- plot_top_clones('GC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_GC_day40 <- plot_top_clones('GC','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_GC_day56 <- plot_top_clones('GC','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
   
-  
-  plot_top_clones('PC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
-  plot_top_clones('PC','LN', 'primary-24', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
-  plot_top_clones('PC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-  
-  plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
-  plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = F, annotation = 'clone_consensus_cdr3_partis')
-  plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = F, annotation = c('v_gene', 'mutations_above_threshold'))
-  
-  
-  plot_top_clones('GC','LN', 'primary-8', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
-  plot_top_clones('GC','LN', 'primary-8', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
-  plot_top_clones('GC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold')) 
-  
-  
-  plot_top_clones('GC','LN', 'primary-16', plot_abs_size = F) + theme(legend.position = c(0.7,0.2))
-  plot_top_clones('GC','LN', 'primary-16', plot_abs_size = T) + theme(legend.position = c(0.7,0.2))
-  plot_top_clones('GC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold')) 
-  
-  plot_top_clones('GC','LN', 'primary-24', plot_abs_size = F) + theme(legend.position = c(0.81,0.35))
-  plot_top_clones('GC','LN', 'primary-24', plot_abs_size = T) + theme(legend.position = c(0.81,0.35))
-  plot_top_clones('GC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-  
-  plot_top_clones('PC','BM', 'primary-16', plot_abs_size = F, c('v_gene', 'mutations_above_threshold')) 
-  
-  plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, cdr3_only){
     
-    if(cdr3_only){
-      y_axis_var <- 'mean_cdr3_mutations_partis_aa'
-      ymin <- 'min_cdr3_mutations_partis_aa'
-      ymax <- 'max_cdr3_mutations_partis_aa'
-      y_axis_label <- 'Mean number of amino acid mutations in CDR3'
-    }else{
-      y_axis_var <- 'mean_n_mutations_partis_aa'
-      ymin <- 'min_n_mutations_partis_aa'
-      ymax <- 'max_n_mutations_partis_aa'
-      y_axis_label <- 'Mean number of amino acid mutations'
-    }
-    
-    clone_freqs_by_tissue_and_cell_type %>%
-      filter(compartment_tissue == plot_tissue, compartment_cell_type == plot_cell_type,
-             group_controls_pooled == plot_group) %>%
-      filter(total_seqs_in_compartment >= min_compartment_size) %>%
-      filter(clone_rank_in_compartment <= min_compartment_size) %>%
-      ggplot(aes_string(x = 'clone_rank_in_compartment', y = y_axis_var)) +
-      geom_hline(yintercept = c(1), linetype = 2) +
-      geom_linerange(aes_string(ymin = ymin, ymax = ymax)) +
-      geom_point(aes(size = n_clone_seqs_in_compartment), color = 'dodgerblue') +
-      #geom_text(aes(label = clone_id)) +
-      facet_wrap('mouse_id', scales = 'free') +
-      scale_x_log10() +
-      xlab('Clone rank (top 100 clones only)') +
-      ylab(paste0(y_axis_label,'\n(whisker = min, max)')) +
-      scale_size_continuous(name = 'Clone size\n(n sequences)') +
-      scale_y_continuous(limits = c(0,NA))
-  }
-  plot_mutations_top_clones('PC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
-  plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
-  plot_mutations_top_clones('PC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.94))
-  plot_mutations_top_clones('PC','LN','secondary-56', cdr3_only = F) + theme(legend.position = c(0.01,0.91))
+  top_clones_LN_mem_day8 <- plot_top_clones('mem','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_mem_day16 <- plot_top_clones('mem','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_mem_day24 <- plot_top_clones('mem','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_mem_day40 <- plot_top_clones('mem','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
+  top_clones_LN_mem_day56 <- plot_top_clones('mem','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
   
-  plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = T) + theme(legend.position = c(0.75,0.3))
-  
-  plot_mutations_top_clones('GC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.05,0.94))
-  plot_mutations_top_clones('GC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.15))
-  plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.93))
-  
+ 
+  # plot_mutations_top_clones <- function(plot_cell_type, plot_tissue, plot_group, cdr3_only){
+  #   
+  #   if(cdr3_only){
+  #     y_axis_var <- 'mean_cdr3_mutations_partis_aa'
+  #     ymin <- 'min_cdr3_mutations_partis_aa'
+  #     ymax <- 'max_cdr3_mutations_partis_aa'
+  #     y_axis_label <- 'Mean number of amino acid mutations in CDR3'
+  #   }else{
+  #     y_axis_var <- 'mean_n_mutations_partis_aa'
+  #     ymin <- 'min_n_mutations_partis_aa'
+  #     ymax <- 'max_n_mutations_partis_aa'
+  #     y_axis_label <- 'Mean number of amino acid mutations'
+  #   }
+  #   
+  #   clone_freqs_by_tissue_and_cell_type %>%
+  #     filter(compartment_tissue == plot_tissue, compartment_cell_type == plot_cell_type,
+  #            group_controls_pooled == plot_group) %>%
+  #     filter(total_seqs_in_compartment >= min_compartment_size) %>%
+  #     filter(clone_rank_in_compartment <= min_compartment_size) %>%
+  #     ggplot(aes_string(x = 'clone_rank_in_compartment', y = y_axis_var)) +
+  #     geom_hline(yintercept = c(1), linetype = 2) +
+  #     geom_linerange(aes_string(ymin = ymin, ymax = ymax)) +
+  #     geom_point(aes(size = n_clone_seqs_in_compartment), color = 'dodgerblue') +
+  #     #geom_text(aes(label = clone_id)) +
+  #     facet_wrap('mouse_id', scales = 'free') +
+  #     scale_x_log10() +
+  #     xlab('Clone rank (top 100 clones only)') +
+  #     ylab(paste0(y_axis_label,'\n(whisker = min, max)')) +
+  #     scale_size_continuous(name = 'Clone size\n(n sequences)') +
+  #     scale_y_continuous(limits = c(0,NA))
+  # }
+  # plot_mutations_top_clones('PC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
+  # plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.3))
+  # plot_mutations_top_clones('PC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.94))
+  # plot_mutations_top_clones('PC','LN','secondary-56', cdr3_only = F) + theme(legend.position = c(0.01,0.91))
+  # 
+  # plot_mutations_top_clones('PC','LN','primary-16', cdr3_only = T) + theme(legend.position = c(0.75,0.3))
+  # 
+  # plot_mutations_top_clones('GC','LN','primary-8', cdr3_only = F) + theme(legend.position = c(0.05,0.94))
+  # plot_mutations_top_clones('GC','LN','primary-16', cdr3_only = F) + theme(legend.position = c(0.75,0.15))
+  # plot_mutations_top_clones('GC','LN','primary-24', cdr3_only = F) + theme(legend.position = c(0.01,0.93))
+  # 
   
 }
 
@@ -885,6 +882,23 @@ save(top_genes_LN_PC_day8_plot,
      top_genes_LN_GC_day16_plot,
      top_genes_LN_mem_day24_plot,
      file = paste0(exported_figure_objects_dir, 'top_genes_plots.RData'))
+
+save(top_clones_LN_PC_day8,
+     top_clones_LN_PC_day16,
+     top_clones_LN_PC_day24,
+     top_clones_LN_PC_day40,
+     top_clones_LN_PC_day56,
+     top_clones_LN_GC_day8,
+     top_clones_LN_GC_day16,
+     top_clones_LN_GC_day24,
+     top_clones_LN_GC_day40,
+     top_clones_LN_GC_day56,
+     top_clones_LN_mem_day8,
+     top_clones_LN_mem_day16,
+     top_clones_LN_mem_day24,
+     top_clones_LN_mem_day40,
+     top_clones_LN_mem_day56,
+     file = paste0(exported_figure_objects_dir, 'top_clones_plots.RData'))
 
 save(fraction_in_top_10_clones_plot,
      file = paste0(exported_figure_objects_dir, 'fraction_in_top_10_clones_plot.RData'))

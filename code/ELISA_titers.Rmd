@@ -30,7 +30,7 @@ titers <- titers %>%
   
 titers %>% 
   ggplot(aes(x = group_controls_pooled, y = titer, color = infection_status)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.alpha = 0) +
   geom_point(position = position_jitter(width = 0.2, height = 0)) +
   scale_y_log10(oob = scales::squish_infinite) +
   facet_grid(antigen~., scales = 'free') +
@@ -39,7 +39,7 @@ titers %>%
 titers_against_NL09 <- titers %>% 
   filter(antigen == "NL09_whole_virus") %>%
   ggplot(aes(x = group_controls_pooled, y = titer, color = infection_status)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.alpha = 0) +
   geom_point(position = position_jitter(width = 0.2, height = 0),
              size = 3, alpha =0.8) +
   scale_y_log10(oob = scales::squish_infinite,
@@ -61,7 +61,7 @@ save(titers_against_NL09,
 titers %>% 
   filter(antigen == "NL09_whole_virus") %>%
   ggplot(aes(x = group_controls_pooled, y = titer, color = infection_status)) +
-  geom_boxplot() +
+  geom_boxplot(outlier.alpha = 0) +
   geom_text(aes(label = mouse_id), position = position_jitter(width = 0.3, height = 0),
              size = 3, alpha =0.8) +
   scale_y_log10(oob = scales::squish_infinite,
