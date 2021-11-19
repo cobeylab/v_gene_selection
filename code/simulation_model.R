@@ -10,7 +10,7 @@ theme_set(theme_cowplot())
 
 K <- 1000 # carrying capacity of germinal centers
 mu <- 1 # expected number of newly recruited clones arriving at germinal centers per time step
-lambda_max <- 8 # expected reproductive rate per B cell in an empty germinal center
+lambda_max <- 2 # expected reproductive rate per B cell in an empty germinal center
 
 get_pop_lambda <- function(N, lambda_max, K){
   alpha = log(lambda_max)/K
@@ -90,8 +90,9 @@ hist(naive_freqs)
 allele_info <- allele_info %>%
   mutate(naive_freq = naive_freqs)
 
-# Initializes GCs with a poisson distributed number of clones, each seeded by 1 cell
-# Mean of distribution = base_n_seed_clones
+# Creates a tibble with one cell per row, representing clones newly arrived at germinal center
+# The expected number of new clones (each arriving as a single cell) is mu
+# Alleles contribute different numbers of clones to mu depending on their naive freqs. and expected affinities
 sample_immigrants <- function(allele_info, mu, clone_numbering_start){
   
   average_naive_affinity <- allele_info %>%
@@ -101,6 +102,7 @@ sample_immigrants <- function(allele_info, mu, clone_numbering_start){
   arrivals_by_allele <- allele_info %>%
     rowwise() %>%
     mutate(new_clones = rpois(n = 1, lambda = naive_freq*expected_affinity*mu/average_naive_affinity)) %>%
+    ungroup() %>%
     filter(new_clones > 0)
   
   if(nrow(arrivals_by_allele) > 0){
@@ -109,6 +111,7 @@ sample_immigrants <- function(allele_info, mu, clone_numbering_start){
       uncount(new_clones) %>%
       rowwise() %>%
       mutate(affinity = rgamma(n = 1, shape = alpha, rate = beta)) %>%
+      ungroup() %>%
       select(allele, affinity)
     
     clone_ids <- seq(from = clone_numbering_start, by = 1, length.out = nrow(immigrants_tibble))
@@ -116,9 +119,8 @@ sample_immigrants <- function(allele_info, mu, clone_numbering_start){
     
     immigrants_tibble <- immigrants_tibble %>% select(clone_id, everything())
     
-    
   }else{
-    immigrants_tibble <- NULL
+    immigrants_tibble <- tibble()
   }
   
   return(immigrants_tibble)
@@ -127,70 +129,131 @@ sample_immigrants <- function(allele_info, mu, clone_numbering_start){
 #mean(replicate(100, nrow(sample_immigrants(allele_info, mu = 100, 1)), simplify = T))
 
 
-# Samples population at time t given population at time t-1 (GC_tibble) and total size expected at Nt under logistic backbone
-draw_GC_tplus1 <- function(allele_info, Ntplus1, GC_t, poisson_mean_n_immigrants, mutation_rate, mutation_sd){
-  
-  current_t <- unique(GC_t$t)
-  stopifnot(length(current_t) == 1)
-  
+# Generates GC tibble at time t+1 given state at time t-1 (GC_t) and immigration, growth and mutation parameters
+get_GC_tplus1 <- function(allele_info, GC_t, mu, lambda_max, K, mutation_rate, mutation_sd, clone_numbering_start){
   
   # At beginning of time step, potential immigrants arrive
-  new_immigrants <- sample_immigrants(allele_info = allele_info, poisson_mean_n_immigrants = poisson_mean_n_immigrants)
+  new_immigrants <- sample_immigrants(allele_info = allele_info, mu = mu, clone_numbering_start = clone_numbering_start)
   
-  # New immigrants will compete with current occupants to be parents to the next generation
-  GC_t_with_new_immigrants <- bind_rows(GC_t, new_immigrants) %>%
-    mutate(cell_id = 1:n())
+  # The pop size used to determine the expected growth rate per B cell (lambda) is given by the number of
+  # cells already in the GC plus the number of new arrivals (each new clone arrives as a single cell)
+  GC_pop_size = nrow(GC_t) + nrow(new_immigrants)
   
-  sampling_probs <- GC_t_with_new_immigrants$affinity/sum(GC_t_with_new_immigrants$affinity)
+  if(GC_pop_size > 0){
+    GC_t_with_new_immigrants <- bind_rows(GC_t, new_immigrants)
+    lambda <- get_pop_lambda(N = GC_pop_size, lambda_max = lambda_max, K = K)  
+    
+    average_affinity_in_GC <- mean(GC_t_with_new_immigrants$affinity)
+    
+    # Tibble with one cell per row, corresponding to state of GC at t+1
+    GC_tplus1 <- GC_t_with_new_immigrants %>%
+      select(-t) %>%
+      mutate(descendants = rpois(n = n(), lambda = lambda * affinity/average_affinity_in_GC)) %>%
+      uncount(descendants)
+    
+    # Introduce mutations if at least one cell left descendants
+    if(nrow(GC_tplus1) >0){
+      GC_tplus1 <- GC_tplus1 %>%
+        mutate(has_mutation = rbinom(n = n(), size = 1,prob = mutation_rate),
+               mutation_effect = rnorm(n = n(), mean = 0, sd = mutation_sd),
+               affinity = affinity + mutation_effect*has_mutation) %>%
+        select(-has_mutation, -mutation_effect) %>%
+        mutate(affinity = ifelse(affinity < 0, 0, affinity))
+    }else{
+      GC_tplus1 <- tibble()
+    }
+    
+  }else{
+    # This covers the case when the entire GC went extinct and no immigrants arrived at this timestep.
+    GC_tplus1 <- tibble()
+  }
   
-  parent_cells <- sample(GC_t_with_new_immigrants$cell_id, size = Ntplus1, replace = T, prob = sampling_probs)
-  
-  GC_tplus1 <- left_join(tibble(parent_id = parent_cells),
-                         GC_t_with_new_immigrants %>% rename(parent_id = cell_id), by = 'parent_id') %>%
-    mutate(t = current_t + 1) %>%
-    select(t, everything()) %>%
-    select(-cell_id)
-  
+  return(GC_tplus1)
+
 }
 
+# As a test, this mean should be close to the value given by the line below it.
+# I.e., a single cell should produce on average get_pop_lambda(1,lambda_max, K)
+# in one time step if mu = 0 (no immigrants arrive at beginning of time step)
+# mean(replicate(100,
+#          nrow(get_GC_tplus1(allele_info, GC_t = tibble(t = 1, clone_id = 1,
+#                                         allele = 'A',
+#                                         affinity = 1),
+#              mu = 0,lambda_max, K, mutation_rate, mutation_sd, clone_numbering_start)),
+#          simplify = T))
+# get_pop_lambda(1,lambda_max, K)
 
 simulate_GC_dynamics <- function(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax){
   
-  # To initialize GC, sample immigrants from poisson_mean_n_immigrants until there's at least one clone arriving
+  # To initialize GC, sample immigrants until there's at least one clone arriving
   time = 1
-  GC_tibble <- NULL
-  while(is.null(GC_tibble)){
+  GC_tibble <- tibble()
+  while(nrow(GC_tibble) == 0){
     GC_tibble <- sample_immigrants(allele_info = allele_info, mu = mu,
-                                   clone_numbering_start = 1) %>%
-      mutate(t = time) %>% select(t, everything())
+                                   clone_numbering_start = 1) 
   }
+  GC_tibble <- GC_tibble %>%
+    mutate(t = time) %>% select(t, everything())
   
-  # Generate logistic backbone with N0 set by initial number of cells
-  logistic_backbone <- create_logistic_backbone(r = r, K = K, N0 = nrow(GC_tibble))
-  time_N_reaches_K <- min(which(logistic_backbone == K))
+  # Maximum numeric clone idalready  used (so new clones will always have different ids)
+  max_used_clone_id <- max(GC_tibble$clone_id)
   
-  unique_clone_ids <- unique(GC_tibble$clone_id)
   
-  while(time < timax){
-    if(time < time_N_reaches_K){
-      Ntplus1 = logistic_backbone[time + 1]
-    }else{
-      Ntplus1 = K
-    }
+  while(time < tmax){
+    
     # Part of tibble corresponding to current time step
     GC_t <- GC_tibble %>% filter(t == time)
     
+    # Generate tibble (1 row per cell) for next time step
     
-    next_tibble
+    GC_tplus1 <- get_GC_tplus1(allele_info = allele_info, GC_t = GC_t, mu = mu, lambda_max = lambda_max,
+                               K = K, mutation_rate = mutation_rate, mutation_sd = mutation_sd,
+                               clone_numbering_start = max_used_clone_id +1)
+    
+    if(nrow(GC_tplus1) > 0){
+      GC_tplus1 <- GC_tplus1 %>%
+        mutate(t = time + 1) %>%
+        select(t, everything())
+    }
+    
+    max_used_clone_id <- max(max_used_clone_id, GC_tplus1$clone_id)
+    
+    # Store new time step in master tibble
+    GC_tibble <- bind_rows(GC_tibble, GC_tplus1)
+    time <- time + 1
   }
-  
-  
-  
-  
-  
+  return(GC_tibble)
+
 }
 
+# Quick plots for visual tests:
+quick_plotting_function <- function(GC_tibble){
+  left_join(GC_tibble, allele_info %>% select(allele, allele_type)) %>%
+    group_by(t,clone_id, allele, allele_type) %>% count() %>% 
+    ggplot(aes(x = t, y = n, group = clone_id)) +
+    geom_line(aes(color = allele_type)) +
+    theme(legend.position = 'top')
+}
+
+# If lambda_max is < 1, GC populations should die out
+# quick_plotting_function(
+#   simulate_GC_dynamics(allele_info, lambda_max = 0.9, K, mu, mutation_rate, mutation_sd, tmax)
+# ) + ylim(0, K) + geom_hline(aes(yintercept = K), linetype = 2)
+
+# Otherwise the total GC population size should remain around K
+# quick_plotting_function(
+#   simulate_GC_dynamics(allele_info, lambda_max = 2, K, mu, mutation_rate, mutation_sd, tmax)
+# ) + geom_hline(aes(yintercept = K), linetype = 2)
+
+# Super high lambda_max should lead to crazy oscillations due to populations overshooting past K
+# quick_plotting_function(
+#   simulate_GC_dynamics(allele_info, lambda_max = 25, K, mu, mutation_rate, mutation_sd, tmax)
+# ) + geom_hline(aes(yintercept = K), linetype = 2)
+
+GC_tibble <- simulate_GC_dynamics(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
 
 
+
+#simulate_repertoire <- function(N_GCs, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
 
 
