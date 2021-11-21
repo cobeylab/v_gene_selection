@@ -14,6 +14,17 @@ source('simulation_functions.R')
 # Specific alphas and betas for each allele are obtained by adding a normally distributed error around 0 to their class mean values
 # Affinities for B cells using each allele are then distributed according to those specific alphas and betas.
 
+generate_affinity_specs <- function(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
+                                    alpha_sd, beta_sd){
+  tibble(allele_type = c('low_avg', 'high_avg', 'long_tail'),
+         expected_alpha = c(1.5, 10, 2), # FOR NOW THESE ARE FIXED
+         expected_beta = c(1, 2, 0.5), # FOR NOW THESE ARE FIXED
+         n_alleles = c(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles),
+         sd_alpha = 0,
+         sd_beta = 0)
+  
+}
+
 
 generate_affinity_distributions <- function(affinity_specs){
   affinity_specs %>%
@@ -40,83 +51,113 @@ generate_naive_freqs <- function(allele_info){
   return(allele_info)
 }
 
+create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
+                            alpha_sd, beta_sd, nGCs, K, mu, lambda_max, mutation_rate, mutation_sd,
+                            tmax){
+
+  affinity_specs <- generate_affinity_specs(n_low_avg_alleles = n_low_avg_alleles,
+                                            n_high_avg_alleles = n_high_avg_alleles,
+                                            n_long_tail_alleles = n_long_tail_alleles,
+                                            alpha_sd = alpha_sd, beta_sd = beta_sd)
+  
+  allele_info <- generate_affinity_distributions(affinity_specs = affinity_specs)
+  allele_info <- generate_naive_freqs(allele_info = allele_info)
+  #hist(allele_info$naive_freq)
+  
+  GC_parameters <- tibble(
+    nGCs = nGCs, # Number of germinal centers in an individual
+    K = K, # carrying capacity of germinal centers
+    mu = mu, # expected number of newly recruited clones arriving at germinal centers per time step
+    lambda_max = lambda_max, # expected reproductive rate per B cell in an empty germinal center
+    mutation_rate = mutation_rate, # mutation probability per B cell per time step
+    mutation_sd = mutation_sd, # standard deviation for normal distribution of mutational effects (mean 0)
+    tmax = tmax # Number of time steps observed
+  )
+  
+  # Showing what the affinity distributions look like
+  save_plot(paste0(scenario_directory, 'expected_affinities_by_allele_type.pdf'),
+            plot_expected_affinity_boxplots(allele_info = allele_info),
+            base_height = 5, base_width = 6)
+  save_plot(paste0(scenario_directory, 'affinity_distributions.pdf'),
+            plot_affinity_distributions(allele_info = allele_info),
+            base_height = 5, base_width = 6)
+  #plot_affinity_distributions(allele_info = allele_info, log_density = T)
+  
+  
+  # Export allele information for simulations
+  write_csv(allele_info, 
+            paste0(scenario_directory, 'allele_info.csv'))
+  
+  # Export GC parameters
+  write_csv(GC_parameters,
+            paste0(scenario_directory, 'GC_parameters.csv'))
+  
+  
+  
+}
+
+
 
 # First, neutral scenarios where all alleles have IDENTICAL affinity distributions
 
 # ============================ NEUTRAL SCENARIO 1 ===================================
+create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
+                n_low_avg_alleles = 80,
+                n_high_avg_alleles = 0,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 30,
+                K = 10000, 
+                mu = 5, 
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200)
 
-scenario_directory <- '../results/simulations/neutral_scenario_1/'
+# ============================ NEUTRAL SCENARIO 2 ===================================
+# Like neutral scenario 1, but with slower immigration
+create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/',
+                n_low_avg_alleles = 80,
+                n_high_avg_alleles = 0,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 30,
+                K = 10000, 
+                mu = 1, 
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200)
 
-n_low_avg_alleles <- 80 # Alleles with low affinity overall
-n_high_avg_alleles <- 0 # Alleles with high average affinity
-n_long_tail_alleles <- 0 # Alleles with intermediate average but long tails
-sd_alpha <- 0
-sd_beta <- 0
+# ============================ NEUTRAL SCENARIO 3 ===================================
+# Like scenario 1, but with 100 GCs (more GCs than alleles)
+create_scenario(scenario_directory = '../results/simulations/neutral_scenario_3/',
+                n_low_avg_alleles = 80,
+                n_high_avg_alleles = 0,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 100,
+                K = 10000, 
+                mu = 5, 
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200)
 
-GC_parameters_neutral <- tibble(
-  nGCs = 30, # Number of germinal centers in an individual
-  K = 10000, # carrying capacity of germinal centers
-  mu = 5, # expected number of newly recruited clones arriving at germinal centers per time step
-  lambda_max = 1.5, # expected reproductive rate per B cell in an empty germinal center
-  mutation_rate = 0.01, # mutation probability per B cell per time step
-  mutation_sd = 0.05, # standard deviation for normal distribution of mutational effects (mean 0)
-  tmax = 200 # Number of time steps observed
-)
-
-neutral_affinity_specs <- tibble(allele_type = c('low_avg', 'high_avg', 'long_tail'),
-                           expected_alpha = c(1.5, 10, 2),
-                           expected_beta = c(1, 2, 0.5),
-                           n_alleles = c(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles),
-                           sd_alpha = 0,
-                           sd_beta = 0)
-
-allele_info_neutral <- generate_affinity_distributions(affinity_specs = neutral_affinity_specs)
-allele_info_neutral <- generate_naive_freqs(allele_info = allele_info_neutral)
-hist(allele_info_neutral$naive_freq)
-
-
-# Showing what the affinity distributions look like
-save_plot(paste0(scenario_directory, 'expected_affinities_by_allele_type.pdf'),
-          plot_expected_affinity_boxplots(allele_info = allele_info_neutral),
-          base_height = 5, base_width = 6)
-save_plot(paste0(scenario_directory, 'affinity_distributions.pdf'),
-          plot_affinity_distributions(allele_info = allele_info_neutral),
-          base_height = 5, base_width = 6)
-#plot_affinity_distributions(allele_info = allele_info_neutral, log_density = T)
-
-
-
-# Export allele information for simulations
-write_csv(allele_info_neutral, 
-          paste0(scenario_directory, 'allele_info.csv'))
-
-# Export GC parameters
-write_csv(GC_parameters_neutral,
-          paste0(scenario_directory, 'GC_parameters.csv'))
-
-
-
-
-n_low_avg_alleles <- 1 # Alleles with low affinity overall
-n_high_avg_alleles <- 1 # Alleles with high average affinity
-n_long_tail_alleles <- 1 # Alleles with intermediate average but long tails
-
-
-
-nonneutral_scenario <- tibble(allele_type = c('low_avg', 'high_avg', 'long_tail'),
-         expected_alpha = c(1.5, 10, 2),
-         expected_beta = c(1, 2, 0.5),
-         n_alleles = c(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles),
-         sd_alpha = 0,
-         sd_beta = 0)
-
-allele_info_nonneutral <- generate_affinity_distributions(scenario = nonneutral_scenario)
-
-# Showing what the distributions look like
-plot_expected_affinity_boxplots(allele_info = allele_info_nonneutral)
-plot_affinity_distributions(allele_info = allele_info_nonneutral)
-plot_affinity_distributions(allele_info = allele_info_nonneutral, log_density = T)
-
+# ============================ NON-NEUTRAL SCENARIO 1 ===================================
+# Like neutral scenario 1, but with 70 low average and 10 high average alleles
+create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_1/',
+                n_low_avg_alleles = 70,
+                n_high_avg_alleles = 10,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 30,
+                K = 10000, 
+                mu = 5, 
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200)
 
 
 

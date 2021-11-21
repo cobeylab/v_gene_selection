@@ -5,13 +5,20 @@ library(ggplot2)
 library(cowplot)
 library(stringr)
 theme_set(theme_cowplot())
+source('simulation_functions.R')
 
 # Directory containing simulation results and allele_info.csv file with allele properties
 args <- commandArgs(trailingOnly = T) 
-results_directory <- args[1] # results_directory <- '../results/simulations/neutral_scenario_low_avg/replicate_1/'
+results_directory <- args[1] # results_directory <- '../results/simulations/neutral_scenario_1/'
 
 allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
 
+
+example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1:5]
+
+example_GCs <- lapply(as.list(example_GC_files), FUN = read_csv)
+example_GCs <- bind_rows(example_GCs, .id = 'individual') %>%
+  select(individual, everything())
 
 individual_repertoire_files <- list.files(results_directory, pattern = 'repertoire_counts',
                                          full.names = T)
@@ -114,7 +121,10 @@ pairwise_correlations %>%
                  aes(ymin = freq_correlation_lowerq, ymax = freq_correlation_upperq),
                  color = 'red') +
   geom_line(data = mean_pairwise_correlations, color = 'black', size = 1.5) +
-  geom_hline(yintercept = 0, linetype =2)
+  geom_hline(yintercept = 0, linetype =2) +
+  xlab('time') +
+  ylab('Pairwise correlation in allele frequencies') +
+  ylim(-1,1)
 
 pairwise_correlations %>%
   ggplot(aes(x = t, y = freq_ratio_correlation)) +
@@ -123,28 +133,30 @@ pairwise_correlations %>%
                  aes(ymin = freq_ratio_correlation_lowerq, ymax = freq_ratio_correlation_upperq),
                  color = 'red') +
   geom_line(data = mean_pairwise_correlations, color = 'black', size = 1.5)  +
-  geom_hline(yintercept = 0, linetype =2)
+  geom_hline(yintercept = 0, linetype =2) +
+  xlab('time') +
+  ylab('Pairwise correlation in experienced-to-naive ratios') +
+  ylim(-1,1)
 
 
 
-x <- replicate(1, simulate_GC_dynamics(allele_info, lambda_max = lambda_max, K = K, mu = mu, mutation_rate = mutation_rate,
-                                       mutation_sd = mutation_sd, tmax = tmax),simplify = F)
+example_GC <- example_GCs %>% filter(individual == 2)
 
-x <- bind_rows(x, .id = 'GC')
 
-quick_plotting_function(x %>% filter(GC == 1)) +
+quick_plotting_function(example_GC)  +
   xlab('Time') +
   ylab('Number of cells') +
   theme(legend.position = 'none')
 
-quick_plotting_function(x %>% filter(GC == 1)) +
+
+quick_plotting_function(example_GC) +
   xlab('Time') +
   ylab('Number of cells') +
   theme(legend.position = 'none') +
   #xlim(0,100) +
   scale_y_log10()
 
-GC_statistics <- x %>% filter(GC == 1) %>%
+GC_statistics <- example_GC  %>%
   group_by(t) %>%
   summarise(n_clones = length(unique(clone_id)),
             n_alleles = length(unique(allele)),
@@ -156,7 +168,12 @@ GC_statistics %>% ggplot(aes(x = t, y = mean_affinity)) +
   ylab('Average affinity within GC')
 
 GC_statistics %>% ggplot(aes(x = t, y = n_clones)) + geom_line() +
-  GC_statistics %>% ggplot(aes(x = t, y = n_alleles)) + geom_line()
+  xlab('Time') +
+  ylab('Number of clones in GC')
+
+GC_statistics %>% ggplot(aes(x = t, y = n_alleles)) + geom_line()  +
+  xlab('Time') +
+  ylab('Number of V alleles in GC')
 
 
 
