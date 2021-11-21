@@ -1,9 +1,12 @@
 #!/bin/bash
+scenario_dir=$1 # Path to directory containing allele info file and GC pars file
+n_individuals=$2 # Number of individuals to simulate
 
-path_to_allele_info=$1 # Read path to directory containing allele info file
-n_individuals=$2
+path_to_allele_info=${scenario_dir}/allele_info.csv
+path_to_GC_parameters=${scenario_dir}/GC_parameters.csv
 
-sbatch_file_id=$(shuf -i 1-100000 -n 1) # Random string of integers, just to prevent file name conflicts
+
+sbatch_file_id=$(basename $scenario_dir)
 
   
 # ---------------------------- Create sbatch file for job array --------------------------
@@ -21,11 +24,11 @@ echo "#SBATCH --mem-per-cpu=4000" >> $sbatch_file
 
 echo module load R/3.6.1 >> $sbatch_file
 
-echo Rscript simulation_model.R $path_to_allele_info '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
+echo Rscript simulation_run.R $path_to_allele_info $path_to_GC_parameters '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
 # ----------------------------------------------------------------------------------------
 
 
-# Run job array
+# Run job array (1 job per individual)
 sbatch --array=1-${n_individuals} $sbatch_file     
 # Remove sbatch file
 rm $sbatch_file

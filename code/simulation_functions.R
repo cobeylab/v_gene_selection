@@ -1,40 +1,32 @@
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(cowplot)
-library(readr)
-theme_set(theme_cowplot())
-
-args <- commandArgs(trailingOnly = T)
-
-allele_info_file_path <- args[1] # allele_info_file_path = '../results/simulations/neutral_scenario/replicate_1/allele_info.csv'
-individual_id <- args[2]
-
-allele_info <- read_csv(allele_info_file_path)
-output_directory <- paste0(dirname(allele_info_file_path),'/')
-output_file_path <- paste0(output_directory,'repertoire_counts_individual_', individual_id, '.csv')
-
-
 # Functions for simulating the recruitment, competition and evolution of B cell lineages in GCs
 # While keeping track of V allele usage and clone's identities
+# See simulation_scenarios.R for
 
-nGCs <- 100 # Number of germinal centers in an individual
-tmax <- 500 # Number of timesteps observed
-K <- 1000 # carrying capacity of germinal centers
-mu <- 1 # expected number of newly recruited clones arriving at germinal centers per time step
-lambda_max <- 2 # expected reproductive rate per B cell in an empty germinal center
+library(dplyr)
+library(tidyr)
 
+# nGCs: Number of germinal centers in an individual
+#tmax: Number of time steps observed
+# K: carrying capacity of germinal centers
+# mu: expected number of newly recruited clones arriving at germinal centers per time step
+# lambda_max: expected reproductive rate per B cell in an empty germinal center
+# mutation_rate: mutation probability per B cell per time step
+# mutation_sd: standard deviation for normal distribution of mutational effects (mean 0)
+# allele_info: tibble with alleles' affinity distributions and naive frequencies (see simulation_scenarios.R)
+
+# (Load pre-generated files with allele_info and the other parameters to run the tests here.)
+
+
+# Describes expected growth rate per B cell (lambda) as a function of carrying capacity K and total GC pop size (N)
 get_pop_lambda <- function(N, lambda_max, K){
   alpha = log(lambda_max)/K
   return(lambda_max*exp(-alpha*N))
 }
 # Quick tests
-stopifnot(abs(get_pop_lambda(N = K, lambda_max = lambda_max, K = K) - 1) <=1e-7) # lambda = 1 at N = K
-stopifnot(get_pop_lambda(N = 0, lambda_max = lambda_max, K = K) == lambda_max) # lambda = lambda_max at N = 0
-stopifnot(get_pop_lambda(N = K*1.1, lambda_max = lambda_max, K = K) < 1) # lambda <1 if N>K
+stopifnot(abs(get_pop_lambda(N = 100, lambda_max = 2, K = 100) - 1) <=1e-7) # lambda = 1 at N = K
+stopifnot(get_pop_lambda(N = 0, lambda_max = 2, K = 100) == 2) # lambda = lambda_max at N = 0
+stopifnot(get_pop_lambda(N = 200, lambda_max = 2, K = 100) < 1) # lambda <1 if N>K
 
-mutation_rate <- 0.01
-mutation_sd <- 1
 
 # Creates a tibble with one cell per row, representing clones newly arrived at germinal center
 # The expected number of new clones (each arriving as a single cell) is mu
@@ -115,7 +107,7 @@ get_GC_tplus1 <- function(allele_info, GC_t, mu, lambda_max, K, mutation_rate, m
   }
   
   return(GC_tplus1)
-
+  
 }
 
 # As a test, the values produced by the next two lines should be close
@@ -171,7 +163,7 @@ simulate_GC_dynamics <- function(allele_info, lambda_max, K, mu, mutation_rate, 
     time <- time + 1
   }
   return(GC_tibble)
-
+  
 }
 
 # Quick plots for visual tests:
@@ -206,37 +198,70 @@ extract_allele_counts <- function(GC_tibble){
     ungroup()
 }
 
-# Runs realizations for multiple germinal centers, returns combined allele counts across GCs for each time point
+# Runs realizations for multiple germinal centers in an individual, returns combined allele counts across GCs for each time point
+# Main output: allele counts across multiple GCs within an individual
+# Also exports first GC trajectory in detailed format (abundance of each clone for each time point)
+
 simulate_repertoire_allele_counts <- function(nGCs, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax){
-  allele_counts <- replicate(nGCs,
-            extract_allele_counts(
-              simulate_GC_dynamics(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
-            ),
-            simplify = F)
+  
+  
+  allele_counts <- tibble()
+  
+  for(i in 1:nGCs){
+    GC_trajectory <- simulate_GC_dynamics(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
+    allele_counts <- bind_rows(allele_counts,
+                               extract_allele_counts(GC_trajectory) %>%
+                                 mutate(GC = i) %>% select(GC, everything()))
+    
+    if(i == 1){
+      example_GC_trajectory <- GC_trajectory
+    }
+  }
+  
+
+  
+  #allele_counts <- replicate(nGCs,
+  #                           extract_allele_counts(
+  #                             simulate_GC_dynamics(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
+  #                           ),
+  #                           simplify = F)
   
   # Aggregate counts across GCs for each time point
-  allele_counts <- bind_rows(allele_counts, .id = 'GC') %>%
+  allele_counts <- allele_counts %>%
     group_by(t, allele) %>%
     summarise(n = sum(n)) %>%
     ungroup()
-  return(allele_counts)
-    
+  return(list(allele_counts = allele_counts, example_GC_trajectory = example_GC_trajectory))
+  
 }
 
+plot_expected_affinity_boxplots <- function(allele_info){
+  allele_info %>%
+    ggplot(aes(x = allele_type, y = expected_affinity)) +
+    geom_boxplot(outlier.alpha = 0) +
+    geom_point() +
+    xlab('Allele type') +
+    ylab('Expected affinity')
+}
 
-repertoire_allele_counts <- simulate_repertoire_allele_counts(nGCs = nGCs,
-                                                              allele_info = allele_info,
-                                                              lambda_max = lambda_max,
-                                                              K = K,
-                                                              mu = mu,
-                                                              mutation_rate = mutation_rate,
-                                                              mutation_sd = mutation_sd,
-                                                              tmax = tmax)
-
-write_csv(repertoire_allele_counts, file = output_file_path)
-
-#system.time(
-#  simulate_repertoire_allele_counts(nGCs = 10, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
-#)  
+plot_affinity_distributions <- function(allele_info, log_density = F){
+  densities_for_plotting <- full_join(tibble(x = seq(0,15,0.1)),
+                                      allele_info, by = character()) %>%
+    select(allele, allele_type, alpha, beta, x) %>%
+    mutate(density = dgamma(x = x, shape = alpha, rate = beta)) 
+  
+  pl <- densities_for_plotting %>%
+    ggplot(aes(x = x, y = density, group = allele)) +
+    geom_line(aes(color = allele_type), size = 1.5) +
+    theme(legend.position = 'top') +
+    xlab('Affinity') +
+    ylab('Density')
+  scale_color_discrete(name = 'Allele type')
+  
+  if(log_density){
+    pl <- pl + scale_y_log10()
+  }
+  return(pl)
+}
 
 
