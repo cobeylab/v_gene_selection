@@ -13,8 +13,12 @@ results_directory <- args[1] # results_directory <- '../results/simulations/neut
 
 allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
 
+### ADD A CHECK TO SEE IF NAIVE FREQS WERE RANDOMIZED IN EACH INDIVIDUAL
 
-example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1:5]
+
+
+
+example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1]
 
 example_GCs <- lapply(as.list(example_GC_files), FUN = read_csv)
 example_GCs <- bind_rows(example_GCs, .id = 'individual') %>%
@@ -140,7 +144,32 @@ pairwise_correlations %>%
 
 
 
-example_GC <- example_GCs %>% filter(individual == 2)
+
+
+allele_counts %>%
+  group_by(individual, t, allele_type) %>%
+  summarise(combined_freq = sum(experienced_freq)) %>%
+  ungroup() %>%
+  ggplot(aes(x = t, y = combined_freq)) +
+  geom_point(aes(color = allele_type)) +
+  scale_x_log10()
+
+
+
+allele_counts %>%
+  filter(individual == 2) %>%
+  ggplot(aes(x = t, y = freq_ratio)) +
+  geom_line(aes(group = allele, color = allele_type)) +
+  geom_hline(yintercept = 1)
+  
+
+
+
+
+
+
+
+example_GC <- example_GCs %>% filter(individual == 5)
 
 
 quick_plotting_function(example_GC)  +

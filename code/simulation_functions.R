@@ -199,18 +199,45 @@ extract_allele_counts <- function(GC_tibble){
 }
 
 # Runs realizations for multiple germinal centers in an individual, returns combined allele counts across GCs for each time point
-# Main output: allele counts across multiple GCs within an individual
-# Also exports first GC trajectory in detailed format (abundance of each clone for each time point)
+# Output:
+# - allele counts across multiple GCs within an individual
+# - Clone and allele diversity statistics for each GC
+# - Also exports first GC trajectory in detailed format (abundance of each clone for each time point)
 
-simulate_repertoire_allele_counts <- function(nGCs, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax){
+simulate_repertoire <- function(nGCs, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax){
   
   
   allele_counts <- tibble()
+  GC_statistics <- tibble()
   
   for(i in 1:nGCs){
     GC_trajectory <- simulate_GC_dynamics(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
+    
+    GC_allele_counts <- extract_allele_counts(GC_trajectory)
+    
+    clone_diversity <- GC_trajectory %>%
+      group_by(t, clone_id) %>%
+      count() %>%
+      group_by(t) %>%
+      mutate(clone_freq = n / sum(n)) %>%
+      summarise(n_clones = length(unique(clone_id)),
+                fraction_biggest_clone = max(clone_freq),
+                clone_diversity = 1 - sum(clone_freq^2))
+    
+    allele_diversity <- GC_allele_counts %>%
+      group_by(t) %>%
+      mutate(allele_freq = n / sum(n)) %>%
+      summarise(n_alleles = length(unique(allele)),
+                fraction_most_common_allele = max(allele_freq),
+                allele_diversity = 1 - sum(allele_freq^2))
+    
+    GC_statistics <- bind_rows(GC_statistics,
+                               left_join(clone_diversity, allele_diversity) %>%
+                                 mutate(GC = i) %>%
+                                 select(GC, everything()))
+     
     allele_counts <- bind_rows(allele_counts,
-                               extract_allele_counts(GC_trajectory) %>%
+                               GC_allele_counts %>%
                                  mutate(GC = i) %>% select(GC, everything()))
     
     if(i == 1){
@@ -219,19 +246,13 @@ simulate_repertoire_allele_counts <- function(nGCs, allele_info, lambda_max, K, 
   }
   
 
-  
-  #allele_counts <- replicate(nGCs,
-  #                           extract_allele_counts(
-  #                             simulate_GC_dynamics(allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
-  #                           ),
-  #                           simplify = F)
-  
   # Aggregate counts across GCs for each time point
   allele_counts <- allele_counts %>%
     group_by(t, allele) %>%
     summarise(n = sum(n)) %>%
     ungroup()
-  return(list(allele_counts = allele_counts, example_GC_trajectory = example_GC_trajectory))
+  return(list(allele_counts = allele_counts, GC_statistics = GC_statistics,
+              example_GC_trajectory = example_GC_trajectory))
   
 }
 

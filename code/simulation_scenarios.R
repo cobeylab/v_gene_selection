@@ -53,7 +53,7 @@ generate_naive_freqs <- function(allele_info){
 
 create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
                             alpha_sd, beta_sd, nGCs, K, mu, lambda_max, mutation_rate, mutation_sd,
-                            tmax){
+                            tmax, randomize_naive_freqs_in_each_individual){
 
   affinity_specs <- generate_affinity_specs(n_low_avg_alleles = n_low_avg_alleles,
                                             n_high_avg_alleles = n_high_avg_alleles,
@@ -71,7 +71,8 @@ create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_al
     lambda_max = lambda_max, # expected reproductive rate per B cell in an empty germinal center
     mutation_rate = mutation_rate, # mutation probability per B cell per time step
     mutation_sd = mutation_sd, # standard deviation for normal distribution of mutational effects (mean 0)
-    tmax = tmax # Number of time steps observed
+    tmax = tmax, # Number of time steps observed,
+    randomize_naive_freqs_in_each_individual = randomize_naive_freqs_in_each_individual
   )
   
   # Showing what the affinity distributions look like
@@ -98,8 +99,25 @@ create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_al
 
 
 
-# First, neutral scenarios where all alleles have IDENTICAL affinity distributions
+# A scenario where individuals have uncorrelated naive freqs
+# ============================ UNCORRELATED_NAIVE_FREQS_SCENARIO ===================================
+# Otherwise identical to neutral scenario 1 below
+create_scenario(scenario_directory = '../results/simulations/uncorrelated_naive_freqs_scenario/',
+                n_low_avg_alleles = 80,
+                n_high_avg_alleles = 0,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 30,
+                K = 10000, 
+                mu = 5, 
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200, 
+                randomize_naive_freqs_in_each_individual = T)
 
+
+# Neutral scenarios where all alleles have IDENTICAL affinity distributions
 # ============================ NEUTRAL SCENARIO 1 ===================================
 create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
                 n_low_avg_alleles = 80,
@@ -112,7 +130,8 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
-                tmax = 200)
+                tmax = 200, 
+                randomize_naive_freqs_in_each_individual = F)
 
 # ============================ NEUTRAL SCENARIO 2 ===================================
 # Like neutral scenario 1, but with slower immigration
@@ -127,10 +146,12 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
-                tmax = 200)
+                tmax = 200,
+                randomize_naive_freqs_in_each_individual = F)
 
 # ============================ NEUTRAL SCENARIO 3 ===================================
 # Like scenario 1, but with 100 GCs (more GCs than alleles)
+# Simulate for 500 steps instead of 200
 create_scenario(scenario_directory = '../results/simulations/neutral_scenario_3/',
                 n_low_avg_alleles = 80,
                 n_high_avg_alleles = 0,
@@ -142,7 +163,8 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_3/
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
-                tmax = 200)
+                tmax = 500,
+                randomize_naive_freqs_in_each_individual = F)
 
 # ============================ NON-NEUTRAL SCENARIO 1 ===================================
 # Like neutral scenario 1, but with 70 low average and 10 high average alleles
@@ -157,7 +179,8 @@ create_scenario(scenario_directory = '../results/simulations/non_neutral_scenari
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
-                tmax = 200)
+                tmax = 200,
+                randomize_naive_freqs_in_each_individual = F)
 
 
 
