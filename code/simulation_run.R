@@ -32,16 +32,16 @@ for(i in 1:length(GC_parameters)){
 # lambda_max: 1.5 expected reproductive rate per B cell in an empty germinal center
 # mutation_rate: mutation probability per B cell per time step
 # mutation_sd: standard deviation for the distribution of mutational effects (mean 0)
-# randomize_naive_freqs_in_each_individual: T/F
+# uniform_naive_freqs: TRUE if all alleles have the same naive frequency.
 
 # If randomizing naive frequencies in each individual, export a record of each individual's naive freqs.
-if(randomize_naive_freqs_in_each_individual){
-  allele_info$naive_freq <- sample(allele_info$naive_freq, size = length(allele_info$naive_freq), replace =F)
-  write_csv(allele_info %>% select(allele, naive_freq) %>% mutate(individual = individual_id) %>%
-              select(individual, everything()),
-            file = paste0(output_directory,'randomized_naive_freqs_individual_', individual_id, '.csv'))
-  
-}
+#if(randomize_naive_freqs_in_each_individual){
+#  allele_info$naive_freq <- sample(allele_info$naive_freq, size = length(allele_info$naive_freq), replace =F)
+#  write_csv(allele_info %>% select(allele, naive_freq) %>% mutate(individual = individual_id) %>%
+#              select(individual, everything()),
+#            file = paste0(output_directory,'randomized_naive_freqs_individual_', individual_id, '.csv'))
+#  
+#}
 
 individual_simulation <- simulate_repertoire(nGCs = nGCs,
                                              allele_info = allele_info,
@@ -51,13 +51,17 @@ individual_simulation <- simulate_repertoire(nGCs = nGCs,
                                              mutation_rate = mutation_rate,
                                              mutation_sd = mutation_sd,
                                              tmax = tmax)
-
+  
 write_csv(individual_simulation$allele_counts,
           file = paste0(output_directory,'repertoire_counts_individual_', individual_id, '.csv'))
 write_csv(individual_simulation$GC_statistics,
           file = paste0(output_directory,'GC_statistics_individual_', individual_id, '.csv'))
-write_csv(individual_simulation$example_GC_trajectory,
-          file = paste0(output_directory,'example_GC_individual_', individual_id, '.csv'))
+
+# Export a detailed GC trajectory only for the first 5 individuals
+if(as.integer(individual_id) <= 5){
+  write_csv(individual_simulation$example_GC_trajectory,
+            file = paste0(output_directory,'example_GC_individual_', individual_id, '.csv'))
+}
 
 #system.time(
 #  simulate_repertoire_allele_counts(nGCs = 10, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
