@@ -52,7 +52,7 @@ generate_naive_freqs <- function(allele_info){
 }
 
 create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
-                            alpha_sd, beta_sd, nGCs, K, mu, lambda_max, mutation_rate, mutation_sd,
+                            alpha_sd, beta_sd, nGCs, K, mu, theta, lambda_max, mutation_rate, mutation_sd,
                             tmax, uniform_naive_freqs){
 
   affinity_specs <- generate_affinity_specs(n_low_avg_alleles = n_low_avg_alleles,
@@ -73,6 +73,7 @@ create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_al
     nGCs = nGCs, # Number of germinal centers in an individual
     K = K, # carrying capacity of germinal centers
     mu = mu, # expected number of newly recruited clones arriving at germinal centers per time step
+    theta = theta,
     lambda_max = lambda_max, # expected reproductive rate per B cell in an empty germinal center
     mutation_rate = mutation_rate, # mutation probability per B cell per time step
     mutation_sd = mutation_sd, # standard deviation for normal distribution of mutational effects (mean 0)
@@ -100,7 +101,7 @@ create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_al
   
 }
 
-# Neutral scenarios where all alleles have IDENTICAL affinity distributions
+# Neutral scenarios where all alleles have IDENTICAL affinity distributions (default no migration)
 # ============================ NEUTRAL SCENARIO 1 ===================================
 create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
                 n_low_avg_alleles = 80,
@@ -110,6 +111,7 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 nGCs = 100,
                 K = 10000, 
                 mu = 5, 
+                theta = 0,
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
@@ -126,6 +128,7 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/
                 nGCs = 100,
                 K = 10000, 
                 mu = 5, 
+                theta = 0,
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
@@ -142,6 +145,7 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_3/
                 nGCs = 100,
                 K = 10000, 
                 mu = 1, 
+                theta = 0,
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
@@ -158,6 +162,7 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_4/
                 nGCs = 30,
                 K = 10000, 
                 mu = 5, 
+                theta = 0,
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
@@ -165,19 +170,37 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_4/
                 uniform_naive_freqs = F)
 
 # ============================ NEUTRAL SCENARIO 5 ===================================
-# Like scenario 1, but with a thousand GCs 
+# Like scenario 1, but with 200 GCs 
 create_scenario(scenario_directory = '../results/simulations/neutral_scenario_5/',
                 n_low_avg_alleles = 80,
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
                 alpha_sd = 0, beta_sd = 0,
-                nGCs = 1000,
+                nGCs = 200,
                 K = 10000, 
                 mu = 5, 
+                theta = 0,
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 
                 tmax = 200, 
+                uniform_naive_freqs = F)
+
+# ============================ NEUTRAL SCENARIO 6 ===================================
+# like neutral scenario 1, but with a cross-GC migration rate of 0.001
+create_scenario(scenario_directory = '../results/simulations/neutral_scenario_6/',
+                n_low_avg_alleles = 80,
+                n_high_avg_alleles = 0,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 100,
+                K = 10000, 
+                mu = 5, 
+                theta = 0.001,
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200,
                 uniform_naive_freqs = F)
 
 
@@ -193,6 +216,24 @@ create_scenario(scenario_directory = '../results/simulations/non_neutral_scenari
                 nGCs = 100,
                 K = 10000, 
                 mu = 5, 
+                theta = 0,
+                lambda_max = 1.5, 
+                mutation_rate = 0.01,
+                mutation_sd = 0.5, 
+                tmax = 200,
+                uniform_naive_freqs = F)
+
+# ============================ NON-NEUTRAL SCENARIO 2 ===================================
+# Like NON-neutral scenario 1, but with cross-GC migration
+create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_2/',
+                n_low_avg_alleles = 70,
+                n_high_avg_alleles = 10,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 100,
+                K = 10000, 
+                mu = 5, 
+                theta = 0.001,
                 lambda_max = 1.5, 
                 mutation_rate = 0.01,
                 mutation_sd = 0.5, 

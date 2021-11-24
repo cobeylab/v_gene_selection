@@ -29,6 +29,7 @@ for(i in 1:length(GC_parameters)){
 # tmax: Number of timesteps observed
 # K: carrying capacity of germinal centers
 # mu :expected number of newly recruited clones arriving at germinal centers per time step
+# theta: probability that a B cell migrates to a different germinal center per time step.
 # lambda_max: 1.5 expected reproductive rate per B cell in an empty germinal center
 # mutation_rate: mutation probability per B cell per time step
 # mutation_sd: standard deviation for the distribution of mutational effects (mean 0)
@@ -43,14 +44,15 @@ for(i in 1:length(GC_parameters)){
 #  
 #}
 
-individual_simulation <- simulate_repertoire(nGCs = nGCs,
-                                             allele_info = allele_info,
-                                             lambda_max = lambda_max,
-                                             K = K,
-                                             mu = mu,
-                                             mutation_rate = mutation_rate,
-                                             mutation_sd = mutation_sd,
-                                             tmax = tmax)
+individual_simulation <- run_simulation(nGCs = nGCs,
+                                        allele_info = allele_info,
+                                        lambda_max = lambda_max,
+                                        K = K,
+                                        mu = mu,
+                                        theta = theta,
+                                        mutation_rate = mutation_rate,
+                                        mutation_sd = mutation_sd,
+                                        tmax = tmax)
   
 write_csv(individual_simulation$allele_counts,
           file = paste0(output_directory,'repertoire_counts_individual_', individual_id, '.csv'))
