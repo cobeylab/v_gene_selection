@@ -453,7 +453,8 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
   # Get naive and experienced frequencies into separate tibbles
   exp_freqs <- gene_freqs %>% select(mouse_id, day, infection_status, group, group_controls_pooled,
                                      v_gene, tissue, cell_type, n_vgene_seqs, total_compartment_seqs,
-                                     vgene_seq_freq)
+                                     vgene_seq_freq, obs_rho, mean_sim_rho, lbound_sim_rho, ubound_sim_rho,
+                                     deviation_from_naive, v_gene_rank)
   
   naive_freqs <- gene_freqs %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene,
@@ -461,32 +462,12 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
     unique() %>%
     dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs, total_compartment_seqs = total_mouse_naive_seqs,
                   vgene_seq_freq = naive_vgene_seq_freq) %>%
-    mutate(cell_type = 'naive', exp_naive_ratio = NA, tissue = 'naive_source_tissue') %>%
+    mutate(cell_type = 'naive', tissue = 'naive_source_tissue') %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene, cell_type, n_vgene_seqs,
-           total_compartment_seqs, vgene_seq_freq, exp_naive_ratio)
+           total_compartment_seqs, vgene_seq_freq)
   
-  
-  if(adjust_naive_zeros){
-    naive_freqs <- adjust_zero_naive_freqs(naive_freqs %>% 
-                              dplyr::rename(naive_vgene_seq_freq = vgene_seq_freq,
-                                            n_naive_vgene_seqs = n_vgene_seqs,
-                                            total_mouse_naive_seqs = total_compartment_seqs)) %>%
-      dplyr::rename(vgene_seq_freq = naive_vgene_seq_freq,
-                    n_vgene_seqs = n_naive_vgene_seqs,
-                    total_compartment_seqs = total_mouse_naive_seqs)
-  }
-  
-  
-  # For experienced cell compartments, calculate rho (ratio between obs and naive freqs)
-  exp_freqs <- left_join(exp_freqs,
-            naive_freqs %>% select(mouse_id, v_gene, vgene_seq_freq) %>% 
-              dplyr::rename(naive_vgene_freq = vgene_seq_freq)) %>%
-    mutate(log_exp_naive_ratio = log(vgene_seq_freq) - log(naive_vgene_freq),
-           exp_naive_ratio = exp(log_exp_naive_ratio)) %>%
-    select(-naive_vgene_freq, -log_exp_naive_ratio)
-  
-  
-  # Put experienced and naive frequencies back together
+
+  # Put experienced and naive frequencies back together in long format
   gene_freqs <- bind_rows(exp_freqs, naive_freqs)
   
   compartment_sizes <- gene_freqs %>%
@@ -570,7 +551,16 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
            matches('total_compartment_seqs'), matches('total_mouse_naive_seqs'),
            everything())
   
-  
+  # Label each gene in a paper in terms of concordant/discordant direction of change from the naive repertoire
+  paired_gene_freqs <- paired_gene_freqs %>%
+    mutate(concordance_status = case_when(
+      (deviation_from_naive_i == 'positive' & deviation_from_naive_j == 'positive') ~ 'concordant-increasing',
+      (deviation_from_naive_i == 'negative' & deviation_from_naive_j == 'negative') ~ 'concordant-decreasing',
+      (deviation_from_naive_i == 'neutral' & deviation_from_naive_j == 'neutral') ~ 'concordant-stable',
+      (deviation_from_naive_i != deviation_from_naive_j) ~ 'discordant',
+      (is.na(deviation_from_naive_i) | is.na(deviation_from_naive_j)) ~ 'NA'))
+      
+    
   return(paired_gene_freqs)
 }
 
@@ -588,7 +578,7 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
     filter(mouse_id_i != mouse_id_j) %>%
     group_by(across(grouping_vars)) %>%
     mutate(n_genes_in_freqs_comparison = sum(!is.na(n_vgene_seqs_i) & !is.na(n_vgene_seqs_j)),
-           n_genes_in_freq_ratio_comparison = sum(!is.na(exp_naive_ratio_i) & !is.na(exp_naive_ratio_j)))
+           n_genes_in_freq_ratio_comparison = sum(!is.na(obs_rho_i) & !is.na(obs_rho_j)))
   
   pairwise_correlations_freqs <- pairwise_correlations %>%
     filter(n_genes_in_freqs_comparison >= min_genes_in_comparison) %>%
@@ -599,7 +589,7 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
   if(include_freq_ratios){
     pairwise_correlations_freq_ratios <- pairwise_correlations %>%
       filter(n_genes_in_freq_ratio_comparison >= min_genes_in_comparison) %>%
-      dplyr::summarise(cor_coef_freq_ratios = cor.test(exp_naive_ratio_i, exp_naive_ratio_j,
+      dplyr::summarise(cor_coef_freq_ratios = cor.test(obs_rho_i, obs_rho_j,
                                                        method = 'spearman')$estimate) %>%
       ungroup()
     return(list(freqs = pairwise_correlations_freqs, freq_ratios = pairwise_correlations_freq_ratios))
@@ -608,6 +598,37 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
   }
 
 } 
+
+
+# Computes "concordance" (for a pair of mice, what % of alleles increase in both, decrease in both, etc.)
+compute_deviation_concordance <- function(pairwise_gene_freqs, min_genes_in_comparison = 10){
+  grouping_vars <- c('mouse_pair','pair_type','mouse_id_i','mouse_id_j','day_i','day_j',
+                     'cell_type', 'total_compartment_seqs_i','total_compartment_seqs_j',
+                     'total_mouse_naive_seqs_i', 'total_mouse_naive_seqs_j')
+  
+  if('tissue' %in% names(pairwise_gene_freqs)){
+    grouping_vars <- c(grouping_vars, 'tissue')
+  }
+  
+  deviation_concordance <- pairwise_gene_freqs %>% 
+    filter(mouse_id_i != mouse_id_j) %>%
+    group_by(across(grouping_vars)) %>%
+    mutate(n_genes_in_comparison = sum(!is.na(obs_rho_i) & !is.na(obs_rho_j))) %>%
+    filter(n_genes_in_comparison >= min_genes_in_comparison) %>%
+    filter(concordance_status != 'NA') %>%
+    ungroup() %>%
+    group_by(across(c(grouping_vars, 'concordance_status'))) %>%
+    dplyr::summarise(n_alleles = n()) %>%
+    ungroup() %>%
+    group_by(across(grouping_vars)) %>%
+    mutate(fraction_alleles = n_alleles / sum(n_alleles)) %>%
+    ungroup()
+    
+  
+  return(deviation_concordance)
+
+
+}
 
 
 # Generates datasets with selected genes specified for each mouse in synth_data_input_tibble

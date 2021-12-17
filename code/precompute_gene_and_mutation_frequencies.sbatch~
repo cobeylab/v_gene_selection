@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=precompute_gene_frequencies
-#SBATCH --output=/home/mvieira/TEMP_V_GENE_SELECTION/precompute_gene_frequencies.out
-#SBATCH --error=/home/mvieira/TEMP_V_GENE_SELECTION/precompute_gene_frequencies.err
+#SBATCH --output=out_err_files/precompute_gene_frequencies.out
+#SBATCH --error=out_err_files/precompute_gene_frequencies.err
 #SBATCH --partition=cobey
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
@@ -10,4 +10,4 @@
 
 module load R/3.6.1
 
-Rscript precompute_gene_and_mutation_frequencies.R unique_seqs
+Rscript precompute_gene_and_mutation_frequencies.R all_seqs TRUE

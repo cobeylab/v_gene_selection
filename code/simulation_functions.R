@@ -236,9 +236,11 @@ simulate_GC_dynamics <- function(nGCs, allele_info, lambda_max, K, mu, theta, mu
         select(t, everything())
     }
 
-    # Store new time step in master tibble
-    GC_tibble <- bind_rows(GC_tibble, GC_tplus1)
-    
+    # Store new time step in master tibble every 10 steps
+    if(time == 1 | (time%%10 == 0)){
+      GC_tibble <- bind_rows(GC_tibble, GC_tplus1)
+    }
+
     # Update starting id number for clones in each GC
     clone_numbering_start <- update_clone_numbering_start(clone_numbering_start, GC_tplus1)
     

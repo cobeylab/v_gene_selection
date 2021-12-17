@@ -14,6 +14,10 @@ results_directory <- args[1] # results_directory <- '../results/simulations/neut
 allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
 GC_parameters <- read_csv(paste0(results_directory, 'GC_parameters.csv'))
   
+# Plot annotation with parameters
+parameter_annotation <- paste(paste(names(GC_parameters) , GC_parameters[1,], sep = ' = '), collapse = ' ; ')
+
+
 
 example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1]
 GC_statistics_files <- list.files(results_directory, pattern = 'GC_statistics', full.names = T)
@@ -127,12 +131,24 @@ get_pairwise_values <- function(allele_counts){
 pairwise_allele_freqs <- get_pairwise_values(allele_counts)
 
 pairwise_correlations <- pairwise_allele_freqs %>%
-  #filter(experienced_freq_i >0, experienced_freq_j > 0) %>%
   group_by(pair, t) %>%
-  summarise(freq_correlation = cor.test(experienced_freq_i, experienced_freq_j, method = 'spearman')$estimate,
-            freq_ratio_correlation = cor.test(freq_ratio_i, freq_ratio_j, method = 'spearman')$estimate) %>%
+  mutate(n_points_in_pairwise_comparison = n()) %>%
+  filter(n_points_in_pairwise_comparison >= 3) %>%
+  summarise(freq_correlation = cor.test(experienced_freq_i, experienced_freq_j, method = 'pearson')$estimate,
+            freq_ratio_correlation = cor.test(freq_ratio_i, freq_ratio_j, method = 'pearson')$estimate) %>%
   ungroup()
 
+
+# Before making plots, export major objects in an .RData file.
+for(obj in c('allele_counts','pairwise_allele_freqs','GC_statistics')){
+  assign(paste0('simulated_',obj), get(obj))
+}
+renamed_objs <- paste0('simulated_',c('allele_counts','pairwise_allele_freqs','GC_statistics'))
+
+save(list = renamed_objs, file = paste0(results_directory, basename(results_directory), '_results.RData'))
+rm(list = renamed_objs)
+
+# Now making plots
 mean_pairwise_correlations <- pairwise_correlations %>%
   group_by(t) %>%
   summarise(freq_correlation_lowerq = quantile(freq_correlation, 0.25, na.rm = T),
@@ -144,7 +160,8 @@ mean_pairwise_correlations <- pairwise_correlations %>%
             ) %>%
   ungroup()
   
-pairwise_correlations %>%
+
+pairwise_corr_freqs <- pairwise_correlations %>%
   ggplot(aes(x = t, y = freq_correlation)) +
   geom_line(aes(group = pair), alpha = 0.1) +
   geom_linerange(data = mean_pairwise_correlations, 
@@ -155,9 +172,9 @@ pairwise_correlations %>%
   xlab('Time') +
   ylab('Pairwise correlation in allele frequencies') +
   ylim(-1,1)
-  
 
-pairwise_correlations %>%
+
+pairwise_corr_freq_ratios <- pairwise_correlations %>%
   ggplot(aes(x = t, y = freq_ratio_correlation)) +
   geom_line(aes(group = pair), alpha = 0.2) +
   geom_linerange(data = mean_pairwise_correlations, 
@@ -170,7 +187,7 @@ pairwise_correlations %>%
   ylim(-1,1)
 
 
-repertoire_allele_diversity %>%
+n_alleles_in_rep <- repertoire_allele_diversity %>%
   ggplot(aes(x = t, y = n_alleles_in_experienced_repertoire)) +
   geom_line(aes(group = individual), alpha = 0.5) +
   geom_line(data = repertoire_allele_diversity %>%
@@ -179,17 +196,37 @@ repertoire_allele_diversity %>%
             color = 'red', size = 1.5) +
   xlab('Time') + ylab('Number of V alleles in the experienced repertoire')
 
+repertoire_allele_diversity_pl <- repertoire_allele_diversity %>%
+  ggplot(aes(x = t, y = repertoire_allele_diversity)) +
+  geom_line(aes(group = individual), alpha = 0.5) +
+  geom_line(data = repertoire_allele_diversity %>%
+              group_by(t) %>% 
+              summarise(repertoire_allele_diversity = mean(repertoire_allele_diversity)),
+            color = 'red', size = 1.5) +
+  xlab('Time') + ylab('Repertoire allele diversity')
 
-allele_counts %>%
+naive_freq_vs_n_inds_present <- allele_counts %>%
   filter(t == max(t)) %>%
   group_by(allele, naive_freq, allele_type) %>%
   summarise(n_inds_allele_present = sum(experienced_freq >0)) %>%
   ggplot(aes(x = naive_freq, y = n_inds_allele_present)) +
   geom_point(aes(color = allele_type)) +
   xlab('Naive frequency') +
-  ylab('N. individuals where the allele is\npresent at the end of simulation') +
-  theme(legend.position = 'top')
+  ylab('N. individuals with allele \npresent at the end of simulation') +
+  #theme(legend.position = c(0.7,0.1)) +
+  theme(legend.position = 'top')  +
+  scale_color_discrete(name = 'Allele type')
 
+
+naive_vs_exp_freq <- allele_counts %>%
+  filter(t == max(t)) %>%
+  ggplot(aes(x = naive_freq, y = experienced_freq)) +
+  geom_point(alpha = 0.5, aes(color = allele_type)) +
+  geom_abline(intercept = 0, slope = 1, linetype = 2) +
+  xlab('Naive frequency') +
+  ylab('Experienced frequency') +
+  theme(legend.position = 'top')  +
+  scale_color_discrete(name = 'Allele type')
 
 mean_clones_and_alleles_per_GC <- GC_statistics %>%
   group_by(individual, t) %>%
@@ -197,134 +234,219 @@ mean_clones_and_alleles_per_GC <- GC_statistics %>%
             mean_alleles_per_GC = mean(n_alleles)) %>%
   ungroup()
 
-mean_clones_and_alleles_per_GC %>%
+mean_alleles_per_gc <- mean_clones_and_alleles_per_GC %>%
   ggplot(aes(x = t, y = mean_alleles_per_GC)) +
   geom_line(aes(group = individual), alpha = 0.5) +
+  geom_line(data = mean_clones_and_alleles_per_GC %>% group_by(t) %>%
+              summarise(mean_alleles_per_GC = mean(mean_alleles_per_GC)) %>%
+              ungroup(), color = 'red', size = 1.5) +
   xlab('Time') +
   ylab('Mean number of alleles per GC')
 
-mean_clones_and_alleles_per_GC %>%
+mean_clones_per_gc <- mean_clones_and_alleles_per_GC %>%
   ggplot(aes(x = t, y = mean_clones_per_GC)) +
   geom_line(aes(group = individual), alpha = 0.5) +
+  geom_line(data = mean_clones_and_alleles_per_GC %>% group_by(t) %>%
+              summarise(mean_clones_per_GC = mean(mean_clones_per_GC)) %>%
+              ungroup(), color = 'red', size = 1.5) +
   xlab('Time') +
   ylab('Mean number of clones per GC')
 
 
-allele_counts %>%
-  filter(t == max(t)) %>%
-  mutate(change_in_frequency = case_when(
-    freq_ratio ==1 ~ 'none',
-    freq_ratio > 1 ~ 'increase',
-    freq_ratio < 1 ~ 'decrease'
-  )) %>%
-  group_by(allele, naive_freq, change_in_frequency) %>%
-  count() %>%
-  group_by(allele, naive_freq) %>%
-  mutate(prob = n/sum(n)) %>%
-  pivot_wider(names_from = change_in_frequency, values_from = prob) %>%
-  ggplot(aes(x = naive_freq, y = decrease)) +
-  geom_point() +
-  geom_smooth() +
-  xlab('Naive frequency') +
-  ylab('Fraction of individuals with frequency decrease') +
-  ylim(0,1)
 
-allele_counts %>%
-  filter(t == max(t)) %>%
-  ggplot(aes(x = naive_freq, y = experienced_freq)) +
-  geom_point(alpha = 0.5, aes(color = allele_type)) +
-  geom_abline(intercept = 0, slope = 1, linetype = 2) +
-  xlab('Naive frequency') +
-  ylab('Experienced frequency') +
-  theme(legend.position = 'top')
+main_panel <- plot_grid(pairwise_corr_freqs,
+                        pairwise_corr_freq_ratios, 
+                        n_alleles_in_rep, repertoire_allele_diversity_pl,
+                        mean_alleles_per_gc, mean_clones_per_gc,
+                        naive_vs_exp_freq,naive_freq_vs_n_inds_present,
+                        nrow = 4)
 
-allele_counts %>%
-  filter(t == max(t)) %>%
-  ggplot(aes(naive_freq, freq_ratio)) +
-  geom_point(alpha = 0.2) +
-  geom_hline(yintercept = 1, linetype = 2)
+save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pdf'),
+          plot_grid(ggdraw() + 
+                      draw_label(
+                        parameter_annotation,
+                        fontface = 'bold',
+                        x = 0,
+                        hjust = -0.05,
+                        size = 12
+                      ),
+                    main_panel,
+                    nrow = 2,
+                    rel_heights = c(1, 20)),
+          base_height = 20, base_width = 13)
 
 
-
-allele_counts %>%
-  filter(t == max(t)) %>%
-  ggplot(aes(allele, freq_ratio)) +
-  geom_point(alpha = 0.2) 
-
-
-
-
-
-
-
-
-
-allele_counts %>%
-  group_by(individual, t, allele_type) %>%
-  summarise(combined_freq = sum(experienced_freq)) %>%
-  ungroup() %>%
-  ggplot(aes(x = t, y = combined_freq)) +
-  geom_point(aes(color = allele_type)) +
-  scale_x_log10()
-
-
-
-allele_counts %>%
-  filter(individual == 2) %>%
-  ggplot(aes(x = t, y = freq_ratio)) +
-  geom_line(aes(group = allele, color = allele_type)) +
-  geom_hline(yintercept = 1)
   
 
 
 
+# OTHER PLOTS
+
+shared_genes_in_top_10 <- pairwise_allele_freqs %>%
+  group_by(pair, t) %>%
+  mutate(rank_i = rank(-experienced_freq_i, ties.method = 'random'),
+         rank_j = rank(-experienced_freq_j, ties.method = 'random')) %>%
+  filter(rank_i <= 10 & rank_j <= 10) %>%
+  summarise(shared_genes_in_top_10 = n()) %>%
+  ungroup()
+
+shared_genes_in_top_10 %>%
+  ggplot(aes(x = t, y = shared_genes_in_top_10)) +
+  geom_point(size = 2, alpha = 0.05, position = position_jitter(width = 0, height = 0.1)) +
+  #geom_smooth(method = 'lm')
+  geom_line(data = shared_genes_in_top_10 %>% group_by(t) %>%
+              summarise(shared_genes_in_top_10 = mean(shared_genes_in_top_10)), color = 'red')
 
 
-
-
-example_GC <- example_GCs %>% filter(individual == 1)
-
-
-quick_plotting_function(example_GC)  +
-  xlab('Time') +
-  ylab('Number of cells') +
-  theme(legend.position = 'none')
-
-
-quick_plotting_function(example_GC) +
-  xlab('Time') +
-  ylab('Number of cells') +
-  theme(legend.position = 'none') +
-  #xlim(0,100) +
-  scale_y_log10()
-
-example_GC_statistics <- example_GC  %>%
-  group_by(t) %>%
-  summarise(n_clones = length(unique(clone_id)),
-            n_alleles = length(unique(allele)),
-            mean_affinity = mean(affinity))
-
-example_GC_statistics %>% ggplot(aes(x = t, y = mean_affinity)) +
+# Fraction of sequences accounted for by top 10 alleles
+allele_counts %>%
+  group_by(t, individual,) %>%
+  mutate(allele_rank = rank(-experienced_freq, ties.method = 'random')) %>%
+  filter(allele_rank <= 10) %>%
+  summarise(fraction_seqs_in_top_alleles = sum(experienced_freq)) %>%
+  ggplot(aes(x = t, y = fraction_seqs_in_top_alleles, group = individual)) +
   geom_line() +
+  scale_x_log10()
+
+# Number of top 10 alleles over time coming from each class of allele
+allele_counts %>%
+  group_by(t, individual,) %>%
+  mutate(allele_rank = rank(-experienced_freq, ties.method = 'random')) %>%
+  filter(allele_rank <= 10, experienced_freq > 0) %>% # experienced_freq >0 to only count alleles effectively present
+  group_by(t, individual, allele_type) %>%
+  count() %>%
+  mutate(plotting_group = paste(individual, allele_type, sep = ';')) %>%
+  ggplot(aes(x = t, y = n, color = allele_type)) +
+  geom_line(aes(group = plotting_group), alpha = 0.3) +
+  geom_smooth() +
   xlab('Time') +
-  ylab('Average affinity within GC')
+  ylab('Number of alleles in top-10')
+  
 
-example_GC_statistics %>% ggplot(aes(x = t, y = n_clones)) + geom_line() +
-  xlab('Time') +
-  ylab('Number of clones in GC')
+# Combined frequency over time for each type of allele
+combined_freq_by_allele_type <- allele_counts %>%
+  group_by(individual, t, allele_type) %>%
+  summarise(combined_freq = sum(experienced_freq)) %>%
+  ungroup()
 
-GC_statistics %>% ggplot(aes(x = t, y = n_alleles)) + geom_line()  +
-  xlab('Time') +
-  ylab('Number of V alleles in GC')
+# Setting naive freqs as time 0 freqs.
+combined_freqs_in_naive_rep <- allele_info %>% group_by(allele_type) %>%
+  summarise(combined_freq = sum(naive_freq))
+
+combined_freqs_in_naive_rep <- left_join(expand.grid(individual = unique(allele_counts$individual),
+                      allele_type = unique(allele_counts$allele_type),
+                      t = 0),
+          combined_freqs_in_naive_rep)
+
+combined_freq_by_allele_type <- bind_rows(combined_freq_by_allele_type,
+                                          combined_freqs_in_naive_rep)
 
 
-test_function <- function(){
-  x <- c(rep(10,30),rep(0,40))
-  x <- sample(x, size = length(x), replace  =F)
-  y <- sample(x, size = length(x), replace  =F)
-  cor.test(x,y, method = 'spearman')$estimate
-}
-hist(replicate(1000,test_function(), simplify = T), breaks = 10)
+combined_freq_by_allele_type %>%
+  mutate(plotting_group = paste(individual, allele_type, sep = ';')) %>%
+  ggplot(aes(x = t, y = combined_freq)) +
+  geom_line(aes(group = plotting_group, color = allele_type), alpha = 0.3) +
+  scale_x_log10() +
+  geom_smooth(aes(color = allele_type))
+
+allele_counts %>%
+  filter(individual %in% as.character(1:10)) %>%
+  ggplot(aes(x = t, y = experienced_freq, group = allele, color = allele_type)) +
+  geom_line() +
+  scale_x_log10() +
+  facet_wrap('individual')
+
+
+
+
+
+
+
+
+pairwise_allele_freqs %>%
+  filter(pair == '1;2') %>%
+  filter(t %in% c(10,500)) %>%
+  group_by(t) %>%
+  mutate(rank_i = rank(-experienced_freq_i),
+         rank_j = rank(-experienced_freq_j)) %>%
+  ungroup() %>%
+  filter(rank_i <= 10) %>%
+  arrange(t, rank_i)
+  
+  
+pairwise_allele_freqs %>%
+  filter(pair == '1;2') %>%
+  filter(t %in% c(10,500)) %>%
+  ggplot(aes(x = freq_ratio_i, freq_ratio_j)) +
+  geom_point() +
+  facet_grid(.~t) +
+  geom_smooth(method = 'lm') +
+  scale_x_log10() + 
+  scale_y_log10()
+ 
+pairwise_allele_freqs %>%
+  filter(t %in% c(10,500)) %>%
+  group_by(t, pair) %>%
+  summarise(cor = cor.test(freq_ratio_i, freq_ratio_j, method = 'pearson')$estimate)
+
+
+
+# allele_counts %>%
+#   filter(t == max(t)) %>%
+#   mutate(change_in_frequency = case_when(
+#     freq_ratio ==1 ~ 'none',
+#     freq_ratio > 1 ~ 'increase',
+#     freq_ratio < 1 ~ 'decrease'
+#   )) %>%
+#   group_by(allele, allele_type, naive_freq, change_in_frequency) %>%
+#   count() %>%
+#   group_by(allele, allele_type, naive_freq) %>%
+#   mutate(prob = n/sum(n)) %>%
+#   pivot_wider(names_from = change_in_frequency, values_from = prob) %>%
+#   ggplot(aes(x = naive_freq, y = decrease, color = allele_type)) +
+#   geom_point() +
+#   geom_smooth() +
+#   xlab('Naive frequency') +
+#   ylab('Fraction of individuals with frequency decrease') +
+#   ylim(0,1)
+
+
+
+#example_GC <- example_GCs %>% filter(individual == 1)
+
+
+# quick_plotting_function(example_GC)  +
+#    xlab('Time') +
+#    ylab('Number of cells') +
+#   theme(legend.position = 'none')
+
+
+# quick_plotting_function(example_GC) +
+#   xlab('Time') +
+#   ylab('Number of cells') +
+#   theme(legend.position = 'none') +
+#   xlim(0,100) +
+#   scale_y_log10()
+
+# example_GC_statistics <- example_GC  %>%
+#   group_by(t) %>%
+#   summarise(n_clones = length(unique(clone_id)),
+#             n_alleles = length(unique(allele)),
+#             mean_affinity = mean(affinity))
+
+# example_GC_statistics %>% ggplot(aes(x = t, y = mean_affinity)) +
+#   geom_line() +
+#   xlab('Time') +
+#   ylab('Average affinity within GC')
+
+# example_GC_statistics %>% ggplot(aes(x = t, y = n_clones)) + geom_line() +
+#   xlab('Time') +
+#   ylab('Number of clones in GC')
+# 
+# GC_statistics %>% ggplot(aes(x = t, y = n_alleles)) + geom_line()  +
+#   xlab('Time') +
+#   ylab('Number of V alleles in GC')
+
 
 
 
