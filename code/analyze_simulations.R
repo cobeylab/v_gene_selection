@@ -4,6 +4,7 @@ library(readr)
 library(ggplot2)
 library(cowplot)
 library(stringr)
+library(viridis)
 theme_set(theme_cowplot())
 source('simulation_functions.R')
 
@@ -55,7 +56,8 @@ allele_counts <- complete_allele_counts(allele_counts = allele_counts, allele_in
 allele_counts <- allele_counts %>%
   group_by(t, individual) %>%
   mutate(total_time_point_cells = sum(n),
-         experienced_freq = n/total_time_point_cells) %>%
+         experienced_freq = n/total_time_point_cells,
+         allele_rank = rank(-experienced_freq, ties.method = 'first')) %>%
   ungroup()
 
 # Add allele affinities /types, add naive allele frequencies and compute experienced-to-naive ratios,
@@ -63,7 +65,6 @@ allele_counts <- left_join(allele_counts, allele_info %>%
                              select(allele, allele_type, naive_freq, expected_affinity)) %>%
   mutate(freq_ratio_log = log(experienced_freq) - log(naive_freq),
          freq_ratio = exp(freq_ratio_log)) %>% select(-freq_ratio_log)
-
 
 repertoire_allele_diversity <- allele_counts %>%
   group_by(t, individual, total_time_point_cells) %>%
@@ -93,7 +94,8 @@ get_pairwise_values <- function(allele_counts){
   
   internal_function <- function(pair, allele_counts){
     
-    ind_specific_vars <- c('individual','n', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio')
+    ind_specific_vars <- c('individual','n', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
+                           'allele_rank')
     
     individual_ids <- str_split(pair,';')[[1]]
     
@@ -130,12 +132,16 @@ get_pairwise_values <- function(allele_counts){
 
 pairwise_allele_freqs <- get_pairwise_values(allele_counts)
 
-pairwise_correlations <- pairwise_allele_freqs %>%
-  group_by(pair, t) %>%
+
+
+
+pairwise_correlations <- bind_rows(pairwise_allele_freqs %>% mutate(method = 'pearson'),
+                                   pairwise_allele_freqs %>% mutate(method = 'spearman')) %>%
+  group_by(pair, t, method) %>%
   mutate(n_points_in_pairwise_comparison = n()) %>%
   filter(n_points_in_pairwise_comparison >= 3) %>%
-  summarise(freq_correlation = cor.test(experienced_freq_i, experienced_freq_j, method = 'pearson')$estimate,
-            freq_ratio_correlation = cor.test(freq_ratio_i, freq_ratio_j, method = 'pearson')$estimate) %>%
+  summarise(freq_correlation = cor.test(experienced_freq_i, experienced_freq_j, method = unique(method))$estimate,
+            freq_ratio_correlation = cor.test(freq_ratio_i, freq_ratio_j, method = unique(method))$estimate) %>%
   ungroup()
 
 
@@ -149,42 +155,44 @@ save(list = renamed_objs, file = paste0(results_directory, basename(results_dire
 rm(list = renamed_objs)
 
 # Now making plots
-mean_pairwise_correlations <- pairwise_correlations %>%
-  group_by(t) %>%
+median_pairwise_correlations <- pairwise_correlations %>%
+  group_by(t, method) %>%
   summarise(freq_correlation_lowerq = quantile(freq_correlation, 0.25, na.rm = T),
             freq_correlation_upperq = quantile(freq_correlation,0.75, na.rm = T),
             freq_ratio_correlation_lowerq = quantile(freq_ratio_correlation, 0.25, na.rm = T),
             freq_ratio_correlation_upperq = quantile(freq_ratio_correlation,0.75, na.rm = T),
-            freq_correlation = mean(freq_correlation),
-            freq_ratio_correlation = mean(freq_ratio_correlation),
+            freq_correlation = median(freq_correlation),
+            freq_ratio_correlation = median(freq_ratio_correlation),
             ) %>%
   ungroup()
   
 
-pairwise_corr_freqs <- pairwise_correlations %>%
+pairwise_corr_freqs <- pairwise_correlations  %>%
   ggplot(aes(x = t, y = freq_correlation)) +
   geom_line(aes(group = pair), alpha = 0.1) +
-  geom_linerange(data = mean_pairwise_correlations, 
+  geom_linerange(data = median_pairwise_correlations, 
                  aes(ymin = freq_correlation_lowerq, ymax = freq_correlation_upperq),
                  color = 'red', alpha = 0.5) +
-  geom_line(data = mean_pairwise_correlations, color = 'red', size = 1.5) +
+  geom_line(data = median_pairwise_correlations, color = 'red', size = 1.5) +
   geom_hline(yintercept = 0, linetype =2) +
   xlab('Time') +
   ylab('Pairwise correlation in allele frequencies') +
-  ylim(-1,1)
+  ylim(-1,1) +
+  facet_wrap('method')
 
 
 pairwise_corr_freq_ratios <- pairwise_correlations %>%
   ggplot(aes(x = t, y = freq_ratio_correlation)) +
   geom_line(aes(group = pair), alpha = 0.2) +
-  geom_linerange(data = mean_pairwise_correlations, 
+  geom_linerange(data = median_pairwise_correlations, 
                  aes(ymin = freq_ratio_correlation_lowerq, ymax = freq_ratio_correlation_upperq),
                  color = 'red', alpha = 0.5) +
-  geom_line(data = mean_pairwise_correlations, color = 'red', size = 1.5)  +
+  geom_line(data = median_pairwise_correlations, color = 'red', size = 1.5)  +
   geom_hline(yintercept = 0, linetype =2) +
   xlab('Time') +
   ylab('Pairwise correlation in experienced-to-naive ratios') +
-  ylim(-1,1)
+  ylim(-1,1) +
+  facet_wrap('method')
 
 
 n_alleles_in_rep <- repertoire_allele_diversity %>%
@@ -277,6 +285,94 @@ save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pd
 
 
   
+# Arrow plots
+# Arrow plots
+individual_sample <- sample(unique(allele_counts$individual), size = 10, replace = F)
+
+arrow_plot <- allele_counts %>%
+  filter(t %in% c(10,200), individual %in% individual_sample) %>%
+  filter(allele_rank <= 20) %>%
+  mutate(label_position = ifelse(experienced_freq > naive_freq, 1.05*experienced_freq, 1.05*naive_freq)) %>%
+  
+  ggplot(aes(x = allele_rank)) +
+  geom_segment(aes(xend = allele_rank, y = naive_freq, yend = experienced_freq, color = allele_type),
+               arrow = arrow(ends = 'last', length = unit(10, "pt"), type = 'closed')) +
+  facet_grid(t~individual) +
+  geom_text(aes(label = allele,
+                x = allele_rank, y = label_position), angle = 20, size = 3, alpha = 0.8) +
+  scale_x_continuous(expand = c(0.15,0)) +
+  xlab('Top 20 alleles in each individual') +
+  ylab('Frequency') +
+  theme(legend.position = 'top') +
+  background_grid()
+
+save_plot(paste0(results_directory, basename(results_directory), '_arrow_plot.pdf'),
+          arrow_plot,
+          base_height = 10, 
+          base_width = 20)
+
+
+# Freq_ratio scatterplots
+
+pair_sample <- sample(unique(pairwise_allele_freqs$pair), 10, replace = F)
+
+scatterplot_data <- left_join(pairwise_allele_freqs, allele_info %>% select(allele, allele_type, naive_freq)) %>%
+  filter(t %in% c(10,200), pair %in% pair_sample) %>%
+  group_by(t, pair) %>%
+  # Spearman correlation ranks (different from allele ranks used for plotting)
+  mutate(rank_freq_i = rank(experienced_freq_i, ties.method = 'average'),
+         rank_freq_j = rank(experienced_freq_j, ties.method = 'average'),
+         rank_freq_ratio_i = rank(freq_ratio_i, ties.method = 'average'),
+         rank_freq_ratio_j = rank(freq_ratio_j, ties.method = 'average')) %>%
+  ungroup()
+
+
+freq_ratio_scatterplots <- scatterplot_data %>%
+  ggplot(aes(x = freq_ratio_i, y = freq_ratio_j)) +
+  geom_point(size = 3, aes(color = allele_type), alpha = 0.8) +
+  geom_smooth(method = 'lm', color = 'black') +
+  facet_grid(t~pair, scales = 'free') +
+  #scale_color_viridis() +
+  theme(legend.position = 'top',
+        panel.border = element_rect(color = 'black')) +
+  xlab('Experienced-to-naive ratio in individual i') +
+  ylab('Experienced-to-naive ratio in individual j') +
+  scale_y_log10() +
+  scale_x_log10() +
+  geom_hline(yintercept = 1, linetype = 2) +
+  geom_vline(xintercept = 1, linetype = 2) 
+
+rank_freq_ratio_scatterplots <- scatterplot_data %>%
+  ggplot(aes(x = rank_freq_ratio_i, y = rank_freq_ratio_j)) +
+  geom_point(size = 3, aes(color = allele_type), alpha = 0.8) +
+  geom_smooth(method = 'lm', color = 'black') +
+  facet_grid(t~pair, scales = 'free') +
+  #scale_color_viridis() +
+  theme(legend.position = 'top',
+        panel.border = element_rect(color = 'black')) +
+  xlab('Rank experienced-to-naive ratio in individual i') +
+  ylab('Rank experienced-to-naive ratio in individual j')
+
+save_plot(paste0(results_directory, basename(results_directory), '_freq_ratio_scatterplots.pdf'),
+          plot_grid(freq_ratio_scatterplots,
+                    rank_freq_ratio_scatterplots, nrow = 2),
+          base_height = 16, 
+          base_width = 20)
+
+#save_plot(paste0(results_directory, basename(results_directory), '_freq_ratio_scatterplots.pdf'),
+#          freq_ratio_scatterplots ,
+#          base_height = 8, 
+#          base_width = 20)
+
+#save_plot(paste0(results_directory, basename(results_directory), 'rank_freq_ratio_scatterplots.pdf'),
+#          rank_freq_ratio_scatterplots ,
+#          base_height = 8, 
+#          base_width = 20)
+
+
+
+
+
 
 
 
@@ -284,9 +380,7 @@ save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pd
 
 shared_genes_in_top_10 <- pairwise_allele_freqs %>%
   group_by(pair, t) %>%
-  mutate(rank_i = rank(-experienced_freq_i, ties.method = 'random'),
-         rank_j = rank(-experienced_freq_j, ties.method = 'random')) %>%
-  filter(rank_i <= 10 & rank_j <= 10) %>%
+  filter(allele_rank_i <= 10 & allele_rank_j <= 10) %>%
   summarise(shared_genes_in_top_10 = n()) %>%
   ungroup()
 
@@ -301,7 +395,6 @@ shared_genes_in_top_10 %>%
 # Fraction of sequences accounted for by top 10 alleles
 allele_counts %>%
   group_by(t, individual,) %>%
-  mutate(allele_rank = rank(-experienced_freq, ties.method = 'random')) %>%
   filter(allele_rank <= 10) %>%
   summarise(fraction_seqs_in_top_alleles = sum(experienced_freq)) %>%
   ggplot(aes(x = t, y = fraction_seqs_in_top_alleles, group = individual)) +
@@ -311,7 +404,6 @@ allele_counts %>%
 # Number of top 10 alleles over time coming from each class of allele
 allele_counts %>%
   group_by(t, individual,) %>%
-  mutate(allele_rank = rank(-experienced_freq, ties.method = 'random')) %>%
   filter(allele_rank <= 10, experienced_freq > 0) %>% # experienced_freq >0 to only count alleles effectively present
   group_by(t, individual, allele_type) %>%
   count() %>%
@@ -362,34 +454,7 @@ allele_counts %>%
 
 
 
-
-pairwise_allele_freqs %>%
-  filter(pair == '1;2') %>%
-  filter(t %in% c(10,500)) %>%
-  group_by(t) %>%
-  mutate(rank_i = rank(-experienced_freq_i),
-         rank_j = rank(-experienced_freq_j)) %>%
-  ungroup() %>%
-  filter(rank_i <= 10) %>%
-  arrange(t, rank_i)
-  
-  
-pairwise_allele_freqs %>%
-  filter(pair == '1;2') %>%
-  filter(t %in% c(10,500)) %>%
-  ggplot(aes(x = freq_ratio_i, freq_ratio_j)) +
-  geom_point() +
-  facet_grid(.~t) +
-  geom_smooth(method = 'lm') +
-  scale_x_log10() + 
-  scale_y_log10()
- 
-pairwise_allele_freqs %>%
-  filter(t %in% c(10,500)) %>%
-  group_by(t, pair) %>%
-  summarise(cor = cor.test(freq_ratio_i, freq_ratio_j, method = 'pearson')$estimate)
-
-
+# Old plots (review and delete)
 
 # allele_counts %>%
 #   filter(t == max(t)) %>%
@@ -446,6 +511,8 @@ pairwise_allele_freqs %>%
 # GC_statistics %>% ggplot(aes(x = t, y = n_alleles)) + geom_line()  +
 #   xlab('Time') +
 #   ylab('Number of V alleles in GC')
+
+
 
 
 

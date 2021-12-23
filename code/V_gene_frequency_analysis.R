@@ -377,105 +377,117 @@ plot(top_genes_LN_mem_day24_plot)
 # (e.g., what do consistently overrepresented genes on day 8 LN PCs do at other time points / cell types)
 
 
-# How genes consistently overrepresented on day 8 LN PCs (14-4, 1-69, 1-82) fare at later time points
-focal_genes <- c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01')
-focal_genes <- c('IGHV14-4*01')
+# How genes consistently overrepresented on day 8 LN PCs (14-4, 1-69, 1-82) fare at later time points, etc.
 
-plot_focal_genes <- function(focal_genes, tissue){
-  freq_ratios_pl <- gene_freqs %>% filter(tissue == !!tissue,
-                        cell_type %in% c('GC','mem','PC'), infection_status != 'control') %>%
-    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size,
-           v_gene %in% focal_genes) %>%
-    mutate(day = as.integer(as.character(day))) %>%
-    mutate(cell_type = case_when(
-      cell_type == 'GC' ~ 'Lymph node GC cells',
-      cell_type == 'PC' ~ 'Lymph node plasma cells',
-      cell_type == 'mem' ~ 'Lymph node memory cells'
-    )) %>%
-    mutate(v_gene = factor(v_gene, levels = focal_genes)) %>%
-    mutate(cell_type = factor(cell_type,
-                              levels = c('Lymph node GC cells',
-                                         'Lymph node plasma cells',
-                                         'Lymph node memory cells'))) %>%
-    ggplot(aes(x = day, y = obs_rho + 1e-4)) +
-    geom_boxplot(aes(group = day), outlier.alpha = 0) +
-    geom_point(aes(color = deviation_from_naive), position = position_jitter(width = 0.5, height = 0), size = 4, alpha = 0.5) +
-    facet_grid(cell_type~v_gene, scales = 'free') +
-    geom_hline(yintercept = 1, linetype =2) +
-    theme(legend.position = 'top',
-          panel.border = element_rect(color = 'black')) +
-    scale_y_log10() +
-    #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
-    xlab("Days after primary infection") +
-    ylab("Ratio of experienced-to-naive frequencies \n (log10 + 1e-4)") +
-    scale_x_continuous(breaks = sort(as.integer(unique(gene_freqs$day)))) + background_grid()
+plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
+                             focal_genes, min_compartment_size){
   
-  freqs_pl <- gene_freqs %>% filter(tissue == !!tissue, cell_type %in% c('GC','mem','PC'), infection_status != 'control') %>%
-    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size,
-           v_gene %in% focal_genes) %>%
-    mutate(day = as.integer(as.character(day))) %>%
-    mutate(cell_type = case_when(
-      cell_type == 'GC' ~ 'Lymph node GC cells',
-      cell_type == 'PC' ~ 'Lymph node plasma cells',
-      cell_type == 'mem' ~ 'Lymph node memory cells'
-    )) %>%
-    mutate(v_gene = factor(v_gene, levels = focal_genes)) %>%
-    mutate(cell_type = factor(cell_type,
-                              levels = c('Lymph node GC cells',
-                                         'Lymph node plasma cells',
-                                         'Lymph node memory cells'))) %>%
-    ggplot(aes(x = day, y = vgene_seq_freq + 1e-4)) +
-    geom_boxplot(aes(group = day), outlier.alpha = 0) +
-    geom_point(aes(color = deviation_from_naive), position = position_jitter(width = 0.5, height = 0), size = 4, alpha = 0.5) +
-    facet_grid(cell_type~v_gene, scales = 'free') +
-    theme(legend.position = 'top',
-          panel.border = element_rect(color = 'black')) +
-    scale_y_log10() +
-    #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
-    xlab("Days after primary infection") +
-    ylab("Experienced frequency \n (log10 + 1e-4)") +
-    scale_x_continuous(breaks = sort(as.integer(unique(gene_freqs$day)))) + background_grid()
-  
-  clone_ranks_pl <- clone_freqs_by_tissue_and_cell_type %>%
-    filter(compartment_tissue == !!tissue,
-           compartment_cell_type %in% c('GC','mem','PC'), infection_status != 'control') %>%
-    filter(total_seqs_in_compartment >= min_compartment_size,
-           total_mouse_naive_seqs >= min_compartment_size,
-           v_gene %in% focal_genes) %>%
-    mutate(day = as.integer(as.character(day))) %>%
-    mutate(compartment_cell_type = case_when(
-      compartment_cell_type == 'GC' ~ 'Lymph node GC cells',
-      compartment_cell_type == 'PC' ~ 'Lymph node plasma cells',
-      compartment_cell_type == 'mem' ~ 'Lymph node memory cells'
-    )) %>%
-    mutate(compartment_cell_type = factor(compartment_cell_type,
-                              levels = c('Lymph node GC cells',
-                                         'Lymph node plasma cells',
-                                         'Lymph node memory cells'))) %>%
-    mutate(v_gene = factor(v_gene, levels = focal_genes)) %>%
-    group_by(mouse_id, day, group_controls_pooled, infection_status, compartment_cell_type,
-             v_gene) %>%
-    summarise(rank_biggest_clone = min(clone_rank_in_compartment)) %>%
-    ungroup() %>%
-    ggplot(aes(x = day, y = rank_biggest_clone)) +
-    geom_boxplot(aes(group = day), outlier.alpha = 0) +
-    geom_point(aes(color = infection_status), position = position_jitter(width = 0.5, height = 0), size = 4, alpha = 0.5) +
-    facet_grid(compartment_cell_type~v_gene, scales = 'free') +
-    theme(legend.position = 'top',
-          panel.border = element_rect(color = 'black')) +
-    scale_y_log10() +
-    #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
-    xlab("Days after primary infection") +
-    ylab("Rank of biggest clone") +
-    scale_x_continuous(breaks = sort(as.integer(unique(gene_freqs$day)))) + background_grid()
+  base_function <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
+                            tissue, min_compartment_size){
+    base_gene_freq_data <- gene_freqs %>% filter(tissue == !!tissue,
+                                                 cell_type %in% c('GC','mem','PC')) %>%
+      filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size,
+             v_gene %in% focal_genes) %>%
+      mutate(v_gene = factor(v_gene, levels = focal_genes)) 
     
-  return(list(freq_ratios = freq_ratios_pl, freqs = freqs_pl, clone_ranks = clone_ranks_pl))
+    base_gene_freq_data <- cell_type_facet_labeller(base_gene_freq_data )
+    base_gene_freq_data <- set_controls_as_day_0(base_gene_freq_data)
+    
+    
+    
+    clone_ranks_data <- clone_freqs_by_tissue_and_cell_type %>%
+      filter(compartment_tissue == !!tissue,
+             compartment_cell_type %in% c('GC','mem','PC')) %>%
+      filter(total_seqs_in_compartment >= min_compartment_size,
+             total_mouse_naive_seqs >= min_compartment_size,
+             v_gene %in% focal_genes) %>%
+      mutate(v_gene = factor(v_gene, levels = focal_genes)) %>%
+      group_by(mouse_id, day, group_controls_pooled, infection_status, compartment_cell_type, compartment_tissue,
+               v_gene) %>%
+      summarise(rank_biggest_clone = min(clone_rank_in_compartment)) %>%
+      ungroup()
+    
+    clone_ranks_data <- cell_type_facet_labeller(clone_ranks_data)
+    clone_ranks_data <- set_controls_as_day_0(clone_ranks_data)
+    
+    x_axis_breaks <- sort(as.integer(unique(base_gene_freq_data$day)))
+    x_axis_labels <- c('control', sort(as.integer(unique(gene_freqs$day))))
+    
+    freq_ratios_pl <- base_gene_freq_data %>%
+      ggplot(aes(x = day, y = obs_rho + 1e-4)) +
+      geom_boxplot(aes(group = day), outlier.alpha = 0) +
+      geom_point(aes(color = deviation_from_naive), position = position_jitter(width = 0.5, height = 0), size = 4, alpha = 0.5) +
+      facet_grid(cell_type~v_gene, scales = 'free') +
+      geom_hline(yintercept = 1, linetype =2) +
+      theme(legend.position = 'top',
+            panel.border = element_rect(color = 'black')) +
+      scale_y_log10() +
+      #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+      xlab("Days after primary infection") +
+      ylab("Ratio of experienced-to-naive frequencies \n (log10 + 1e-4)") +
+      label_controls_as_day_0 + 
+      background_grid()
+    
+    freqs_pl <- base_gene_freq_data %>%
+      ggplot(aes(x = day, y = vgene_seq_freq + 1e-4)) +
+      geom_boxplot(aes(group = day), outlier.alpha = 0) +
+      geom_point(aes(color = deviation_from_naive), position = position_jitter(width = 0.5, height = 0), size = 4, alpha = 0.5) +
+      facet_grid(cell_type~v_gene, scales = 'free') +
+      theme(legend.position = 'top',
+            panel.border = element_rect(color = 'black')) +
+      scale_y_log10() +
+      #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+      xlab("Days after primary infection") +
+      label_controls_as_day_0 + 
+      ylab("Experienced frequency \n (log10 + 1e-4)") +
+      
+      scale_x_continuous(breaks = sort(as.integer(unique(gene_freqs$day)))) + background_grid()
+    
+    clone_ranks_pl <- clone_ranks_data %>%
+      ggplot(aes(x = day, y = rank_biggest_clone)) +
+      geom_boxplot(aes(group = day), outlier.alpha = 0) +
+      geom_point(aes(color = infection_status), position = position_jitter(width = 0.5, height = 0), size = 4, alpha = 0.5) +
+      facet_grid(compartment_cell_type~v_gene, scales = 'free') +
+      theme(legend.position = 'top',
+            panel.border = element_rect(color = 'black')) +
+      scale_y_log10() +
+      #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+      xlab("Days after primary infection") +
+      ylab("Rank of biggest clone") +
+      label_controls_as_day_0 +
+      background_grid()
+    
+    return(list(freq_ratios = freq_ratios_pl, freqs = freqs_pl, clone_ranks = clone_ranks_pl))
+    
+  }
+  
+  plots_list <- lapply(as.list(unique(gene_freqs$tissue)),
+         FUN = base_function,
+         gene_freqs = gene_freqs,
+         clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
+         min_compartment_size = min_compartment_size)
+  names(plots_list) <- unique(gene_freqs$tissue)
+  return(plots_list)
+  
 }
 
-x <- plot_focal_genes(focal_genes, tissue = 'LN')
-x$freq_ratios 
-x$freqs
-x$clone_ranks
+day8_LN_PC_overrep_genes <- plot_focal_genes(gene_freqs = gene_freqs,
+                                             clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
+                                             focal_genes = c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01'),
+                                             min_compartment_size = min_compartment_size)
+
+day8_LN_PC_overrep_genes$LN$freq_ratios 
+day8_LN_PC_overrep_genes$LN$freqs
+day8_LN_PC_overrep_genes$LN$clone_ranks
+
+day8_LN_PC_overrep_genes$BM$freq_ratios 
+day8_LN_PC_overrep_genes$BM$freqs
+day8_LN_PC_overrep_genes$BM$clone_ranks
+
+day8_LN_PC_overrep_genes$spleen$freq_ratios 
+day8_LN_PC_overrep_genes$spleen$freqs
+day8_LN_PC_overrep_genes$spleen$clone_ranks
+
 
 plot_focal_genes(focal_genes = 'IGHV1-82*01', tissue = 'LN')$freq_ratios
 

@@ -164,7 +164,6 @@ pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS <- tibble()
 
 # 
 for(i in 1:500){
-  
   gene_freqs_randomized_noncontrol_groups <- randomize_noncontrol_groups(gene_freqs)
   pairwise_gene_freqs_randomized_noncontrol_groups <- get_pairwise_freqs(gene_freqs_randomized_noncontrol_groups, 
                                                                                 adjust_naive_zeros = T)
@@ -306,7 +305,7 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      deviation_from_naive,
      pairwise_gene_freqs,
      pairwise_correlations,
-     #neutral_pair  wise_correlations,
+     #neutral_pairwise_correlations,
      pairwise_correlations_randomized_noncontrol_groups,
      mutation_freqs_within_clones,
      mutation_freqs_within_clones_by_tissue_and_cell_type,
