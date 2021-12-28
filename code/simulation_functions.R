@@ -9,6 +9,10 @@ library(ggplot2)
 library(cowplot)
 theme_set(theme_cowplot())
 
+# For each sampling of clones to seed GCs, sample based on affinity 
+# from a sample of this size taken from the naive repertoire with replacement
+recruitment_pool_size <- 1000
+
 
 # Paths for easy access during development:
 # allele_info <- read_csv('../results/simulations/neutral_scenario_1/allele_info.csv')
@@ -43,23 +47,28 @@ stopifnot(get_pop_lambda(N = 200, lambda_max = 2, K = 100) < 1) # lambda <1 if N
 # Alleles contribute different numbers of clones to mu depending on their naive freqs. and expected affinities
 recruit_naive_clones_single_GC <- function(allele_info, mu, clone_numbering_start){
   
-  average_naive_affinity <- allele_info %>%
-    summarise(A = sum(expected_affinity * naive_freq)) %>% pull(A)
-  
-  # Compute number of clones arriving by allele (this is set up so, on average, mu clones will arrive)
-  arrivals_by_allele <- allele_info %>%
-    rowwise() %>%
-    mutate(new_clones = rpois(n = 1, lambda = naive_freq*expected_affinity*mu/average_naive_affinity)) %>%
-    ungroup() %>%
-    filter(new_clones > 0)
-  
-  if(nrow(arrivals_by_allele) > 0){
+  n_arrivals <- rpois(n = 1, lambda = mu)
+
+  if(n_arrivals > 0){
+    recruitment_pool <- sample(allele_info$allele, size = recruitment_pool_size,
+                               prob = allele_info$naive_freq, replace = T)
     
-    immigrants_tibble <- arrivals_by_allele %>%
-      uncount(new_clones) %>%
+    recruitment_pool <- left_join(tibble(allele = recruitment_pool),
+                                  allele_info %>% select(allele, alpha, beta, expected_affinity)) %>%
       rowwise() %>%
       mutate(affinity = rgamma(n = 1, shape = alpha, rate = beta)) %>%
       ungroup() %>%
+      mutate(sum_affinity = sum(affinity),
+             log_normalized_affinity = log(affinity) - log(sum_affinity),
+             normalized_affinity = exp(log_normalized_affinity))
+    
+    recruited_cell_numbers <- sample(1:nrow(recruitment_pool), size = n_arrivals, replace = F,
+                                     prob = recruitment_pool$normalized_affinity)
+    
+    # Sample n_arrivals from the recruitment pool based on each cell's normalized affinity
+    immigrants_tibble <- recruitment_pool %>%
+      mutate(cell_number = 1:n()) %>%
+      filter(cell_number %in% recruited_cell_numbers) %>%
       select(allele, affinity)
     
     clone_ids <- seq(from = clone_numbering_start, by = 1, length.out = nrow(immigrants_tibble))
@@ -264,7 +273,7 @@ quick_plotting_function <- function(GC_tibble){
 # If lambda_max is < 1, GC populations should die out
 # quick_plotting_function(
 #   simulate_GC_dynamics(nGCs = 2, allele_info, lambda_max = 0.9, K, mu, theta, mutation_rate, mutation_sd,
-#                        tmax = 100)) + ylim(0, K) + geom_hline(aes(yintercept = K), linetype = 2) 
+#                        tmax = 100)) + ylim(0, K) + geom_hline(aes(yintercept = K), linetype = 2)
 
 # Otherwise the total GC population size should remain around K
 # quick_plotting_function(

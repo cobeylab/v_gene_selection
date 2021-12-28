@@ -232,7 +232,7 @@ naive_vs_exp_freq <- allele_counts %>%
   geom_point(alpha = 0.5, aes(color = allele_type)) +
   geom_abline(intercept = 0, slope = 1, linetype = 2) +
   xlab('Naive frequency') +
-  ylab('Experienced frequency') +
+  ylab('Experienced frequency\nat the end of simulation') +
   theme(legend.position = 'top')  +
   scale_color_discrete(name = 'Allele type')
 
@@ -261,13 +261,42 @@ mean_clones_per_gc <- mean_clones_and_alleles_per_GC %>%
   ylab('Mean number of clones per GC')
 
 
+directionality_per_allele <- allele_counts %>%
+  filter(t %in% c(10,max(t))) %>%
+  mutate(direction_of_change = case_when(
+    freq_ratio > 1 ~ 'increase',
+    freq_ratio == 1 ~ 'stable',
+    freq_ratio < 1 ~ 'decrease'
+  )) %>%
+  group_by(t, allele, allele_type, naive_freq, direction_of_change) %>%
+  summarise(n_individuals = n()) %>%
+  ungroup() %>%
+  mutate(n_individuals = ifelse(direction_of_change == 'decrease',-n_individuals, n_individuals)) %>%
+  ggplot(aes(x = naive_freq, y = n_individuals, color = allele_type)) +
+  geom_col(size = 1.5) +
+  scale_y_continuous(limits = c(-length(unique(allele_counts$individual)),
+                                length(unique(allele_counts$individual)))) +
+  geom_hline(yintercept = 0, linetype = 2, size = 1.5) +
+  facet_wrap('t') +
+  ylab('Number of individuals\n decreasing | increasing') +
+  xlab('Naive frequency') +
+  theme(panel.border = element_rect(color = 'black'),
+        legend.position = 'top') +
+  background_grid()
 
-main_panel <- plot_grid(pairwise_corr_freqs,
-                        pairwise_corr_freq_ratios, 
-                        n_alleles_in_rep, repertoire_allele_diversity_pl,
-                        mean_alleles_per_gc, mean_clones_per_gc,
-                        naive_vs_exp_freq,naive_freq_vs_n_inds_present,
-                        nrow = 4)
+  
+
+
+main_panel <- plot_grid(
+  plot_grid(pairwise_corr_freqs,
+            pairwise_corr_freq_ratios, 
+            n_alleles_in_rep, repertoire_allele_diversity_pl,
+            mean_alleles_per_gc, mean_clones_per_gc,
+            naive_vs_exp_freq,naive_freq_vs_n_inds_present,
+            nrow = 4),
+  directionality_per_allele,
+  nrow = 2, rel_heights = c(4,1))
+  
 
 save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pdf'),
           plot_grid(ggdraw() + 
@@ -281,7 +310,7 @@ save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pd
                     main_panel,
                     nrow = 2,
                     rel_heights = c(1, 20)),
-          base_height = 20, base_width = 13)
+          base_height = 25, base_width = 13)
 
 
   
@@ -325,6 +354,19 @@ scatterplot_data <- left_join(pairwise_allele_freqs, allele_info %>% select(alle
          rank_freq_ratio_i = rank(freq_ratio_i, ties.method = 'average'),
          rank_freq_ratio_j = rank(freq_ratio_j, ties.method = 'average')) %>%
   ungroup()
+
+scatterplot_data %>%
+  ggplot(aes(x = experienced_freq_i, y = experienced_freq_j)) +
+  geom_point(size = 3, aes(color = allele_type), alpha = 0.8) +
+  geom_smooth(method = 'lm', color = 'black') +
+  facet_grid(t~pair, scales = 'free') +
+  #scale_color_viridis() +
+  theme(legend.position = 'top',
+        panel.border = element_rect(color = 'black')) +
+  xlab('Experienced frequency in individual i') +
+  ylab('Experienced frequency in individual j') 
+  #scale_y_log10() +
+  #scale_x_log10()
 
 
 freq_ratio_scatterplots <- scatterplot_data %>%
