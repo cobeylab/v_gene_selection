@@ -36,6 +36,15 @@ example_GCs <- results$example_GCs
 allele_counts <- results$allele_counts
 GC_statistics <- results$GC_statistics
 
+mean_GC_stats_per_time_per_individual <- GC_statistics %>%
+  group_by(individual, t) %>%
+  summarise(across(-any_of('GC'), mean))
+
+mean_GC_stats_per_time <- mean_GC_stats_per_time_per_individual %>%
+  group_by(t) %>%
+  summarise(across(-any_of('individual'), mean))
+
+
 # Completes allele_counts tibble so that zeros are explicitly represented in allele counts in the experienced repertoire
 # (uses allele_info to find the full set of alleles present in the naive repertoire)
 complete_allele_counts <- function(allele_counts, allele_info){
@@ -65,6 +74,11 @@ allele_counts <- left_join(allele_counts, allele_info %>%
                              select(allele, allele_type, naive_freq, expected_affinity)) %>%
   mutate(freq_ratio_log = log(experienced_freq) - log(naive_freq),
          freq_ratio = exp(freq_ratio_log)) %>% select(-freq_ratio_log)
+
+# Order alleles as a factor
+allele_order <- paste0('V',sort(as.integer(str_remove(unique(allele_counts$allele), 'V'))))
+allele_counts <- allele_counts %>%
+  mutate(allele = factor(allele, levels = allele_order))
 
 repertoire_allele_diversity <- allele_counts %>%
   group_by(t, individual, total_time_point_cells) %>%
@@ -155,6 +169,21 @@ save(list = renamed_objs, file = paste0(results_directory, basename(results_dire
 rm(list = renamed_objs)
 
 # Now making plots
+
+# Some plots have alleles' naive frequencies on x axis.
+# If using uniform naive frequencies, plot the alleles themselves as the x axis
+if(GC_parameters$uniform_naive_freqs){
+  x_axis_var <- 'allele'
+  xlabel <- 'Allele'
+  col_width <- 0.7 # Bar width for directionality plot
+}else{
+  x_axis_var <- 'naive_freq'
+  xlabel <- 'Naive frequency'
+  col_width <- 0.001 # Bar width for directionality plot
+  # (For some reason different on a continuous vs. discrete axis)
+}
+
+
 median_pairwise_correlations <- pairwise_correlations %>%
   group_by(t, method) %>%
   summarise(freq_correlation_lowerq = quantile(freq_correlation, 0.25, na.rm = T),
@@ -217,9 +246,9 @@ naive_freq_vs_n_inds_present <- allele_counts %>%
   filter(t == max(t)) %>%
   group_by(allele, naive_freq, allele_type) %>%
   summarise(n_inds_allele_present = sum(experienced_freq >0)) %>%
-  ggplot(aes(x = naive_freq, y = n_inds_allele_present)) +
+  ggplot(aes_string(x = x_axis_var, y = 'n_inds_allele_present')) +
   geom_point(aes(color = allele_type)) +
-  xlab('Naive frequency') +
+  xlab(xlabel) +
   ylab('N. individuals with allele \npresent at the end of simulation') +
   #theme(legend.position = c(0.7,0.1)) +
   theme(legend.position = 'top')  +
@@ -228,41 +257,58 @@ naive_freq_vs_n_inds_present <- allele_counts %>%
 
 naive_vs_exp_freq <- allele_counts %>%
   filter(t == max(t)) %>%
-  ggplot(aes(x = naive_freq, y = experienced_freq)) +
+  ggplot(aes_string(x = x_axis_var, y = 'experienced_freq')) +
   geom_point(alpha = 0.5, aes(color = allele_type)) +
   geom_abline(intercept = 0, slope = 1, linetype = 2) +
-  xlab('Naive frequency') +
+  xlab(xlabel) +
   ylab('Experienced frequency\nat the end of simulation') +
   theme(legend.position = 'top')  +
   scale_color_discrete(name = 'Allele type')
 
-mean_clones_and_alleles_per_GC <- GC_statistics %>%
-  group_by(individual, t) %>%
-  summarise(mean_clones_per_GC = mean(n_clones),
-            mean_alleles_per_GC = mean(n_alleles)) %>%
-  ungroup()
+mean_GC_total_pop <-  mean_GC_stats_per_time_per_individual  %>%
+  ggplot(aes(x = t, y = total_GC_pop)) +
+  geom_point(aes(group = individual), alpha = 0.5) +
+  geom_line(data = mean_GC_stats_per_time,
+            color = 'red', size = 1.5) +
+  xlab('Time') +
+  ylab('Mean total GC population') +
+  geom_hline(yintercept = GC_parameters$K, linetype = 2)
 
-mean_alleles_per_gc <- mean_clones_and_alleles_per_GC %>%
-  ggplot(aes(x = t, y = mean_alleles_per_GC)) +
+mean_freq_dominant_clone <- mean_GC_stats_per_time_per_individual  %>%
+  ggplot(aes(x = t, y = fraction_biggest_clone)) +
+  geom_point(aes(group = individual), alpha = 0.5) +
+  geom_line(data = mean_GC_stats_per_time,
+            color = 'red', size = 1.5) +
+  geom_vline(xintercept = 16, linetype = 2) +
+  geom_hline(yintercept = 0.4, linetype = 2) +
+  xlab('Time') +
+  ylab('Mean frequency of biggest clone within GCs')
+
+mean_freq_dominant_allele  <- mean_GC_stats_per_time_per_individual  %>%
+  ggplot(aes(x = t, y = fraction_most_common_allele)) +
+  geom_point(aes(group = individual), alpha = 0.5) +
+  geom_line(data = mean_GC_stats_per_time,
+            color = 'red', size = 1.5) +
+  xlab('Time') +
+  ylab('Mean frequency of most common allele within GCs')
+
+mean_alleles_per_gc <- mean_GC_stats_per_time_per_individual %>%
+  ggplot(aes(x = t, y = n_alleles)) +
   geom_line(aes(group = individual), alpha = 0.5) +
-  geom_line(data = mean_clones_and_alleles_per_GC %>% group_by(t) %>%
-              summarise(mean_alleles_per_GC = mean(mean_alleles_per_GC)) %>%
-              ungroup(), color = 'red', size = 1.5) +
+  geom_line(data = mean_GC_stats_per_time, color = 'red', size = 1.5) +
   xlab('Time') +
   ylab('Mean number of alleles per GC')
 
-mean_clones_per_gc <- mean_clones_and_alleles_per_GC %>%
-  ggplot(aes(x = t, y = mean_clones_per_GC)) +
+mean_clones_per_gc <- mean_GC_stats_per_time_per_individual %>%
+  ggplot(aes(x = t, y = n_clones)) +
   geom_line(aes(group = individual), alpha = 0.5) +
-  geom_line(data = mean_clones_and_alleles_per_GC %>% group_by(t) %>%
-              summarise(mean_clones_per_GC = mean(mean_clones_per_GC)) %>%
-              ungroup(), color = 'red', size = 1.5) +
+  geom_line(data = mean_GC_stats_per_time, color = 'red', size = 1.5) +
   xlab('Time') +
   ylab('Mean number of clones per GC')
 
 
 directionality_per_allele <- allele_counts %>%
-  filter(t %in% c(10,max(t))) %>%
+  filter(t %in% c(10,50,max(t))) %>%
   mutate(direction_of_change = case_when(
     freq_ratio > 1 ~ 'increase',
     freq_ratio == 1 ~ 'stable',
@@ -272,30 +318,32 @@ directionality_per_allele <- allele_counts %>%
   summarise(n_individuals = n()) %>%
   ungroup() %>%
   mutate(n_individuals = ifelse(direction_of_change == 'decrease',-n_individuals, n_individuals)) %>%
-  ggplot(aes(x = naive_freq, y = n_individuals, color = allele_type)) +
-  geom_col(size = 1.5) +
+  ggplot(aes_string(x = x_axis_var, y = 'n_individuals', fill = 'allele_type')) +
+  geom_col(width = col_width) +
   scale_y_continuous(limits = c(-length(unique(allele_counts$individual)),
                                 length(unique(allele_counts$individual)))) +
   geom_hline(yintercept = 0, linetype = 2, size = 1.5) +
   facet_wrap('t') +
   ylab('Number of individuals\n decreasing | increasing') +
-  xlab('Naive frequency') +
+  xlab(xlabel) +
   theme(panel.border = element_rect(color = 'black'),
         legend.position = 'top') +
   background_grid()
 
   
+pairwise_corr_row <- plot_grid(pairwise_corr_freqs, pairwise_corr_freq_ratios, nrow = 1)
+repertoire_stats_row <- plot_grid(n_alleles_in_rep, repertoire_allele_diversity_pl, nrow = 1)
+GC_stats_row <- plot_grid(mean_GC_total_pop, mean_freq_dominant_clone,
+                          mean_freq_dominant_allele, nrow = 1)
+naive_freq_scatterplots_row <- plot_grid(naive_vs_exp_freq,naive_freq_vs_n_inds_present, nrow = 1)
 
 
-main_panel <- plot_grid(
-  plot_grid(pairwise_corr_freqs,
-            pairwise_corr_freq_ratios, 
-            n_alleles_in_rep, repertoire_allele_diversity_pl,
-            mean_alleles_per_gc, mean_clones_per_gc,
-            naive_vs_exp_freq,naive_freq_vs_n_inds_present,
-            nrow = 4),
-  directionality_per_allele,
-  nrow = 2, rel_heights = c(4,1))
+main_panel <- plot_grid(pairwise_corr_row,
+                        repertoire_stats_row,
+                        GC_stats_row,
+                        naive_freq_scatterplots_row,
+                        directionality_per_allele,
+                        nrow = 5)
   
 
 save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pdf'),
@@ -319,14 +367,14 @@ save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pd
 individual_sample <- sample(unique(allele_counts$individual), size = 10, replace = F)
 
 arrow_plot <- allele_counts %>%
-  filter(t %in% c(10,200), individual %in% individual_sample) %>%
+  filter(t %in% c(10,50, max(t)), individual %in% individual_sample) %>%
   filter(allele_rank <= 20) %>%
   mutate(label_position = ifelse(experienced_freq > naive_freq, 1.05*experienced_freq, 1.05*naive_freq)) %>%
   
   ggplot(aes(x = allele_rank)) +
   geom_segment(aes(xend = allele_rank, y = naive_freq, yend = experienced_freq, color = allele_type),
                arrow = arrow(ends = 'last', length = unit(10, "pt"), type = 'closed')) +
-  facet_grid(t~individual) +
+  facet_grid(t~individual, scales = 'free') +
   geom_text(aes(label = allele,
                 x = allele_rank, y = label_position), angle = 20, size = 3, alpha = 0.8) +
   scale_x_continuous(expand = c(0.15,0)) +

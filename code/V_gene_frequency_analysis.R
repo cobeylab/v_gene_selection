@@ -89,7 +89,7 @@ plot_naive_freq_corr <- function(group_controls_pooled, tissue, cell_type){
   
   gene_freqs %>% 
     filter(group_controls_pooled == !!group_controls_pooled, tissue == !!tissue, cell_type == !!cell_type) %>%
-    #filter(total_compartment_seqs >= 100, total_mouse_naive_seqs >= 100) %>%
+    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
     ggplot(aes(x = naive_vgene_seq_freq, vgene_seq_freq)) +
     geom_point() +
     facet_wrap('mouse_id', nrow = 2) +
@@ -101,12 +101,20 @@ plot_naive_freq_corr <- function(group_controls_pooled, tissue, cell_type){
     ylab(paste0('Frequency in lymph node ', cell_type_label))
 }
 plot_naive_freq_corr('primary-8', 'LN','PC')
+plot_naive_freq_corr('primary-16', 'LN','PC')
+plot_naive_freq_corr('primary-24', 'LN','PC')
+
+
+
 plot_naive_freq_corr('primary-16', 'LN','GC')
 plot_naive_freq_corr('secondary-40', 'LN','GC')
 
 plot_naive_freq_corr('primary-8', 'LN','nonnaive_IgD+B220+')
 plot_naive_freq_corr('primary-16', 'LN','nonnaive_IgD+B220+')
 plot_naive_freq_corr('secondary-40', 'LN','nonnaive_IgD+B220+')
+
+
+
 
 
 # Spearman correlation coefficients

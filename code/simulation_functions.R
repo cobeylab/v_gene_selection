@@ -113,9 +113,16 @@ get_GC_tplus1 <- function(allele_info, GC_t, mu, theta, lambda_max, K, mutation_
   # For convenience, we define theta_adj, which gives the probability a cell will be randomly assigned to a GC which may be its current one. 
   # theta_adj is chosen such that the probability of going to ANOTHER gc is the chosen value theta
   number_of_GCs <- length(clone_numbering_start$GC)
-  theta_adj <- theta * number_of_GCs / (number_of_GCs - 1)
-  # i.e, theta_adj * (1 - 1/nGCs) = theta
-
+  
+  if(theta != 0){
+    stopifnot(number_of_GCs > 1) # Stops if a non-zero migration rate is specified but there's only one GC.
+    theta_adj <- theta * number_of_GCs / (number_of_GCs - 1)
+    # i.e, theta_adj * (1 - 1/nGCs) = theta
+  }else{
+    theta_adj <- theta # Only happens if theta = 0
+  }
+  
+  
   # At beginning of time step, new clones from the naive repertoire potentially arrive in each GC
   # clone_numbering_start is used to pass the numbering of clones in each GC
 
@@ -312,6 +319,7 @@ run_simulation <- function(nGCs, allele_info, lambda_max, K, mu, theta, mutation
     group_by(t, GC) %>%
     mutate(clone_freq = n / sum(n)) %>%
     summarise(n_clones = length(unique(clone_id)),
+              total_GC_pop = sum(n),
               fraction_biggest_clone = max(clone_freq),
               clone_diversity = 1 - sum(clone_freq^2)) %>%
     ungroup()
@@ -333,8 +341,6 @@ run_simulation <- function(nGCs, allele_info, lambda_max, K, mu, theta, mutation
   example_GC <- sample(1:nGCs, size = 1, replace = F)
   example_GC_trajectory <- simulation %>% filter(GC == example_GC)
   
-  
-
   return(list(allele_counts = allele_counts, GC_statistics = GC_statistics,
               example_GC_trajectory = example_GC_trajectory))
   
