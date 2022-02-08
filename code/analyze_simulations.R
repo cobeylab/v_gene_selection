@@ -361,6 +361,41 @@ save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pd
           base_height = 25, base_width = 13)
 
 
+# Results for Pearson correlation specifically
+pearson_pairwise_freqs <- pairwise_correlations  %>%
+  filter(method == 'pearson') %>%
+  ggplot(aes(x = t, y = freq_correlation)) +
+  geom_line(aes(group = pair), alpha = 0.1) +
+  geom_linerange(data = median_pairwise_correlations %>% filter(method == 'pearson'), 
+                 aes(ymin = freq_correlation_lowerq, ymax = freq_correlation_upperq),
+                 color = 'red', alpha = 0.8, size = 1) +
+  geom_line(data = median_pairwise_correlations %>%
+              filter(method == 'pearson'), color = 'red', size = 1.5) +
+  geom_hline(yintercept = 0, linetype =2) +
+  xlab('Time') +
+  ylab('Pairwise correlation in\nallele frequencies') +
+  ylim(-1,1) 
+
+pearson_pairwise_freq_ratios <- pairwise_correlations %>%
+  filter(method == 'pearson') %>%
+  ggplot(aes(x = t, y = freq_ratio_correlation)) +
+  geom_line(aes(group = pair), alpha = 0.2) +
+  geom_linerange(data = median_pairwise_correlations %>%
+                   filter(method == 'pearson'), 
+                 aes(ymin = freq_ratio_correlation_lowerq, ymax = freq_ratio_correlation_upperq),
+                 color = 'red', alpha = 0.8, size = 1) +
+  geom_line(data = median_pairwise_correlations %>%
+              filter(method == 'pearson'), color = 'red', size = 1.5)  +
+  geom_hline(yintercept = 0, linetype =2) +
+  xlab('Time') +
+  ylab('Pairwise correlation in\nexperienced-to-naive ratios') +
+  ylim(-1,1)
+
+save_plot(paste0(results_directory,'pearson_pairwise_cors.pdf'),
+          plot_grid(pearson_pairwise_freqs, 
+                    pearson_pairwise_freq_ratios,
+                    nrow = 2),
+          base_width = 5, base_height = 8)
   
 # Arrow plots
 # Arrow plots

@@ -8,11 +8,21 @@ theme_set(theme_cowplot())
 
 source('simulation_functions.R')
 
+selected_allele_eligibility_threshold <- 40 # Only alleles occurring in at least 
+
 # Scenarios are specified by alleles' affinity distributions and allele frequencies and 
 # by germinal center parameters (see simulation_functions.R)
 # Each class of allele has a mean alpha and a mean beta parameter.
 # Specific alphas and betas for each allele are obtained by adding a normally distributed error around 0 to their class mean values
 # Affinities for B cells using each allele are then distributed according to those specific alphas and betas.
+
+
+# To use realistic naive frequencies, import precomputed gene frequencies object
+
+load('../results/precomputed_gene_freqs_all_seqs.RData')
+#load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
+obs_naive_freqs <- naive_freqs
+
 
 generate_affinity_specs <- function(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
                                     alpha_sd, beta_sd){
@@ -26,6 +36,19 @@ generate_affinity_specs <- function(n_low_avg_alleles, n_high_avg_alleles, n_lon
          sd_beta = 0)
   
 }
+
+# Developing new function to use realistic allele sets
+generate_affinity_specs <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tail_alleles,
+                                    alpha_sd, beta_sd, selected_allele_eligibility_threshold){
+  
+  # Assigns simulated affinity distributions to alleles. 
+  # Uses empirical allele sets and naive frequencies. 
+  # The number of alleles with "high-average" or "long-tail" affinity distributions is input
+  # Only alleles that occur in at least  go in those categories
+  
+  
+}
+
 
 
 generate_affinity_distributions <- function(affinity_specs){
@@ -52,6 +75,9 @@ generate_naive_freqs <- function(allele_info){
     mutate(naive_freq = naive_freqs)
   return(allele_info)
 }
+
+
+
 
 create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
                             alpha_sd, beta_sd, nGCs, K, mu, theta, lambda_max, mutation_rate, mutation_sd,
@@ -155,22 +181,21 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_3/
                 uniform_naive_freqs = T)
 
 # ============================ NEUTRAL SCENARIO 4 ===================================
-# Like neutral scenario 1, but with a ton of seeding (high mu)
+# Like Non-neutral 7 but neutral (might be new default)
 create_scenario(scenario_directory = '../results/simulations/neutral_scenario_4/',
                 n_low_avg_alleles = 80,
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
                 alpha_sd = 0, beta_sd = 0,
                 nGCs = 10,
-                K = 1000, 
-                mu = 100, 
+                K = 2000, 
+                mu = 17, 
                 theta = 0,
-                lambda_max = 1.5, 
+                lambda_max = 1.1, 
                 mutation_rate = 0.01,
-                mutation_sd = 1, 
+                mutation_sd = 4, 
                 tmax = 200,
                 uniform_naive_freqs = F)
-
 
 
 # ============================ NEUTRAL SCENARIO 5 ===================================
@@ -197,15 +222,16 @@ create_scenario(scenario_directory = '../results/simulations/non_neutral_scenari
                 uniform_naive_freqs = T)
 
 # ============================ NON-NEUTRAL SCENARIO 2 ===================================
-# Like non-neutral scenario 1, but with bigger mutation step, slower dynamics
+# Like non-neutral scenario 1, but with bigger mutation step, slower dynamics,
+# more GCs, less seeding
 create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_2/',
                 n_low_avg_alleles = 79,
                 n_high_avg_alleles = 1,
                 n_long_tail_alleles = 0,
                 alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
+                nGCs = 20,
                 K = 1000, 
-                mu = 10, 
+                mu = 1, 
                 theta = 0,
                 lambda_max = 1.1, 
                 mutation_rate = 0.01,
@@ -247,6 +273,8 @@ create_scenario(scenario_directory = '../results/simulations/non_neutral_scenari
                 tmax = 200,
                 uniform_naive_freqs = T)
 
+
+
 # ============================ NON-NEUTRAL SCENARIO 5 ===================================
 # Like non-neutral scenario 3, but with migration between GCs
 create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_5/',
@@ -282,23 +310,37 @@ create_scenario(scenario_directory = '../results/simulations/non_neutral_scenari
                 uniform_naive_freqs = F)
 
 # ============================ NON-NEUTRAL SCENARIO 7 ===================================
-# Like non-neutral scenario 3, but with ....???
-# create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_7/',
-#                 n_low_avg_alleles = 75,
-#                 n_high_avg_alleles = 5,
-#                 n_long_tail_alleles = 0,
-#                 alpha_sd = 0, beta_sd = 0,
-#                 nGCs = 10,
-#                 K = 5000, 
-#                 mu = 10, 
-#                 theta = 0,
-#                 lambda_max = 1.1, 
-#                 mutation_rate = 0.01,
-#                 mutation_sd = 4, 
-#                 tmax = 200,
-#                 uniform_naive_freqs = T)
+create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_7/',
+                n_low_avg_alleles = 75,
+                n_high_avg_alleles = 5,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 10,
+                K = 2000, 
+                mu = 17, 
+                theta = 0,
+                lambda_max = 1.1, 
+                mutation_rate = 0.01,
+                mutation_sd = 4, 
+                tmax = 200,
+                uniform_naive_freqs = F)
 
-
+# ============================ NON-NEUTRAL SCENARIO 8 ===================================
+# like 8 but with 10 high average genes
+create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_8/',
+                n_low_avg_alleles = 70,
+                n_high_avg_alleles = 10,
+                n_long_tail_alleles = 0,
+                alpha_sd = 0, beta_sd = 0,
+                nGCs = 10,
+                K = 2000, 
+                mu = 17, 
+                theta = 0,
+                lambda_max = 1.1, 
+                mutation_rate = 0.01,
+                mutation_sd = 4, 
+                tmax = 200,
+                uniform_naive_freqs = F)
 
 
 
