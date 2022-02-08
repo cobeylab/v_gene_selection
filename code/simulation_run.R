@@ -17,7 +17,9 @@ allele_info_file_path <- args[1] # allele_info_file_path = '../results/simulatio
 GC_parameters_file_path <- args[2] # GC_parameters_file_path = '../results/simulations/neutral_scenario_1/GC_parameters.csv'
 individual_id <- args[3]
 
-allele_info <- read_csv(allele_info_file_path)
+allele_info <- read_csv(allele_info_file_path) %>%
+  filter(individual == individual_id) %>% select(-individual)
+
 output_directory <- paste0(dirname(allele_info_file_path),'/')
 
 GC_parameters <- read_csv(GC_parameters_file_path)

@@ -30,6 +30,16 @@ echo Rscript simulation_run.R $path_to_allele_info $path_to_GC_parameters '${SLU
 
 
 # Run job array (1 job per individual)
-sbatch --array=1-${n_individuals} $sbatch_file     
+# Randomly samples individuals from the 40 mice with 1000 or more naive seqs to use
+# as basis of simulation
+
+sampled_individuals=$(shuf -i 1-40 -n $n_individuals | tr '\n' ',')
+sampled_individuals=${sampled_individuals::-1}
+
+
+sbatch --array=$sampled_individuals $sbatch_file     
 # Remove sbatch file
 rm $sbatch_file
+
+
+

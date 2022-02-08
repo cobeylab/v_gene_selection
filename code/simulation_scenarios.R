@@ -7,8 +7,11 @@ library(readr)
 theme_set(theme_cowplot())
 
 source('simulation_functions.R')
+source('gene_frequency_functions.R')
 
-selected_allele_eligibility_threshold <- 40 # Only alleles occurring in at least 
+selected_allele_eligibility_threshold <- 40 # Only alleles occurring in at least these many mice can be under positive allele-level selection
+
+min_naive_seqs <- 1000 # Only use mice with at least 1000 naive seqs as a base for simulations
 
 # Scenarios are specified by alleles' affinity distributions and allele frequencies and 
 # by germinal center parameters (see simulation_functions.R)
@@ -21,81 +24,109 @@ selected_allele_eligibility_threshold <- 40 # Only alleles occurring in at least
 
 load('../results/precomputed_gene_freqs_all_seqs.RData')
 #load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
-obs_naive_freqs <- naive_freqs
+obs_naive_freqs <- naive_freqs %>%
+  filter(total_mouse_naive_seqs >= min_naive_seqs)
+
+obs_naive_freqs <- adjust_zero_naive_freqs(obs_naive_freqs)
 
 
-generate_affinity_specs <- function(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
-                                    alpha_sd, beta_sd){
-  tibble(allele_type = c('low_avg', 'high_avg', 'long_tail'),
-         expected_alpha = c(6, 10, 1), # FOR NOW THESE ARE FIXED
-         expected_beta = c(2, 2, 0.25), # FOR NOW THESE ARE FIXED
-         #expected_alpha = c(8, 10, 2), 
-         #expected_beta = c(2, 2, 0.5), 
-         n_alleles = c(n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles),
-         sd_alpha = 0,
-         sd_beta = 0)
+generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tail_alleles,
+                                 selected_allele_eligibility_threshold){
   
-}
-
-# Developing new function to use realistic allele sets
-generate_affinity_specs <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tail_alleles,
-                                    alpha_sd, beta_sd, selected_allele_eligibility_threshold){
-  
-  # Assigns simulated affinity distributions to alleles. 
+  # Assigns simulated affinity distributions to alleles. For each allele, the distribution is the same in all individuals where it occurs 
   # Uses empirical allele sets and naive frequencies. 
   # The number of alleles with "high-average" or "long-tail" affinity distributions is input
-  # Only alleles that occur in at least  go in those categories
+  # Only alleles that occur in at least n = selected_allele_eligibility_threshold mice go can go in those categories
+  # All alleles not in the "high-average" or "long-tail" categories go in the "low-average category".
+  
+  n_alleles_in_data <- length(obs_naive_freqs %>% select(v_gene) %>% unique() %>% pull(v_gene))
+  stopifnot(n_high_avg_alleles + n_long_tail_alleles < n_alleles_in_data)
   
   
-}
-
-
-
-generate_affinity_distributions <- function(affinity_specs){
-  affinity_specs %>%
-    uncount(n_alleles) %>%
-    mutate(allele = paste0('V',1:n())) %>%
-    select(allele, everything()) %>%
-    mutate(alpha = expected_alpha + rnorm(n(), mean = 0, sd = sd_alpha),
-           beta = expected_beta + rnorm(n(), mean = 0, sd = sd_beta)) %>%
-    select(-expected_alpha, -expected_beta, -sd_alpha, -sd_beta) %>%
-    mutate(expected_affinity = alpha / beta)
-}
-
-generate_naive_freqs <- function(allele_info){
-  # Allele info is the output of generate_affinity_distributions
-  # In addition to a distribution of affinities, each gene is assigned a naive frequency
-  # Naive frequencies sampled from a Dirichlet distribution using average freqs. for each rank as alpha parameters
-  # For development, using a Dirichlet with Poisson alphas + 1
-  alphas <- rpois(nrow(allele_info),1) + 1
-  naive_freqs <- rdirichlet(nrow(allele_info), alphas)[1,]
-  #hist(naive_freqs)
+  # Object specifying gamma distribution parameter for each allele category
+  allele_types <-   tibble(allele_type = c('low_avg', 'high_avg', 'long_tail'),
+                           alpha = c(6, 10, 1), # FOR NOW THESE ARE FIXED
+                           beta = c(2, 2, 0.25), # FOR NOW THESE ARE FIXED
+                           #alpha = c(8, 10, 2), 
+                           #beta = c(2, 2, 0.5)
+                           expected_affinity = alpha / beta
+                           )
   
-  allele_info <- allele_info %>%
-    mutate(naive_freq = naive_freqs)
+  
+  #First, assign all alleles in all mice to the low_avg category
+  allele_info <- obs_naive_freqs %>%
+    select(mouse_id, v_gene, naive_vgene_seq_freq) %>%
+    dplyr::rename(naive_freq = naive_vgene_seq_freq) %>%
+    mutate(allele_type = 'low_avg')
+  
+  
+  if(n_high_avg_alleles > 0 | n_long_tail_alleles > 0){
+    candidate_selected_alleles <- obs_naive_freqs %>% group_by(v_gene) %>% filter(naive_vgene_seq_freq > 0) %>%
+      summarise(n_mice = length(unique(mouse_id))) %>%
+      filter(n_mice >= selected_allele_eligibility_threshold) %>% pull(v_gene)
+    
+    high_avg_alleles <- sample(candidate_selected_alleles,size = n_high_avg_alleles, replace = F)
+    long_tail_alleles <- sample(candidate_selected_alleles[!(candidate_selected_alleles %in% high_avg_alleles)],
+                               size = n_long_tail_alleles, replace = F)
+    
+    allele_info$allele_type[allele_info$v_gene %in% high_avg_alleles] <- 'high_avg'
+    allele_info$allele_type[allele_info$v_gene %in% long_tail_alleles] <- 'long_tail'
+    
+
+  }
+
+  # Replace mouse and gene ids with arbitrary integer ids
+  
+  individual_integer_ids <- obs_naive_freqs %>% select(mouse_id) %>% unique() %>% mutate(individual = 1:n())
+  
+  allele_integer_ids <- obs_naive_freqs %>% select(v_gene) %>% unique() %>% mutate(allele = 1:n()) %>%
+    mutate(allele = paste0('V', allele))
+  
+  allele_info <- left_join(allele_info, individual_integer_ids) %>% select(-mouse_id)
+  allele_info <- left_join(allele_info, allele_integer_ids) %>% select(-v_gene) %>%
+    select(individual, allele, allele_type, naive_freq)
+  
+  # Add gamma-distribution parameters to the allele_info tibble
+  allele_info <- left_join(allele_info, 
+                           allele_types)
   return(allele_info)
+  
 }
 
 
+# Old function using Dirichlet draws
+# generate_naive_freqs <- function(allele_info){
+#   # Allele info is the output of generate_affinity_distributions
+#   # In addition to a distribution of affinities, each gene is assigned a naive frequency
+#   # Naive frequencies sampled from a Dirichlet distribution using average freqs. for each rank as alpha parameters
+#   # For development, using a Dirichlet with Poisson alphas + 1
+#   alphas <- rpois(nrow(allele_info),1) + 1
+#   naive_freqs <- rdirichlet(nrow(allele_info), alphas)[1,]
+#   #hist(naive_freqs)
+#   
+#   allele_info <- allele_info %>%
+#     mutate(naive_freq = naive_freqs)
+#   return(allele_info)
+# }
 
 
-create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_alleles, n_long_tail_alleles,
-                            alpha_sd, beta_sd, nGCs, K, mu, theta, lambda_max, mutation_rate, mutation_sd,
-                            tmax, uniform_naive_freqs){
+create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele_eligibility_threshold, 
+                            n_high_avg_alleles, n_long_tail_alleles, nGCs, K, mu, theta,
+                            lambda_max, mutation_rate, mutation_sd, tmax,
+                            uniform_naive_freqs){
 
-  affinity_specs <- generate_affinity_specs(n_low_avg_alleles = n_low_avg_alleles,
-                                            n_high_avg_alleles = n_high_avg_alleles,
-                                            n_long_tail_alleles = n_long_tail_alleles,
-                                            alpha_sd = alpha_sd, beta_sd = beta_sd)
+  allele_info <- generate_allele_info(obs_naive_freqs = obs_naive_freqs,
+                                      n_high_avg_alleles = n_high_avg_alleles,
+                                      n_long_tail_alleles = n_long_tail_alleles, 
+                                      selected_allele_eligibility_threshold = selected_allele_eligibility_threshold)
   
-  allele_info <- generate_affinity_distributions(affinity_specs = affinity_specs)
   
   if(uniform_naive_freqs){
-    allele_info <- allele_info %>% mutate(naive_freq = 1 / length(unique(allele_info$allele)))
-  }else{
-    allele_info <- generate_naive_freqs(allele_info = allele_info)
+    allele_info <- allele_info %>% 
+      group_by(individual) %>%
+      mutate(naive_freq = 1 /n())
   }
-  #hist(allele_info$naive_freq)
+  
   
   GC_parameters <- tibble(
     nGCs = nGCs, # Number of germinal centers in an individual
@@ -129,64 +160,13 @@ create_scenario <- function(scenario_directory, n_low_avg_alleles, n_high_avg_al
   
 }
 
-# Neutral scenarios where all alleles have IDENTICAL affinity distributions (default no migration)
+
 # ============================ NEUTRAL SCENARIO 1 ===================================
 create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
-                n_low_avg_alleles = 80,
+                obs_naive_freqs = obs_naive_freqs,
+                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 1000, 
-                mu = 10, 
-                theta = 0,
-                lambda_max = 1.5, 
-                mutation_rate = 0.01,
-                mutation_sd = 1, 
-                tmax = 200,
-                uniform_naive_freqs = F)
-
-# ============================ NEUTRAL SCENARIO 2 ===================================
-# Like neutral scenario 1, slower max growth and WITHOUT MUTATIONS
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/',
-                n_low_avg_alleles = 80,
-                n_high_avg_alleles = 0,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 1000, 
-                mu = 10, 
-                theta = 0,
-                lambda_max = 1.05, 
-                mutation_rate = 0,
-                mutation_sd = 0, 
-                tmax = 200,
-                uniform_naive_freqs = F)
-
-# ============================ NEUTRAL SCENARIO 3 ===================================
-# like neutral scenario 1, but with uniform naive freqs.
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario_3/',
-                n_low_avg_alleles = 80,
-                n_high_avg_alleles = 0,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 1000, 
-                mu = 10, 
-                theta = 0,
-                lambda_max = 1.5, 
-                mutation_rate = 0.01,
-                mutation_sd = 0.33, 
-                tmax = 200,
-                uniform_naive_freqs = T)
-
-# ============================ NEUTRAL SCENARIO 4 ===================================
-# Like Non-neutral 7 but neutral (might be new default)
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario_4/',
-                n_low_avg_alleles = 80,
-                n_high_avg_alleles = 0,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
                 nGCs = 10,
                 K = 2000, 
                 mu = 17, 
@@ -197,124 +177,52 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_4/
                 tmax = 200,
                 uniform_naive_freqs = F)
 
+# ============================ NEUTRAL SCENARIO 2 ===================================
+# Like neutral scenario 1 but with uniform naive frequencies
+create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/',
+                obs_naive_freqs = obs_naive_freqs,
+                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+                n_high_avg_alleles = 0,
+                n_long_tail_alleles = 0,
+                nGCs = 10,
+                K = 2000, 
+                mu = 17, 
+                theta = 0,
+                lambda_max = 1.1, 
+                mutation_rate = 0.01,
+                mutation_sd = 4, 
+                tmax = 200,
+                uniform_naive_freqs = T)
 
-# ============================ NEUTRAL SCENARIO 5 ===================================
-# Like neutral scenario 1, but with uniform naive frequencies in all individuals
+
 
 
 
 
 # ============================ NON-NEUTRAL SCENARIO 1 ===================================
-# Like neutral scenario 1, but with 79 low average and 1 high average alleles, also uniform naive freqs.
+# Like neutral scenario 1, but with 5 high average alleles
 create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_1/',
-                n_low_avg_alleles = 79,
-                n_high_avg_alleles = 1,
+                obs_naive_freqs = obs_naive_freqs,
+                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+                n_high_avg_alleles = 5,
                 n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
                 nGCs = 10,
-                K = 1000, 
-                mu = 10, 
+                K = 2000, 
+                mu = 17, 
                 theta = 0,
-                lambda_max = 1.5, 
+                lambda_max = 1.1, 
                 mutation_rate = 0.01,
-                mutation_sd = 1, 
+                mutation_sd = 4, 
                 tmax = 200,
-                uniform_naive_freqs = T)
+                uniform_naive_freqs = F)
 
 # ============================ NON-NEUTRAL SCENARIO 2 ===================================
-# Like non-neutral scenario 1, but with bigger mutation step, slower dynamics,
-# more GCs, less seeding
+# Like non-neutral scenario 1, but with uniform naive frequencies
 create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_2/',
-                n_low_avg_alleles = 79,
-                n_high_avg_alleles = 1,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 20,
-                K = 1000, 
-                mu = 1, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = T)
-
-# ============================ NON-NEUTRAL SCENARIO 3 ===================================
-# Like non-neutral scenario 2, but with 5 high affinity alleles and higher K
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_3/',
-                n_low_avg_alleles = 75,
+                obs_naive_freqs = obs_naive_freqs,
+                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 5,
                 n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 5000, 
-                mu = 10, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = T)
-
-# ============================ NON-NEUTRAL SCENARIO 4 ===================================
-# Like non-neutral scenario 3, but with higher K
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_4/',
-                n_low_avg_alleles = 75,
-                n_high_avg_alleles = 5,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 10000, 
-                mu = 10, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = T)
-
-
-
-# ============================ NON-NEUTRAL SCENARIO 5 ===================================
-# Like non-neutral scenario 3, but with migration between GCs
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_5/',
-                n_low_avg_alleles = 75,
-                n_high_avg_alleles = 5,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 5000, 
-                mu = 10, 
-                theta = 0.0001,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = T)
-
-# ============================ NON-NEUTRAL SCENARIO 6 ===================================
-# Like non-neutral scenario 5, but with non-uniform naive frequencies
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_6/',
-                n_low_avg_alleles = 75,
-                n_high_avg_alleles = 5,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 5000, 
-                mu = 10, 
-                theta = 0.0001,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = F)
-
-# ============================ NON-NEUTRAL SCENARIO 7 ===================================
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_7/',
-                n_low_avg_alleles = 75,
-                n_high_avg_alleles = 5,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
                 nGCs = 10,
                 K = 2000, 
                 mu = 17, 
@@ -323,29 +231,5 @@ create_scenario(scenario_directory = '../results/simulations/non_neutral_scenari
                 mutation_rate = 0.01,
                 mutation_sd = 4, 
                 tmax = 200,
-                uniform_naive_freqs = F)
-
-# ============================ NON-NEUTRAL SCENARIO 8 ===================================
-# like 8 but with 10 high average genes
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_8/',
-                n_low_avg_alleles = 70,
-                n_high_avg_alleles = 10,
-                n_long_tail_alleles = 0,
-                alpha_sd = 0, beta_sd = 0,
-                nGCs = 10,
-                K = 2000, 
-                mu = 17, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = F)
-
-
-
-
-
-
-
+                uniform_naive_freqs = T)
 

@@ -18,17 +18,22 @@ GC_parameters <- read_csv(paste0(results_directory, 'GC_parameters.csv'))
 # Plot annotation with parameters
 parameter_annotation <- paste(paste(names(GC_parameters) , GC_parameters[1,], sep = ' = '), collapse = ' ; ')
 
-
-
 example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1]
 GC_statistics_files <- list.files(results_directory, pattern = 'GC_statistics', full.names = T)
 repertoire_allele_counts_files <- list.files(results_directory, pattern = 'repertoire_counts',
                                           full.names = T)
 
+
+# Cobine results files across individuals
 results <- lapply(list(example_GCs = example_GC_files, GC_statistics = GC_statistics_files,
                        allele_counts = repertoire_allele_counts_files),
        FUN = function(file_paths){
-         bind_rows(lapply(as.list(file_paths), FUN = read_csv), .id = 'individual') %>%
+         bind_rows(lapply(as.list(file_paths),
+                          FUN = function(path){
+                            individual_id = str_extract(path, 'individual_[0-9]+')
+                            individual_id = as.integer(str_remove(individual_id, 'individual_'))
+                            return(read_csv(path) %>% mutate(individual = individual_id))
+                            })) %>%
            select(individual, everything())
        })
 
@@ -46,18 +51,19 @@ mean_GC_stats_per_time <- mean_GC_stats_per_time_per_individual %>%
 
 
 # Completes allele_counts tibble so that zeros are explicitly represented in allele counts in the experienced repertoire
-# (uses allele_info to find the full set of alleles present in the naive repertoire)
+# (uses allele_info to find the full set of alleles present in the naive repertoire for each individual)
+
 complete_allele_counts <- function(allele_counts, allele_info){
-  complete_scaffold <- as_tibble(expand.grid(t = unique(allele_counts$t),
-                                             individual = unique(allele_counts$individual),
-                                             allele = unique(allele_info$allele))) %>%
-    select(t, allele, individual) %>%
-    arrange(t, allele, individual)
+  
+  # All alleles of an individual explicitly represented at all time points
+  complete_scaffold <- left_join(expand_grid(individual = unique(allele_counts$individual),
+                                             t = unique(allele_counts$t)),
+                                 allele_info %>% select(individual, allele))
   
   left_join(complete_scaffold, allele_counts) %>%
     replace_na(list(n = 0))
-  
 }
+
 
 allele_counts <- complete_allele_counts(allele_counts = allele_counts, allele_info = allele_info)
 
@@ -71,7 +77,7 @@ allele_counts <- allele_counts %>%
 
 # Add allele affinities /types, add naive allele frequencies and compute experienced-to-naive ratios,
 allele_counts <- left_join(allele_counts, allele_info %>%
-                             select(allele, allele_type, naive_freq, expected_affinity)) %>%
+                             select(individual, allele, allele_type, naive_freq, expected_affinity)) %>%
   mutate(freq_ratio_log = log(experienced_freq) - log(naive_freq),
          freq_ratio = exp(freq_ratio_log)) %>% select(-freq_ratio_log)
 
@@ -127,7 +133,8 @@ get_pairwise_values <- function(allele_counts){
     return(pair_values)
   }
   
-  paired_tibble <- bind_rows(lapply(as.list(unique_pairs), FUN = internal_function, allele_counts = allele_counts))
+  paired_tibble <- bind_rows(lapply(as.list(unique_pairs), FUN = internal_function, allele_counts = allele_counts)) %>%
+    mutate(individual_i = as.integer(individual_i), individual_j = as.integer(individual_j))
   
   # Add back total cells for each individual at each time point.
   paired_tibble <- left_join(paired_tibble,
