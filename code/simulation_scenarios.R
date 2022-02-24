@@ -111,8 +111,8 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tai
 
 
 create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele_eligibility_threshold, 
-                            n_high_avg_alleles, n_long_tail_alleles, nGCs, K, mu, theta,
-                            lambda_max, mutation_rate, mutation_sd, tmax,
+                            n_high_avg_alleles, n_long_tail_alleles, nGCs, K, lambda_imm, mu_max, delta,
+                            mutation_rate, mutation_sd, tmax,
                             uniform_naive_freqs){
 
   allele_info <- generate_allele_info(obs_naive_freqs = obs_naive_freqs,
@@ -120,23 +120,21 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
                                       n_long_tail_alleles = n_long_tail_alleles, 
                                       selected_allele_eligibility_threshold = selected_allele_eligibility_threshold)
   
-  
   if(uniform_naive_freqs){
     allele_info <- allele_info %>% 
       group_by(individual) %>%
       mutate(naive_freq = 1 /n())
   }
   
-  
-  GC_parameters <- tibble(
-    nGCs = nGCs, # Number of germinal centers in an individual
-    K = K, # carrying capacity of germinal centers
-    mu = mu, # expected number of newly recruited clones arriving at germinal centers per time step
-    theta = theta,
-    lambda_max = lambda_max, # expected reproductive rate per B cell in an empty germinal center
-    mutation_rate = mutation_rate, # mutation probability per B cell per time step
-    mutation_sd = mutation_sd, # standard deviation for normal distribution of mutational effects (mean 0)
-    tmax = tmax, # Number of time steps observed,
+  model_parameters <- tibble(
+    nGCs = nGCs, 
+    K = K, 
+    lambda_imm = lambda_imm, 
+    mu_max = mu_max,
+    delta = delta,
+    mutation_rate = mutation_rate, 
+    mutation_sd = mutation_sd, 
+    tmax = tmax,
     uniform_naive_freqs = uniform_naive_freqs
   )
   
@@ -155,8 +153,8 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
             paste0(scenario_directory, 'allele_info.csv'))
   
   # Export GC parameters
-  write_csv(GC_parameters,
-            paste0(scenario_directory, 'GC_parameters.csv'))
+  write_csv(model_parameters,
+            paste0(scenario_directory, 'model_parameters.csv'))
   
 }
 
@@ -169,67 +167,11 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 n_long_tail_alleles = 0,
                 nGCs = 10,
                 K = 2000, 
-                mu = 17, 
-                theta = 0,
-                lambda_max = 1.1, 
+                lambda_imm = 17, 
+                mu_max = 3.5,
+                delta = 0.1, 
                 mutation_rate = 0.01,
                 mutation_sd = 4, 
-                tmax = 200,
+                tmax = 30,
                 uniform_naive_freqs = F)
-
-# ============================ NEUTRAL SCENARIO 2 ===================================
-# Like neutral scenario 1 but with uniform naive frequencies
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/',
-                obs_naive_freqs = obs_naive_freqs,
-                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                n_high_avg_alleles = 0,
-                n_long_tail_alleles = 0,
-                nGCs = 10,
-                K = 2000, 
-                mu = 17, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = T)
-
-
-
-
-
-
-# ============================ NON-NEUTRAL SCENARIO 1 ===================================
-# Like neutral scenario 1, but with 5 high average alleles
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_1/',
-                obs_naive_freqs = obs_naive_freqs,
-                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                n_high_avg_alleles = 5,
-                n_long_tail_alleles = 0,
-                nGCs = 10,
-                K = 2000, 
-                mu = 17, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = F)
-
-# ============================ NON-NEUTRAL SCENARIO 2 ===================================
-# Like non-neutral scenario 1, but with uniform naive frequencies
-create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_2/',
-                obs_naive_freqs = obs_naive_freqs,
-                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                n_high_avg_alleles = 5,
-                n_long_tail_alleles = 0,
-                nGCs = 10,
-                K = 2000, 
-                mu = 17, 
-                theta = 0,
-                lambda_max = 1.1, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
-                tmax = 200,
-                uniform_naive_freqs = T)
 

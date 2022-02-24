@@ -7,14 +7,14 @@ theme_set(theme_cowplot())
 
 args <- commandArgs(trailingOnly = T)
 
-source('simulation_functions.R')
+source('simulation_gillespie.R')
 
 # File specifying alleles' affinity distributions and naive frequencies
 allele_info_file_path <- args[1] # allele_info_file_path = '../results/simulations/neutral_scenario_1/allele_info.csv'
 
 
 # File specifying germina center parameters
-GC_parameters_file_path <- args[2] # GC_parameters_file_path = '../results/simulations/neutral_scenario_1/GC_parameters.csv'
+model_parameters_file_path <- args[2] # model_parameters_file_path = '../results/simulations/neutral_scenario_1/model_parameters.csv'
 individual_id <- args[3]
 
 allele_info <- read_csv(allele_info_file_path) %>%
@@ -22,38 +22,21 @@ allele_info <- read_csv(allele_info_file_path) %>%
 
 output_directory <- paste0(dirname(allele_info_file_path),'/')
 
-GC_parameters <- read_csv(GC_parameters_file_path)
-GC_parameters <- unlist(GC_parameters)
-for(i in 1:length(GC_parameters)){
-  assign(names(GC_parameters)[i], GC_parameters[i])
+model_parameters <- read_csv(model_parameters_file_path)
+model_parameters <- unlist(model_parameters)
+for(i in 1:length(model_parameters)){
+  assign(names(model_parameters)[i], model_parameters[i])
 }
-# nGCs: Number of germinal centers in an individual
-# tmax: Number of timesteps observed
-# K: carrying capacity of germinal centers
-# mu :expected number of newly recruited clones arriving at germinal centers per time step
-# theta: probability that a B cell migrates to a different germinal center per time step.
-# lambda_max: 1.5 expected reproductive rate per B cell in an empty germinal center
-# mutation_rate: mutation probability per B cell per time step
-# mutation_sd: standard deviation for the distribution of mutational effects (mean 0)
-# uniform_naive_freqs: TRUE if all alleles have the same naive frequency.
 
-# If randomizing naive frequencies in each individual, export a record of each individual's naive freqs.
-#if(randomize_naive_freqs_in_each_individual){
-#  allele_info$naive_freq <- sample(allele_info$naive_freq, size = length(allele_info$naive_freq), replace =F)
-#  write_csv(allele_info %>% select(allele, naive_freq) %>% mutate(individual = individual_id) %>%
-#              select(individual, everything()),
-#            file = paste0(output_directory,'randomized_naive_freqs_individual_', individual_id, '.csv'))
-#  
-#}
+# See script with simulation functions for parameter definitions
 
 individual_simulation <- run_simulation(nGCs = nGCs,
-                                        allele_info = allele_info,
-                                        lambda_max = lambda_max,
-                                        K = K,
-                                        mu = mu,
-                                        theta = theta,
+                                        lambda_imm = lambda_imm,
+                                        mu_max = mu_max,
+                                        delta = delta, 
                                         mutation_rate = mutation_rate,
                                         mutation_sd = mutation_sd,
+                                        allele_info = allele_info,
                                         tmax = tmax)
   
 write_csv(individual_simulation$allele_counts,
@@ -66,8 +49,3 @@ if(as.integer(individual_id) <= 5){
   write_csv(individual_simulation$example_GC_trajectory,
             file = paste0(output_directory,'example_GC_individual_', individual_id, '.csv'))
 }
-
-#system.time(
-#  simulate_repertoire_allele_counts(nGCs = 10, allele_info, lambda_max, K, mu, mutation_rate, mutation_sd, tmax)
-#)  
-

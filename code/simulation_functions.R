@@ -1,6 +1,5 @@
 # Functions for simulating the recruitment, competition and evolution of B cell lineages in GCs
 # While keeping track of V allele usage and clone's identities
-# See simulation_scenarios.R for
 
 library(dplyr)
 library(tidyr)
@@ -15,8 +14,8 @@ recruitment_pool_size <- 1000
 
 
 # Paths for easy access during development:
-# allele_info <- read_csv('../results/simulations/neutral_scenario_1/allele_info.csv')
-# GC_parameters <-  read_csv('../results/simulations/neutral_scenario_1/GC_parameters.csv')
+# allele_info <- read_csv('../results/simulations/neutral_scenario_1/allele_info.csv') %>% filter(individual == 1) %>% select(-individual)
+# model_parameters <-  read_csv('../results/simulations/neutral_scenario_1/model_parameters.csv')
 
 # nGCs: Number of germinal centers in an individual
 #tmax: Number of time steps observed
