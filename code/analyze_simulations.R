@@ -12,11 +12,13 @@ source('simulation_functions.R')
 args <- commandArgs(trailingOnly = T) 
 results_directory <- args[1] # results_directory <- '../results/simulations/neutral_scenario_1/'
 
+print(results_directory)
+
 allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
-GC_parameters <- read_csv(paste0(results_directory, 'GC_parameters.csv'))
+model_parameters <- read_csv(paste0(results_directory, 'model_parameters.csv'))
   
 # Plot annotation with parameters
-parameter_annotation <- paste(paste(names(GC_parameters) , GC_parameters[1,], sep = ' = '), collapse = ' ; ')
+parameter_annotation <- paste(paste(names(model_parameters) , model_parameters[1,], sep = ' = '), collapse = ' ; ')
 
 example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1]
 GC_statistics_files <- list.files(results_directory, pattern = 'GC_statistics', full.names = T)
@@ -179,7 +181,7 @@ rm(list = renamed_objs)
 
 # Some plots have alleles' naive frequencies on x axis.
 # If using uniform naive frequencies, plot the alleles themselves as the x axis
-if(GC_parameters$uniform_naive_freqs){
+if(model_parameters$uniform_naive_freqs){
   x_axis_var <- 'allele'
   xlabel <- 'Allele'
   col_width <- 0.7 # Bar width for directionality plot
@@ -279,7 +281,7 @@ mean_GC_total_pop <-  mean_GC_stats_per_time_per_individual  %>%
             color = 'red', size = 1.5) +
   xlab('Time') +
   ylab('Mean total GC population') +
-  geom_hline(yintercept = GC_parameters$K, linetype = 2)
+  geom_hline(yintercept = model_parameters$K, linetype = 2)
 
 mean_freq_dominant_clone <- mean_GC_stats_per_time_per_individual  %>%
   ggplot(aes(x = t, y = fraction_biggest_clone)) +
@@ -644,10 +646,27 @@ allele_counts %>%
 #   xlab('Time') +
 #   ylab('Number of V alleles in GC')
 
+example_GCs %>% group_by(t, clone_id, individual, GC) %>% count() %>%
+  ungroup() %>%
+  ggplot(aes(x = t, y = n)) +
+  geom_line(aes(group = clone_id)) +
+  #xlim(0,50) +
+  #scale_y_log10() +
+  facet_wrap('individual')
+
+
+example_GCs %>% group_by(individual, GC, t, clone_id) %>% summarise(mean_affinity = mean(affinity)) %>%
+  ungroup() %>%
+  ggplot(aes(x = t, y = mean_affinity)) +
+  geom_line(aes(group = clone_id)) +
+  facet_wrap('individual')
 
 
 
 
-
-
+example_GCs %>%
+  filter(individual == 2, clone_id %in% c(4,9)) %>%
+  group_by(clone_id, t) %>%
+  ggplot(aes(x = t, y = affinity)) +
+  geom_line(aes(group = clone_id))
 

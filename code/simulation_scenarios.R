@@ -166,12 +166,14 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
                 nGCs = 10,
-                K = 2000, 
-                lambda_imm = 17, 
-                mu_max = 3.5,
-                delta = 0.1, 
+                K = 1000, 
+                lambda_imm = 5, 
+                mu_max = 2,
+                delta = 0.05, 
                 mutation_rate = 0.01,
                 mutation_sd = 4, 
-                tmax = 30,
+                tmax = 50,
                 uniform_naive_freqs = F)
+
+###
 

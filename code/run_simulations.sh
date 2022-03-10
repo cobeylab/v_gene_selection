@@ -3,7 +3,7 @@ scenario_dir=$1 # Path to directory containing allele info file and GC pars file
 n_individuals=$2 # Number of individuals to simulate
 
 path_to_allele_info=${scenario_dir}/allele_info.csv
-path_to_GC_parameters=${scenario_dir}/GC_parameters.csv
+path_to_model_parameters=${scenario_dir}/model_parameters.csv
 
 
 sbatch_file_id=$(basename $scenario_dir)
@@ -24,7 +24,7 @@ echo "#SBATCH --mem-per-cpu=15000" >> $sbatch_file
 
 echo module load R/3.6.1 >> $sbatch_file
 
-echo Rscript simulation_run.R $path_to_allele_info $path_to_GC_parameters '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
+echo Rscript simulation_run.R $path_to_allele_info $path_to_model_parameters '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
 
 # ----------------------------------------------------------------------------------------
 
@@ -41,5 +41,5 @@ sbatch --array=$sampled_individuals $sbatch_file
 # Remove sbatch file
 rm $sbatch_file
 
-
+    
 
