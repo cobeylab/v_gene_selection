@@ -16,32 +16,48 @@ print(results_directory)
 
 allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
 model_parameters <- read_csv(paste0(results_directory, 'model_parameters.csv'))
-  
+simulations <- read_csv(paste0(results_directory, 'combined_simulations.csv'))
+
 # Plot annotation with parameters
 parameter_annotation <- paste(paste(names(model_parameters) , model_parameters[1,], sep = ' = '), collapse = ' ; ')
 
-example_GC_files <- list.files(results_directory, pattern = 'example_GC', full.names = T)[1]
-GC_statistics_files <- list.files(results_directory, pattern = 'GC_statistics', full.names = T)
-repertoire_allele_counts_files <- list.files(results_directory, pattern = 'repertoire_counts',
-                                          full.names = T)
 
+# Compute allele frequencies over time and metrics of diversity for each GC in each individual
 
-# Cobine results files across individuals
-results <- lapply(list(example_GCs = example_GC_files, GC_statistics = GC_statistics_files,
-                       allele_counts = repertoire_allele_counts_files),
-       FUN = function(file_paths){
-         bind_rows(lapply(as.list(file_paths),
-                          FUN = function(path){
-                            individual_id = str_extract(path, 'individual_[0-9]+')
-                            individual_id = as.integer(str_remove(individual_id, 'individual_'))
-                            return(read_csv(path) %>% mutate(individual = individual_id))
-                            })) %>%
-           select(individual, everything())
-       })
+allele_freqs_by_GC <- simulations %>%
+  group_by(individual, t, GC, allele) %>%
+  summarise(n_cells = sum(clone_size)) %>%
+  group_by(individual, t, GC) %>%
+  mutate(allele_freq = n_cells / sum(n_cells)) %>%
+  ungroup()
 
-example_GCs <- results$example_GCs
-allele_counts <- results$allele_counts
-GC_statistics <- results$GC_statistics
+allele_diversity_by_GC <-  allele_freqs_by_GC %>%
+  group_by(individual, t, GC) %>%
+  summarise(n_alleles = length(unique(allele)),
+            fraction_most_common_allele = max(allele_freq),
+            allele_diversity = 1 - sum(allele_freq^2)) %>%
+  ungroup()
+
+clone_diversity_by_GC <- simulations %>%
+  group_by(individual, t, GC) %>%
+  summarise(n_clones = length(unique(clone_id)),
+            total_GC_pop = sum(clone_size),
+            fraction_biggest_clone = max(clone_freq),
+            clone_diversity = 1 - sum(clone_freq^2)) %>%
+  ungroup()
+
+GC_statistics <- left_join(clone_diversity_by_GC, allele_diversity_by_GC, by = c('individual','t','GC'))
+
+  
+# Repertoire-wide allele freqs (aggregated across individual GCs)
+repertoire_allele_freqs <- simulations %>%
+  group_by(individual, t, allele) %>%
+  summarise(n_cells = sum(clone_size)) %>%
+  group_by(individual, t) %>%
+  mutate(experienced_freq = n_cells / sum(n_cells)) %>%
+  ungroup()
+
+# ================
 
 mean_GC_stats_per_time_per_individual <- GC_statistics %>%
   group_by(individual, t) %>%
@@ -52,43 +68,42 @@ mean_GC_stats_per_time <- mean_GC_stats_per_time_per_individual %>%
   summarise(across(-any_of('individual'), mean))
 
 
-# Completes allele_counts tibble so that zeros are explicitly represented in allele counts in the experienced repertoire
+# Completes repertoire_allele_freqs tibble so that zeros are explicitly represented in allele counts in the experienced repertoire
 # (uses allele_info to find the full set of alleles present in the naive repertoire for each individual)
 
-complete_allele_counts <- function(allele_counts, allele_info){
+complete_repertoire_allele_freqs <- function(repertoire_allele_freqs, allele_info){
   
   # All alleles of an individual explicitly represented at all time points
-  complete_scaffold <- left_join(expand_grid(individual = unique(allele_counts$individual),
-                                             t = unique(allele_counts$t)),
+  complete_scaffold <- left_join(expand_grid(individual = unique(repertoire_allele_freqs$individual),
+                                             t = unique(repertoire_allele_freqs$t)),
                                  allele_info %>% select(individual, allele))
   
-  left_join(complete_scaffold, allele_counts) %>%
-    replace_na(list(n = 0))
+  left_join(complete_scaffold, repertoire_allele_freqs) %>%
+    replace_na(list(n_cells = 0, experienced_freq = 0))
 }
 
 
-allele_counts <- complete_allele_counts(allele_counts = allele_counts, allele_info = allele_info)
+repertoire_allele_freqs <- complete_repertoire_allele_freqs(repertoire_allele_freqs = repertoire_allele_freqs, allele_info = allele_info)
 
 # Compute experienced frequencies and total cells in the repertoire per time point
-allele_counts <- allele_counts %>%
+repertoire_allele_freqs <- repertoire_allele_freqs %>%
   group_by(t, individual) %>%
-  mutate(total_time_point_cells = sum(n),
-         experienced_freq = n/total_time_point_cells,
+  mutate(total_time_point_cells = sum(n_cells),
          allele_rank = rank(-experienced_freq, ties.method = 'first')) %>%
   ungroup()
 
 # Add allele affinities /types, add naive allele frequencies and compute experienced-to-naive ratios,
-allele_counts <- left_join(allele_counts, allele_info %>%
+repertoire_allele_freqs <- left_join(repertoire_allele_freqs, allele_info %>%
                              select(individual, allele, allele_type, naive_freq, expected_affinity)) %>%
   mutate(freq_ratio_log = log(experienced_freq) - log(naive_freq),
          freq_ratio = exp(freq_ratio_log)) %>% select(-freq_ratio_log)
 
 # Order alleles as a factor
-allele_order <- paste0('V',sort(as.integer(str_remove(unique(allele_counts$allele), 'V'))))
-allele_counts <- allele_counts %>%
+allele_order <- paste0('V',sort(as.integer(str_remove(unique(repertoire_allele_freqs$allele), 'V'))))
+repertoire_allele_freqs <- repertoire_allele_freqs %>%
   mutate(allele = factor(allele, levels = allele_order))
 
-repertoire_allele_diversity <- allele_counts %>%
+repertoire_allele_diversity <- repertoire_allele_freqs %>%
   group_by(t, individual, total_time_point_cells) %>%
   summarise(repertoire_allele_diversity = 1 - sum(experienced_freq^2),
             n_alleles_in_experienced_repertoire = sum(experienced_freq>0)) %>%
@@ -98,8 +113,8 @@ repertoire_allele_diversity <- allele_counts %>%
 
 # Not worth trying to use get_pairwise_freqs function written for obs data (too many other variables/groupings) 
 # Best to write a function specific for these simulations even though it will look similar
-get_pairwise_values <- function(allele_counts){
-  unique_pairs <- allele_counts %>% select(individual) %>% unique() %>%
+get_pairwise_values <- function(repertoire_allele_freqs){
+  unique_pairs <- repertoire_allele_freqs %>% select(individual) %>% unique() %>%
     dplyr::rename(ind_i = individual) %>%
     mutate(ind_j = ind_i) %>%
     complete(ind_i, ind_j) %>%
@@ -111,19 +126,19 @@ get_pairwise_values <- function(allele_counts){
     unique() %>% pull(pair)
   
   # Will add these back later to fill full-join missing values in rows where a gene is missing from one individual
-  total_time_point_cells <- allele_counts %>% select(individual, t, total_time_point_cells) %>% unique()
+  total_time_point_cells <- repertoire_allele_freqs %>% select(individual, t, total_time_point_cells) %>% unique()
   
   
-  internal_function <- function(pair, allele_counts){
+  internal_function <- function(pair, repertoire_allele_freqs){
     
     ind_specific_vars <- c('individual','n', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
                            'allele_rank')
     
     individual_ids <- str_split(pair,';')[[1]]
     
-    ind_i_values <- allele_counts %>% filter(individual == individual_ids[1])  %>%
+    ind_i_values <- repertoire_allele_freqs %>% filter(individual == individual_ids[1])  %>%
       rename_with(.cols = any_of(ind_specific_vars), .fn = function(x){paste0(x,'_i')})
-    ind_j_values <- allele_counts %>% filter(individual == individual_ids[2])  %>%
+    ind_j_values <- repertoire_allele_freqs %>% filter(individual == individual_ids[2])  %>%
       rename_with(.cols = any_of(ind_specific_vars), .fn = function(x){paste0(x,'_j')})
     
     pair_values <- full_join(ind_i_values %>% select(-total_time_point_cells_i),
@@ -135,7 +150,7 @@ get_pairwise_values <- function(allele_counts){
     return(pair_values)
   }
   
-  paired_tibble <- bind_rows(lapply(as.list(unique_pairs), FUN = internal_function, allele_counts = allele_counts)) %>%
+  paired_tibble <- bind_rows(lapply(as.list(unique_pairs), FUN = internal_function, repertoire_allele_freqs = repertoire_allele_freqs)) %>%
     mutate(individual_i = as.integer(individual_i), individual_j = as.integer(individual_j))
   
   # Add back total cells for each individual at each time point.
@@ -153,7 +168,7 @@ get_pairwise_values <- function(allele_counts){
     
 }
 
-pairwise_allele_freqs <- get_pairwise_values(allele_counts)
+pairwise_allele_freqs <- get_pairwise_values(repertoire_allele_freqs)
 
 
 
@@ -169,10 +184,10 @@ pairwise_correlations <- bind_rows(pairwise_allele_freqs %>% mutate(method = 'pe
 
 
 # Before making plots, export major objects in an .RData file.
-for(obj in c('allele_counts','pairwise_allele_freqs','GC_statistics')){
+for(obj in c('repertoire_allele_freqs','pairwise_allele_freqs','GC_statistics')){
   assign(paste0('simulated_',obj), get(obj))
 }
-renamed_objs <- paste0('simulated_',c('allele_counts','pairwise_allele_freqs','GC_statistics'))
+renamed_objs <- paste0('simulated_',c('repertoire_allele_freqs','pairwise_allele_freqs','GC_statistics'))
 
 save(list = renamed_objs, file = paste0(results_directory, basename(results_directory), '_results.RData'))
 rm(list = renamed_objs)
@@ -251,7 +266,7 @@ repertoire_allele_diversity_pl <- repertoire_allele_diversity %>%
             color = 'red', size = 1.5) +
   xlab('Time') + ylab('Repertoire allele diversity')
 
-naive_freq_vs_n_inds_present <- allele_counts %>%
+naive_freq_vs_n_inds_present <- repertoire_allele_freqs %>%
   filter(t == max(t)) %>%
   group_by(allele, naive_freq, allele_type) %>%
   summarise(n_inds_allele_present = sum(experienced_freq >0)) %>%
@@ -264,7 +279,7 @@ naive_freq_vs_n_inds_present <- allele_counts %>%
   scale_color_discrete(name = 'Allele type')
 
 
-naive_vs_exp_freq <- allele_counts %>%
+naive_vs_exp_freq <- repertoire_allele_freqs %>%
   filter(t == max(t)) %>%
   ggplot(aes_string(x = x_axis_var, y = 'experienced_freq')) +
   geom_point(alpha = 0.5, aes(color = allele_type)) +
@@ -316,7 +331,7 @@ mean_clones_per_gc <- mean_GC_stats_per_time_per_individual %>%
   ylab('Mean number of clones per GC')
 
 
-directionality_per_allele <- allele_counts %>%
+directionality_per_allele <- repertoire_allele_freqs %>%
   filter(t %in% c(10,50,max(t))) %>%
   mutate(direction_of_change = case_when(
     freq_ratio > 1 ~ 'increase',
@@ -329,8 +344,8 @@ directionality_per_allele <- allele_counts %>%
   mutate(n_individuals = ifelse(direction_of_change == 'decrease',-n_individuals, n_individuals)) %>%
   ggplot(aes_string(x = x_axis_var, y = 'n_individuals', fill = 'allele_type')) +
   geom_col(width = col_width) +
-  scale_y_continuous(limits = c(-length(unique(allele_counts$individual)),
-                                length(unique(allele_counts$individual)))) +
+  scale_y_continuous(limits = c(-length(unique(repertoire_allele_freqs$individual)),
+                                length(unique(repertoire_allele_freqs$individual)))) +
   geom_hline(yintercept = 0, linetype = 2, size = 1.5) +
   facet_wrap('t') +
   ylab('Number of individuals\n decreasing | increasing') +
@@ -408,9 +423,9 @@ save_plot(paste0(results_directory,'pearson_pairwise_cors.pdf'),
   
 # Arrow plots
 # Arrow plots
-individual_sample <- sample(unique(allele_counts$individual), size = 10, replace = F)
+individual_sample <- sample(unique(repertoire_allele_freqs$individual), size = 10, replace = F)
 
-arrow_plot <- allele_counts %>%
+arrow_plot <- repertoire_allele_freqs %>%
   filter(t %in% c(10,50, max(t)), individual %in% individual_sample) %>%
   filter(allele_rank <= 20) %>%
   mutate(label_position = ifelse(experienced_freq > naive_freq, 1.05*experienced_freq, 1.05*naive_freq)) %>%
@@ -527,7 +542,7 @@ shared_genes_in_top_10 %>%
 
 
 # Fraction of sequences accounted for by top 10 alleles
-allele_counts %>%
+repertoire_allele_freqs %>%
   group_by(t, individual,) %>%
   filter(allele_rank <= 10) %>%
   summarise(fraction_seqs_in_top_alleles = sum(experienced_freq)) %>%
@@ -536,7 +551,7 @@ allele_counts %>%
   scale_x_log10()
 
 # Number of top 10 alleles over time coming from each class of allele
-allele_counts %>%
+repertoire_allele_freqs %>%
   group_by(t, individual,) %>%
   filter(allele_rank <= 10, experienced_freq > 0) %>% # experienced_freq >0 to only count alleles effectively present
   group_by(t, individual, allele_type) %>%
@@ -550,7 +565,7 @@ allele_counts %>%
   
 
 # Combined frequency over time for each type of allele
-combined_freq_by_allele_type <- allele_counts %>%
+combined_freq_by_allele_type <- repertoire_allele_freqs %>%
   group_by(individual, t, allele_type) %>%
   summarise(combined_freq = sum(experienced_freq)) %>%
   ungroup()
@@ -559,8 +574,8 @@ combined_freq_by_allele_type <- allele_counts %>%
 combined_freqs_in_naive_rep <- allele_info %>% group_by(allele_type) %>%
   summarise(combined_freq = sum(naive_freq))
 
-combined_freqs_in_naive_rep <- left_join(expand.grid(individual = unique(allele_counts$individual),
-                      allele_type = unique(allele_counts$allele_type),
+combined_freqs_in_naive_rep <- left_join(expand.grid(individual = unique(repertoire_allele_freqs$individual),
+                      allele_type = unique(repertoire_allele_freqs$allele_type),
                       t = 0),
           combined_freqs_in_naive_rep)
 
@@ -575,7 +590,7 @@ combined_freq_by_allele_type %>%
   scale_x_log10() +
   geom_smooth(aes(color = allele_type))
 
-allele_counts %>%
+repertoire_allele_freqs %>%
   filter(individual %in% as.character(1:10)) %>%
   ggplot(aes(x = t, y = experienced_freq, group = allele, color = allele_type)) +
   geom_line() +
@@ -590,7 +605,7 @@ allele_counts %>%
 
 # Old plots (review and delete)
 
-# allele_counts %>%
+# repertoire_allele_freqs %>%
 #   filter(t == max(t)) %>%
 #   mutate(change_in_frequency = case_when(
 #     freq_ratio ==1 ~ 'none',
@@ -662,11 +677,32 @@ example_GCs %>% group_by(individual, GC, t, clone_id) %>% summarise(mean_affinit
   facet_wrap('individual')
 
 
+clone_sizes_at_tmax <- example_GCs %>%
+  group_by(individual, GC, clone_id) %>%
+  filter(t == max(t)) %>%
+  count() %>%
+  dplyr::rename(clone_final_size = n) %>%
+  group_by(individual, GC) %>%
+  mutate(clone_final_freq = clone_final_size / sum(clone_final_size)) %>%
+  ungroup()
+
+clone_arrival_times <- example_GCs %>%
+  group_by(individual, GC, clone_id) %>%
+  summarise(clone_arrival = min(t))
+  
+left_join(clone_sizes_at_tmax, clone_arrival_times) %>%
+  ggplot(aes(x = clone_arrival, y = clone_final_freq )) +
+  geom_point() +
+  facet_wrap('individual')
 
 
-example_GCs %>%
-  filter(individual == 2, clone_id %in% c(4,9)) %>%
+example_GCs %>% filter(individual == 12) %>%
+  filter(t == max(t)) %>%
+  group_by(clone_id) %>% count() %>% arrange(desc(n))
+
+example_GCs %>% filter(individual == 12, clone_id %in% c(6,8)) %>%
   group_by(clone_id, t) %>%
-  ggplot(aes(x = t, y = affinity)) +
-  geom_line(aes(group = clone_id))
+  summarise(mean_affinity = mean(affinity)) %>%
+  ggplot(aes(x = t, y = mean_affinity, group = clone_id)) +
+  geom_line(aes(color = factor(clone_id)))
 

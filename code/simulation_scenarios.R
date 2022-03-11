@@ -94,7 +94,7 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tai
 }
 
 
-# Old function using Dirichlet draws
+# Old function using Dirichlet draws to generate naive frequencies (now using empirical frequencies)
 # generate_naive_freqs <- function(allele_info){
 #   # Allele info is the output of generate_affinity_distributions
 #   # In addition to a distribution of affinities, each gene is assigned a naive frequency
@@ -111,9 +111,9 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tai
 
 
 create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele_eligibility_threshold, 
-                            n_high_avg_alleles, n_long_tail_alleles, nGCs, K, lambda_imm, mu_max, delta,
+                            n_high_avg_alleles, n_long_tail_alleles, K, lambda_imm, mu_max, delta,
                             mutation_rate, mutation_sd, tmax,
-                            uniform_naive_freqs){
+                            uniform_naive_freqs, fixed_initial_affinities){
 
   allele_info <- generate_allele_info(obs_naive_freqs = obs_naive_freqs,
                                       n_high_avg_alleles = n_high_avg_alleles,
@@ -127,7 +127,6 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
   }
   
   model_parameters <- tibble(
-    nGCs = nGCs, 
     K = K, 
     lambda_imm = lambda_imm, 
     mu_max = mu_max,
@@ -135,7 +134,8 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
     mutation_rate = mutation_rate, 
     mutation_sd = mutation_sd, 
     tmax = tmax,
-    uniform_naive_freqs = uniform_naive_freqs
+    uniform_naive_freqs = uniform_naive_freqs,
+    fixed_initial_affinities = fixed_initial_affinities
   )
   
   # Showing what the affinity distributions look like
@@ -165,15 +165,15 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
-                nGCs = 10,
-                K = 1000, 
-                lambda_imm = 5, 
+                K = 2000, 
+                lambda_imm = 17, 
                 mu_max = 2,
-                delta = 0.05, 
-                mutation_rate = 0.01,
-                mutation_sd = 4, 
+                delta = 0.1, 
+                mutation_rate = 0.05,
+                mutation_sd = 10, 
                 tmax = 50,
-                uniform_naive_freqs = F)
+                uniform_naive_freqs = F,
+                fixed_initial_affinities = T)
 
 ###
 

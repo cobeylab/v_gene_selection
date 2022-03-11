@@ -19,10 +19,6 @@ recruitment_pool_size <- 1000
 test_allele_info <- read_csv('test_allele_info.csv')
 
 
-# Paths for easy access during development:
-# model_parameters <-  read_csv('../results/
-
-# nGCs: Number of germinal centers in an individual
 #tmax: Maximum simulation time.
 # K: carrying capacity of germinal centers
 # lambda_imm: rate of clone arrivals at germinal centers per time day
@@ -90,7 +86,6 @@ recruit_naive_clone <- function(allele_info, fixed_initial_affinities){
   
   return(immigrant_tibble)
 }
-
 
 
 simulate_GC_dynamics <- function(K, lambda_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
@@ -197,60 +192,30 @@ simulate_GC_dynamics <- function(K, lambda_imm, mu_max, delta, mutation_rate, mu
   return(GC_tibble)
 }
 
-run_simulation <- function(K, nGCs, lambda_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
+master_simulation_function <- function(K,lambda_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
                            initial_GC_state = NULL, fixed_initial_affinities){
   
   observation_times <- c(1, seq(5, tmax, 5))
   
-  simulation <- replicate(n = nGCs,
-                          simulate_GC_dynamics(K = K, lambda_imm = lambda_imm, mu_max = mu_max, delta = delta,
+  simulation <- simulate_GC_dynamics(K = K, lambda_imm = lambda_imm, mu_max = mu_max, delta = delta,
                                                mutation_rate = mutation_rate, mutation_sd = mutation_sd,
                                                allele_info = allele_info, tmax = tmax,
                                                observation_times = observation_times,
-                                               initial_GC_state = initial_GC_state), 
-    simplify = F
-  )
+                                               initial_GC_state = initial_GC_state,
+                                               fixed_initial_affinities = fixed_initial_affinities)
   
-  simulation <- bind_rows(simulation, .id = 'GC')
-  
-  # Repertoire allele counts (aggregated across individual GCs)
-  allele_counts <- simulation %>%
-    group_by(t, allele) %>%
-    count() %>%
+  # Return clone counts per GC over time, together with clone statistics (mean, median and SD affinity)
+  clone_stats_per_GC <- simulation %>%
+    group_by(t, clone_id, allele) %>%
+    summarise(clone_size = n(),
+              mean_affinity = mean(affinity),
+              median_affinity = median(affinity),
+              sd_affinity = sd(affinity)) %>%
+    group_by(t) %>%
+    mutate(clone_freq = clone_size / sum(clone_size)) %>%
     ungroup()
   
-  # Export some statistics (but not full population structure) for each GC at each time step
-  clone_diversity_by_GC <- simulation %>%
-    group_by(t, GC, clone_id) %>%
-    count() %>%
-    group_by(t, GC) %>%
-    mutate(clone_freq = n / sum(n)) %>%
-    summarise(n_clones = length(unique(clone_id)),
-              total_GC_pop = sum(n),
-              fraction_biggest_clone = max(clone_freq),
-              clone_diversity = 1 - sum(clone_freq^2)) %>%
-    ungroup()
-  
-  allele_diversity_by_GC <- simulation %>%
-    group_by(t, GC, allele) %>%
-    count() %>%
-    group_by(t, GC) %>%
-    mutate(allele_freq = n / sum(n)) %>%
-    summarise(n_alleles = length(unique(allele)),
-              fraction_most_common_allele = max(allele_freq),
-              allele_diversity = 1 - sum(allele_freq^2)) %>%
-    ungroup()
-  
-  GC_statistics <- left_join(clone_diversity_by_GC, allele_diversity_by_GC, by = c('t','GC'))
-  
-  # Example GC
-  # Export the detailed trajectory (size of each clone at each time step) for an example GC
-  example_GC <- sample(1:nGCs, size = 1, replace = F)
-  example_GC_trajectory <- simulation %>% filter(GC == example_GC)
-  
-  return(list(allele_counts = allele_counts, GC_statistics = GC_statistics,
-              example_GC_trajectory = example_GC_trajectory))
-  
+  return(clone_stats_per_GC)
 }
 
 
@@ -260,13 +225,13 @@ run_simulation <- function(K, nGCs, lambda_imm, mu_max, delta, mutation_rate, mu
 #                                      tmax = 10, observation_times = c(1,5,10)))
 
 # Quick plots for visual tests:
-# quick_plotting_function <- function(GC_tibble, allele_info){
-#   left_join(GC_tibble, allele_info %>% select(allele, allele_type)) %>%
-#     group_by(t, clone_id, allele, allele_type) %>% count() %>% 
-#     ggplot(aes(x = t, y = n, group = clone_id)) +
-#     geom_line(aes(color = allele_type)) +
-#     theme(legend.position = 'top')
-# }
+quick_plotting_function <- function(GC_tibble, allele_info){
+  left_join(GC_tibble, allele_info %>% select(allele, allele_type)) %>%
+    group_by(t, clone_id, allele, allele_type) %>% count() %>%
+    ggplot(aes(x = t, y = n, group = clone_id)) +
+    geom_line(aes(color = allele_type)) +
+    theme(legend.position = 'top')
+}
 
 # Some visual tests:
 # If mu_max is < delta, clones should consistently die out
@@ -290,10 +255,10 @@ run_simulation <- function(K, nGCs, lambda_imm, mu_max, delta, mutation_rate, mu
  
  
 # An arbitrary initial state for testing purposes. Two clones with the same initial abundance but different affinities
-#test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
-#                          affinity = c(rep(1,20), rep(1.2, 20)),
-#                          clone_id = c(rep(1,20), rep(2, 20)),
-#                          t = 0)
+test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
+                         affinity = c(rep(1,20), rep(1.2, 20)),
+                         clone_id = c(rep(1,20), rep(2, 20)),
+                         t = 0)
 
 # Without immigration and mutation, clone 2 should consistently win out:
 # bind_rows(replicate(n = 5, simulate_GC_dynamics(K = 100, lambda_imm = 0, mu_max = 2, delta = 0.5,
