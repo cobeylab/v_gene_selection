@@ -111,7 +111,7 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tai
 
 
 create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele_eligibility_threshold, 
-                            n_high_avg_alleles, n_long_tail_alleles, K, lambda_imm, mu_max, delta,
+                            n_high_avg_alleles, n_long_tail_alleles, K, I_total, t_imm, mu_max, delta,
                             mutation_rate, mutation_sd, tmax,
                             uniform_naive_freqs, fixed_initial_affinities){
 
@@ -128,7 +128,8 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
   
   model_parameters <- tibble(
     K = K, 
-    lambda_imm = lambda_imm, 
+    I_total = I_total,
+    t_imm = t_imm,
     mu_max = mu_max,
     delta = delta,
     mutation_rate = mutation_rate, 
@@ -166,9 +167,10 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
                 K = 2000, 
-                lambda_imm = 17, 
+                I_total = 100, 
+                t_imm = 6,
                 mu_max = 2,
-                delta = 0.1, 
+                delta = 0.3333, 
                 mutation_rate = 0.05,
                 mutation_sd = 10, 
                 tmax = 50,

@@ -33,7 +33,8 @@ for(i in 1:length(model_parameters)){
 # See script with simulation functions for parameter definitions
 
 simulation <- master_simulation_function(K = K,
-                             lambda_imm = lambda_imm,
+                             I_total = I_total,
+                             t_imm = t_imm,
                              mu_max = mu_max,
                              delta = delta, 
                              mutation_rate = mutation_rate,

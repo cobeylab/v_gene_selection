@@ -21,7 +21,8 @@ test_allele_info <- read_csv('test_allele_info.csv')
 
 #tmax: Maximum simulation time.
 # K: carrying capacity of germinal centers
-# lambda_imm: rate of clone arrivals at germinal centers per time day
+# I_total: expected total number of clones that will seed GCs
+# t_imm: by at which seeding of GCs will stop.
 # mu_max: expected reproductive rate per B cell (day^-1) in an empty germinal center
 # delta: per-capita death rate per day
 # mutation_rate: mutation probability per B cell per division
@@ -35,14 +36,12 @@ get_pop_mu <- function(N, mu_max, alpha){
 }
 
 # Given lambda_imm, mu_max and K, calculate lambda so that expected population growth is zero with N = K
-get_alpha <- function(mu_max, delta, K, lambda_imm){
+get_alpha <- function(mu_max, delta, K){
   
-  stopifnot((delta*K) > lambda_imm) # No solution for alpha otherwise
-  
-  alpha <- (log(mu_max) + log(K) - log(delta*K - lambda_imm)) / K
+  alpha <- (log(mu_max) - log(delta)) / K
   mu_at_K <- get_pop_mu(N = K, mu_max = mu_max, alpha = alpha)
   # Expected population growth is zero at N = K if this equality is true:
-  stopifnot(abs(mu_at_K * K + lambda_imm - delta*K) < 1e-7)
+  stopifnot(abs(mu_at_K * K - delta*K) < 1e-7)
   names(alpha) = ''
   return(alpha)
 }
@@ -87,17 +86,29 @@ recruit_naive_clone <- function(allele_info, fixed_initial_affinities){
   return(immigrant_tibble)
 }
 
+# Get immigration rate:
+# Immigration rate declines linearly until reaching 0 on day t_imm.
+# We choose t_mm and the total number of immigrants by t_imm, I_total.
+# Then compute coefficients accordingly
+get_immigration_parameters <- function(I_total, t_imm){
+  slope = -2*I_total/(t_imm ^ 2)
+  intercept = 2 * I_total / t_imm 
+  return(list(slope = slope, intercept = intercept))
+}
 
-simulate_GC_dynamics <- function(K, lambda_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
+
+simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
                                  observation_times, initial_GC_state = NULL, fixed_initial_affinities){
   
   # Compute alpha (how fast division rate decreases with increasing pop size in GC.)
-  alpha <- get_alpha(mu_max = mu_max, delta = delta, K = K, lambda_imm = lambda_imm)
+  alpha <- get_alpha(mu_max = mu_max, delta = delta, K = K)
+  
+  # Immigration parameters
+  imm_pars <- get_immigration_parameters(I_total = I_total, t_imm = t_imm)
   
   time <- 0
   
   clone_numbering_start <- 1
-  
   
   if(!is.null(initial_GC_state)){
     GC_t <- initial_GC_state
@@ -112,10 +123,14 @@ simulate_GC_dynamics <- function(K, lambda_imm, mu_max, delta, mutation_rate, mu
     
   }
   
-
-  
-  
   while(time < tmax){
+    
+    # Compute immigration rate (immigration stops at time == t_imm)
+    if(time <= t_imm){
+      lambda_imm = imm_pars$intercept + time * imm_pars$slope
+    }else{
+      lambda_imm <- 0
+    } 
     
     # Current total population size in GC (all clones)
     current_GC_pop <- nrow(GC_t)
@@ -127,82 +142,89 @@ simulate_GC_dynamics <- function(K, lambda_imm, mu_max, delta, mutation_rate, mu
     # Compute total rate of events lambda
     lambda <- lambda_imm + lambda_div + lambda_death
     
-    # Sample time to next event:
-    time_to_next_event <- rexp(n = 1, rate = lambda)
-    
-    # Decide if it's time to export a snapshot
-    # For instance, if the next event is the first event after time t=10, export current state as the state at t=10.
-    snapshot_interval_current <- findInterval(time, observation_times)
-    snapshot_interval_next <- findInterval(time + time_to_next_event, observation_times)
-    
-    if(snapshot_interval_current != snapshot_interval_next){
-      export_snapshot <- T
-      snapshot_time <- observation_times[snapshot_interval_next]
-      GC_tibble <- bind_rows(GC_tibble, GC_t %>% mutate(t = snapshot_time) %>% select(t, everything()))
+    # If lambda is zero (GC population extinct after the end of immigration), stop simulation
+    if(lambda == 0){
+      time <- tmax
+    # Otherwise simulate next event
+    }else{
+      # Sample time to next event:
+      time_to_next_event <- rexp(n = 1, rate = lambda)
+      
+      # Decide if it's time to export a snapshot
+      # For instance, if the next event is the first event after time t=10, export current state as the state at t=10.
+      snapshot_interval_current <- findInterval(time, observation_times)
+      snapshot_interval_next <- findInterval(time + time_to_next_event, observation_times)
+      
+      if(snapshot_interval_current != snapshot_interval_next){
+        export_snapshot <- T
+        snapshot_time <- observation_times[snapshot_interval_next]
+        GC_tibble <- bind_rows(GC_tibble, GC_t %>% mutate(t = snapshot_time) %>% select(t, everything()))
+        
+      }
+      
+      # Move to the time of the next event
+      time <- time + time_to_next_event
+      
+      # Sample what the next event is
+      next_event <- sample(c('immigration', 'division', 'death'), size = 1, 
+                           prob = c(lambda_imm, lambda_div, lambda_death))
+      
+      # Implement next event
+      if(next_event == 'immigration'){
+        GC_next_t <- bind_rows(GC_t,
+                               recruit_naive_clone(allele_info, fixed_initial_affinities) %>%
+                                 mutate(clone_id = clone_numbering_start)
+        ) %>%
+          mutate(t = time)
+        clone_numbering_start <- clone_numbering_start +1
+      }else{
+        if(next_event == 'division'){
+          # Probability of cell being sampled to divide is proportional to its affinity
+          dividing_cell <- sample(1:nrow(GC_t), size = 1, prob = GC_t$affinity, replace = F)
+          # (replace = F is irrelevant, but just to be safe in case we start mutating more than 1 cell at same time)
+          
+          # Creates new row for the daughter cell, which mutates with some probability
+          GC_next_t <- bind_rows(GC_t,
+                                 GC_t %>%
+                                   slice(dividing_cell) %>%
+                                   mutate(cell_mutates = rbinom(n = 1, size = 1, prob = mutation_rate),
+                                          affinity = affinity + rnorm(1, mean = 0, sd = mutation_sd * cell_mutates)) %>%
+                                   # If mutation takes affinity below zero, set it to zero.
+                                   mutate(affinity = ifelse(affinity < 0, 0, affinity)) %>%
+                                   select(-cell_mutates)) %>%
+            mutate(t = time)
+          
+        }else{
+          stopifnot(next_event == 'death')
+          # All cells have the same probability of dying
+          dying_cell <- sample(1:nrow(GC_t), size = 1, replace = F) 
+          # (replace = F is irrelevant, but just to be safe in case we start more than 1 cells to die at same time)
+          GC_next_t <- GC_t %>%
+            slice(-dying_cell) %>%
+            mutate(t = time)
+        }
+      }
+      # Redefine current state
+      GC_t <- GC_next_t
       
     }
-
-    # Move to the time of the next event
-    time <- time + time_to_next_event
     
-    # Sample what the next event is
-    next_event <- sample(c('immigration', 'division', 'death'), size = 1, 
-                         prob = c(lambda_imm, lambda_div, lambda_death))
-    
-    # Implement next event
-    if(next_event == 'immigration'){
-      GC_next_t <- bind_rows(GC_t,
-                             recruit_naive_clone(allele_info, fixed_initial_affinities) %>%
-                               mutate(clone_id = clone_numbering_start)
-                             ) %>%
-        mutate(t = time)
-      clone_numbering_start <- clone_numbering_start +1
-    }else{
-      if(next_event == 'division'){
-        # Probability of cell being sampled to divide is proportional to its affinity
-        dividing_cell <- sample(1:nrow(GC_t), size = 1, prob = GC_t$affinity, replace = F)
-        # (replace = F is irrelevant, but just to be safe in case we start mutating more than 1 cell at same time)
-        
-        # Creates new row for the daughter cell, which mutates with some probability
-        GC_next_t <- bind_rows(GC_t,
-                               GC_t %>%
-                                 slice(dividing_cell) %>%
-                                 mutate(cell_mutates = rbinom(n = 1, size = 1, prob = mutation_rate),
-                                        affinity = affinity + rnorm(1, mean = 0, sd = mutation_sd * cell_mutates)) %>%
-                                 # If mutation takes affinity below zero, set it to zero.
-                                 mutate(affinity = ifelse(affinity < 0, 0, affinity)) %>%
-                                 select(-cell_mutates)) %>%
-          mutate(t = time)
-                          
-      }else{
-        stopifnot(next_event == 'death')
-        # All cells have the same probability of dying
-        dying_cell <- sample(1:nrow(GC_t), size = 1, replace = F) 
-        # (replace = F is irrelevant, but just to be safe in case we start more than 1 cells to die at same time)
-        GC_next_t <- GC_t %>%
-          slice(-dying_cell) %>%
-          mutate(t = time)
-      }
-    }
-    
-    # Redefine current state
-    GC_t <- GC_next_t
   }
   
   return(GC_tibble)
 }
 
-master_simulation_function <- function(K,lambda_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
+master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
                            initial_GC_state = NULL, fixed_initial_affinities){
   
   observation_times <- c(1, seq(5, tmax, 5))
   
-  simulation <- simulate_GC_dynamics(K = K, lambda_imm = lambda_imm, mu_max = mu_max, delta = delta,
-                                               mutation_rate = mutation_rate, mutation_sd = mutation_sd,
-                                               allele_info = allele_info, tmax = tmax,
-                                               observation_times = observation_times,
-                                               initial_GC_state = initial_GC_state,
-                                               fixed_initial_affinities = fixed_initial_affinities)
+  simulation <- simulate_GC_dynamics(K = K, I_total = I_total, t_imm = t_imm, mu_max = mu_max,
+                                     delta = delta, mutation_rate = mutation_rate,
+                                     mutation_sd = mutation_sd, allele_info = allele_info,
+                                     tmax = tmax, observation_times = observation_times,
+                                     initial_GC_state = initial_GC_state,
+                                     fixed_initial_affinities = fixed_initial_affinities)
   
   # Return clone counts per GC over time, together with clone statistics (mean, median and SD affinity)
   clone_stats_per_GC <- simulation %>%
@@ -221,8 +243,6 @@ master_simulation_function <- function(K,lambda_imm, mu_max, delta, mutation_rat
 
 # ----- Tests ------
 
-#system.time(x <- simulate_GC_dynamics(K, lambda_imm, mu_max, delta, mutation_rate, mutation_sd, test_allele_info,
-#                                      tmax = 10, observation_times = c(1,5,10)))
 
 # Quick plots for visual tests:
 quick_plotting_function <- function(GC_tibble, allele_info){
@@ -235,33 +255,34 @@ quick_plotting_function <- function(GC_tibble, allele_info){
 
 # Some visual tests:
 # If mu_max is < delta, clones should consistently die out
-  #quick_plotting_function(
-  #  simulate_GC_dynamics(K = 500, lambda_imm = 1, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
+# (this will stop simulations before tmax)
+  # quick_plotting_function(
+  #  simulate_GC_dynamics(K = 500, I_total = 100, t_imm = 10, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
   #                       allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5)),
   #                       fixed_initial_affinities = F),
-  #  allele_info = test_allele_info) 
+  #  allele_info = test_allele_info)
 
 # Otherwise the total GC population size should remain around K
- # simulate_GC_dynamics(K = 100, lambda_imm = 1, mu_max = 2, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
- #                       allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5)),
+ # simulate_GC_dynamics(K = 300, I_total = 100, t_imm = 6, mu_max = 2, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
+ #                       allele_info = test_allele_info, tmax = 50, observation_times = c(1,seq(5,50,5)),
  #                      fixed_initial_affinities = F) %>%
  #   group_by(t) %>%
  #   count() %>%
  #   ggplot(aes(x = t, y = n)) +
- #   geom_line() + 
+ #   geom_line() +
  #   scale_y_continuous(limits = c(0, NA)) +
- #   geom_hline(yintercept = 100, linetype = 2) +
+ #   geom_hline(yintercept = 300, linetype = 2) +
  #   ylab('Total population in germinal center')
  
  
 # An arbitrary initial state for testing purposes. Two clones with the same initial abundance but different affinities
-test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
-                         affinity = c(rep(1,20), rep(1.2, 20)),
-                         clone_id = c(rep(1,20), rep(2, 20)),
-                         t = 0)
+# test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
+#                          affinity = c(rep(1,20), rep(1.2, 20)),
+#                          clone_id = c(rep(1,20), rep(2, 20)),
+#                          t = 0)
 
 # Without immigration and mutation, clone 2 should consistently win out:
-# bind_rows(replicate(n = 5, simulate_GC_dynamics(K = 100, lambda_imm = 0, mu_max = 2, delta = 0.5,
+# bind_rows(replicate(n = 5, simulate_GC_dynamics(K = 100, I_total = 0, t_imm = 1, mu_max = 2, delta = 0.5,
 #                                                      mutation_rate = 0, mutation_sd = 0,
 #                                                      allele_info = test_allele_info, tmax = 50,
 #                                                      observation_times = c(seq(5,50,5)),
@@ -278,7 +299,7 @@ test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
 
 # With mutation, clone 1 will sometimes win out by overcoming clone 2's initial advantage
 
-# bind_rows(replicate(n = 5, simulate_GC_dynamics(K = 100, lambda_imm = 0, mu_max = 2, delta = 0.5,
+# bind_rows(replicate(n = 5, simulate_GC_dynamics(K = 100, I_total=0, t_imm = 1, mu_max = 2, delta = 0.5,
 #                                                 mutation_rate = 0.05, mutation_sd = 4,
 #                                                 allele_info = test_allele_info, tmax = 50,
 #                                                 observation_times = c(seq(5,50,5)),

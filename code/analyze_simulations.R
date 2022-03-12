@@ -48,17 +48,6 @@ clone_diversity_by_GC <- simulations %>%
 
 GC_statistics <- left_join(clone_diversity_by_GC, allele_diversity_by_GC, by = c('individual','t','GC'))
 
-  
-# Repertoire-wide allele freqs (aggregated across individual GCs)
-repertoire_allele_freqs <- simulations %>%
-  group_by(individual, t, allele) %>%
-  summarise(n_cells = sum(clone_size)) %>%
-  group_by(individual, t) %>%
-  mutate(experienced_freq = n_cells / sum(n_cells)) %>%
-  ungroup()
-
-# ================
-
 mean_GC_stats_per_time_per_individual <- GC_statistics %>%
   group_by(individual, t) %>%
   summarise(across(-any_of('GC'), mean))
@@ -66,6 +55,14 @@ mean_GC_stats_per_time_per_individual <- GC_statistics %>%
 mean_GC_stats_per_time <- mean_GC_stats_per_time_per_individual %>%
   group_by(t) %>%
   summarise(across(-any_of('individual'), mean))
+  
+# Repertoire-wide allele freqs (aggregated across individual GCs)
+repertoire_allele_freqs <- allele_freqs_by_GC %>%
+  group_by(individual, t, allele) %>%
+  summarise(n_cells = sum(n_cells)) %>%
+  group_by(individual, t) %>%
+  mutate(experienced_freq = n_cells / sum(n_cells)) %>%
+  ungroup()
 
 
 # Completes repertoire_allele_freqs tibble so that zeros are explicitly represented in allele counts in the experienced repertoire
@@ -89,7 +86,7 @@ repertoire_allele_freqs <- complete_repertoire_allele_freqs(repertoire_allele_fr
 repertoire_allele_freqs <- repertoire_allele_freqs %>%
   group_by(t, individual) %>%
   mutate(total_time_point_cells = sum(n_cells),
-         allele_rank = rank(-experienced_freq, ties.method = 'first')) %>%
+         allele_rank = rank(-experienced_freq, ties.method = 'average')) %>%
   ungroup()
 
 # Add allele affinities /types, add naive allele frequencies and compute experienced-to-naive ratios,
@@ -131,7 +128,7 @@ get_pairwise_values <- function(repertoire_allele_freqs){
   
   internal_function <- function(pair, repertoire_allele_freqs){
     
-    ind_specific_vars <- c('individual','n', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
+    ind_specific_vars <- c('individual','n_cells', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
                            'allele_rank')
     
     individual_ids <- str_split(pair,';')[[1]]
@@ -160,17 +157,22 @@ get_pairwise_values <- function(repertoire_allele_freqs){
                              total_time_point_cells %>% rename(individual_j = individual, total_time_point_cells_j = total_time_point_cells)) %>%
     select(pair, t, allele, matches('_i'), matches('_j')) 
   
-  # Fill NAs with zeros
+  # keep only alleles present in the germline set of both individuals. For plotting purposes, compute Spearman ranks
+  # (i.e., with smaller values assigned smaller ranks)
   paired_tibble <- paired_tibble %>%
-   mutate(across(matches(c('n_','freq_','ratio')), function(x){replace_na(x,0)}) )
+    filter(!is.na(naive_freq_i), !is.na(naive_freq_j)) %>%
+    group_by(pair, t) %>%
+    mutate(spearman_rank_freq_i = rank(experienced_freq_i),
+           spearman_rank_freq_j = rank(experienced_freq_j),
+           spearman_rank_freq_ratio_i = rank(freq_ratio_i),
+           spearman_rank_freq_ratio_j = rank(freq_ratio_j)) %>%
+    ungroup()
   
   return(paired_tibble)
     
 }
 
 pairwise_allele_freqs <- get_pairwise_values(repertoire_allele_freqs)
-
-
 
 
 pairwise_correlations <- bind_rows(pairwise_allele_freqs %>% mutate(method = 'pearson'),
@@ -207,7 +209,6 @@ if(model_parameters$uniform_naive_freqs){
   # (For some reason different on a continuous vs. discrete axis)
 }
 
-
 median_pairwise_correlations <- pairwise_correlations %>%
   group_by(t, method) %>%
   summarise(freq_correlation_lowerq = quantile(freq_correlation, 0.25, na.rm = T),
@@ -219,7 +220,6 @@ median_pairwise_correlations <- pairwise_correlations %>%
             ) %>%
   ungroup()
   
-
 pairwise_corr_freqs <- pairwise_correlations  %>%
   ggplot(aes(x = t, y = freq_correlation)) +
   geom_line(aes(group = pair), alpha = 0.1) +
@@ -452,8 +452,8 @@ save_plot(paste0(results_directory, basename(results_directory), '_arrow_plot.pd
 
 pair_sample <- sample(unique(pairwise_allele_freqs$pair), 10, replace = F)
 
-scatterplot_data <- left_join(pairwise_allele_freqs, allele_info %>% select(allele, allele_type, naive_freq)) %>%
-  filter(t %in% c(10,200), pair %in% pair_sample) %>%
+scatterplot_data <- left_join(pairwise_allele_freqs, allele_info %>% select(allele, allele_type) %>% unique()) %>%
+  filter(t %in% c(10,max(pairwise_allele_freqs$t)), pair %in% pair_sample) %>%
   group_by(t, pair) %>%
   # Spearman correlation ranks (different from allele ranks used for plotting)
   mutate(rank_freq_i = rank(experienced_freq_i, ties.method = 'average'),
@@ -474,6 +474,33 @@ scatterplot_data %>%
   ylab('Experienced frequency in individual j') 
   #scale_y_log10() +
   #scale_x_log10()
+
+freq_scatterplots <- scatterplot_data %>%
+  ggplot(aes(x = experienced_freq_i, y = experienced_freq_j)) +
+  geom_point(size = 3, aes(color = allele_type), alpha = 0.8) +
+  geom_smooth(method = 'lm', color = 'black') +
+  facet_grid(t~pair, scales = 'free') +
+  #scale_color_viridis() +
+  #scale_y_log10() +
+  #scale_x_log10() +
+  theme(legend.position = 'top',
+        panel.border = element_rect(color = 'black')) +
+  xlab('Experienced frequency in individual i') +
+  ylab('Experienced frequency in individual j')
+
+rank_freq_scatterplots <- scatterplot_data %>%
+  ggplot(aes(x = rank_freq_i, y = rank_freq_j)) +
+  geom_point(size = 3, aes(color = allele_type), alpha = 0.8) +
+  geom_smooth(method = 'lm', color = 'black') +
+  facet_grid(t~pair, scales = 'free') +
+  #scale_color_viridis() +
+  #scale_y_log10() +
+  #scale_x_log10() +
+  theme(legend.position = 'top',
+        panel.border = element_rect(color = 'black')) +
+  xlab('Rank experienced frequency in individual i') +
+  ylab('Rank experienced frequency in individual j')
+
 
 
 freq_ratio_scatterplots <- scatterplot_data %>%
