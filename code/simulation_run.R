@@ -12,22 +12,23 @@ source('simulations_gillespie.R')
 # File specifying alleles' affinity distributions and naive frequencies
 allele_info_file_path <- args[1] # allele_info_file_path = '../results/simulations/neutral_scenario_1/allele_info.csv'
 
-# File specifying model parameters
-model_parameters_file_path <- args[2] # model_parameters_file_path = '../results/simulations/neutral_scenario_1/model_parameters.csv'
+# Directory for specific parameter values
+model_parameters_directory <- args[2] # 
+
 # Individual to use naive frequencies and germline gene sets from
 individual_id <- args[3]
-# 
+
+# Arbitrary number assigned to GC being simulated (different GCs simulated by different jobs in the cluster) 
 GC_number <- args[4]
 
 allele_info <- read_csv(allele_info_file_path) %>%
   filter(individual == individual_id) %>% select(-individual)
 
-output_directory <- paste0(dirname(allele_info_file_path),'/')
 
-model_parameters <- read_csv(model_parameters_file_path)
-model_parameters <- unlist(model_parameters)
-for(i in 1:length(model_parameters)){
-  assign(names(model_parameters)[i], model_parameters[i])
+model_parameters <- read_csv(paste0(model_parameters_directory,'/model_parameters.csv'))
+par_values <- unlist(model_parameters)
+for(i in 1:length(par_values)){
+  assign(names(par_values)[i], par_values[i])
 }
 
 # See script with simulation functions for parameter definitions
@@ -42,9 +43,15 @@ simulation <- master_simulation_function(K = K,
                              allele_info = allele_info,
                              tmax = tmax, 
                              fixed_initial_affinities = fixed_initial_affinities)
-  
+ 
+# Add parameter values to simulation tibble
+for(i in 1:length(par_values)){
+  simulation[,names(par_values)[i]] <- par_values[i]
+}
+
+# Store results in directory specific to the combination of parameter values used
 write_csv(simulation %>%
             mutate(individual = individual_id, GC = GC_number) %>%
             select(individual, GC, everything()),
-          file = paste0(output_directory,'simulation_individual_', individual_id, '_GC_', GC_number, '.csv'))
+          file = paste0(model_parameters_directory,'simulation_individual_', individual_id, '_GC_', GC_number, '.csv'))
 

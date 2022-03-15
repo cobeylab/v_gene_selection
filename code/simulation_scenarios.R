@@ -114,7 +114,13 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
                             n_high_avg_alleles, n_long_tail_alleles, K, I_total, t_imm, mu_max, delta,
                             mutation_rate, mutation_sd, tmax,
                             uniform_naive_freqs, fixed_initial_affinities){
-
+  
+  # Create base directory for the scenario.
+  dir.create(scenario_directory, showWarnings = F)
+  raw_simulations_dir <- paste0(scenario_directory, 'raw_simulation_files/')
+  dir.create(raw_simulations_dir, showWarnings = F)
+  
+  # If multiple parameter combinations sampled within scenario, they all share same allele info (naive freqs, selection)
   allele_info <- generate_allele_info(obs_naive_freqs = obs_naive_freqs,
                                       n_high_avg_alleles = n_high_avg_alleles,
                                       n_long_tail_alleles = n_long_tail_alleles, 
@@ -126,18 +132,8 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
       mutate(naive_freq = 1 /n())
   }
   
-  model_parameters <- tibble(
-    K = K, 
-    I_total = I_total,
-    t_imm = t_imm,
-    mu_max = mu_max,
-    delta = delta,
-    mutation_rate = mutation_rate, 
-    mutation_sd = mutation_sd, 
-    tmax = tmax,
-    uniform_naive_freqs = uniform_naive_freqs,
-    fixed_initial_affinities = fixed_initial_affinities
-  )
+  # Export allele information for simulations
+  write_csv(allele_info, paste0(scenario_directory, 'allele_info.csv'))
   
   # Showing what the affinity distributions look like
   save_plot(paste0(scenario_directory, 'expected_affinities_by_allele_type.pdf'),
@@ -149,15 +145,36 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
   #plot_affinity_distributions(allele_info = allele_info, log_density = T)
   
   
-  # Export allele information for simulations
-  write_csv(allele_info, 
-            paste0(scenario_directory, 'allele_info.csv'))
+  # Identify parameters with more than one value
+  par_combinations <- expand_grid(K = K, I_total = I_total, t_imm = t_imm, mu_max = mu_max, delta = delta,
+                      mutation_rate = mutation_rate, mutation_sd = mutation_sd, tmax = tmax,
+                      uniform_naive_freqs = uniform_naive_freqs,
+                      fixed_initial_affinities = fixed_initial_affinities)
   
-  # Export GC parameters
-  write_csv(model_parameters,
-            paste0(scenario_directory, 'model_parameters.csv'))
+    
+  n_par_values <- par_combinations %>%
+    summarise(across(everything(),.fns = function(x){length(unique(x))})) %>% unlist()
+  variable_pars <- names(n_par_values)[n_par_values > 1]
+  
+  
+  for(i in 1:nrow(par_combinations)){
+    if(length(variable_pars) > 0){
+      
+      par_values_label <- paste(paste(variable_pars, par_combinations[i, variable_pars] %>% unlist(), sep = '_'),
+                                collapse = '_')
+    }else{
+      par_values_label <- 'single_par_combination'
+    }
+      par_combination_subfolder <- paste0(raw_simulations_dir, par_values_label)
+      dir.create(par_combination_subfolder, showWarnings = F)
+      
+      # Export model parameters for this specific parameter combination
+      write_csv(par_combinations[i,],
+                paste0(par_combination_subfolder, '/model_parameters.csv'))
+  }
   
 }
+
 
 
 # ============================ NEUTRAL SCENARIO 1 ===================================
@@ -167,15 +184,13 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/
                 n_high_avg_alleles = 0,
                 n_long_tail_alleles = 0,
                 K = 2000, 
-                I_total = 100, 
+                I_total = c(50,100,200), 
                 t_imm = 6,
-                mu_max = 2,
-                delta = 0.3333, 
-                mutation_rate = 0.05,
-                mutation_sd = 10, 
+                mu_max = 3,
+                delta = 0.2, 
+                mutation_rate = c(0,0.01, 0.05),
+                mutation_sd = 5, 
                 tmax = 50,
                 uniform_naive_freqs = F,
                 fixed_initial_affinities = T)
-
-###
 
