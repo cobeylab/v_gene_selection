@@ -30,6 +30,25 @@ obs_naive_freqs <- naive_freqs %>%
 obs_naive_freqs <- adjust_zero_naive_freqs(obs_naive_freqs)
 
 
+# generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, s, sigma_var){
+#   n_alleles_in_data <- length(obs_naive_freqs %>% select(v_gene) %>% unique() %>% pull(v_gene))
+#   # Object specifying gamma distribution parameter for each allele category
+#   allele_types <-   tibble(allele_type = c('low_avg', 'high_avg', 'long_tail'),
+#                            alpha = c(6, 10, 1), # FOR NOW THESE ARE FIXED
+#                            beta = c(2, 2, 0.25), # FOR NOW THESE ARE FIXED
+#                            #alpha = c(8, 10, 2), 
+#                            #beta = c(2, 2, 0.5)
+#                            expected_affinity = alpha / beta
+#   )
+#   
+#   
+#   
+# }
+
+
+
+
+
 generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tail_alleles,
                                  selected_allele_eligibility_threshold){
   
@@ -40,7 +59,8 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_long_tai
   # All alleles not in the "high-average" or "long-tail" categories go in the "low-average category".
   
   n_alleles_in_data <- length(obs_naive_freqs %>% select(v_gene) %>% unique() %>% pull(v_gene))
-  stopifnot(n_high_avg_alleles + n_long_tail_alleles < n_alleles_in_data)
+
+    stopifnot(n_high_avg_alleles + n_long_tail_alleles < n_alleles_in_data)
   
   
   # Object specifying gamma distribution parameter for each allele category
@@ -178,19 +198,80 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 
 
 # ============================ NEUTRAL SCENARIO 1 ===================================
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
+# Truly neutral scenario, where all naive B cells have exactly the same affinity regardless of V gene
+
+# create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 0,
+#                 n_long_tail_alleles = 0,
+#                 K = 2000, 
+#                 I_total = c(50,100,200), 
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2, 
+#                 mutation_rate = c(0,0.01, 0.05),
+#                 mutation_sd = 5, 
+#                 tmax = 50,
+#                 uniform_naive_freqs = F,
+#                 fixed_initial_affinities = T)
+
+# ============================ NEUTRAL SCENARIO 2 ===================================
+# Naive B cells vary in affinity, but with the same distribution for all alleles.
+
+# create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 0,
+#                 n_long_tail_alleles = 0,
+#                 K = 2000, 
+#                 I_total = c(50,100,200), 
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2, 
+#                 mutation_rate = c(0,0.01, 0.05),
+#                 mutation_sd = 5, 
+#                 tmax = 50,
+#                 uniform_naive_freqs = F,
+#                 fixed_initial_affinities = F)
+
+# ============================ NON-NEUTRAL SCENARIO 1 ===================================
+
+# Naive B cells have fixed affinity given their V allele, but alleles vary in affinity.
+
+# create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_1/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 5,
+#                 n_long_tail_alleles = 0,
+#                 K = 2000,
+#                 I_total = c(50,100,200),
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2,
+#                 mutation_rate = c(0,0.01, 0.05),
+#                 mutation_sd = 5,
+#                 tmax = 50,
+#                 uniform_naive_freqs = F,
+#                 fixed_initial_affinities = T)
+
+# ============================ NON-NEUTRAL SCENARIO 2 ===================================
+
+# Naive B cells have a distribution of affinities that differs between two sets of alleles
+
+create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_2/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                n_high_avg_alleles = 0,
+                n_high_avg_alleles = 5,
                 n_long_tail_alleles = 0,
-                K = 2000, 
-                I_total = c(50,100,200), 
+                K = 2000,
+                I_total = c(50,100,200),
                 t_imm = 6,
                 mu_max = 3,
-                delta = 0.2, 
+                delta = 0.2,
                 mutation_rate = c(0,0.01, 0.05),
-                mutation_sd = 5, 
+                mutation_sd = 5,
                 tmax = 50,
                 uniform_naive_freqs = F,
-                fixed_initial_affinities = T)
+                fixed_initial_affinities = F)
 

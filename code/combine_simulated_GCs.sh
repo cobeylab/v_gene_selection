@@ -10,4 +10,4 @@ tail -q -n+2 $simulations_dir/raw_simulation_files/*/simulation_individual* >> $
 
 # Remove originals
 
-rm $simulations_dir/simulation_individual_*
+rm $simulations_dir/raw_simulation_files/*/simulation_individual*
