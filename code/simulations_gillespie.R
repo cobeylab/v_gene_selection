@@ -18,7 +18,6 @@ recruitment_pool_size <- 1000
 # Example allele_info object for testing
 test_allele_info <- read_csv('test_allele_info.csv')
 
-
 #tmax: Maximum simulation time.
 # K: carrying capacity of germinal centers
 # I_total: expected total number of clones that will seed GCs
@@ -26,9 +25,12 @@ test_allele_info <- read_csv('test_allele_info.csv')
 # mu_max: expected reproductive rate per B cell (day^-1) in an empty germinal center
 # delta: per-capita death rate per day
 # mutation_rate: mutation probability per B cell per division
-# mutation_sd: standard deviation for normal distribution of mutational effects (mean 0)
+# mutation_sd: standard deviation for normal distribution of mutational effects (mean 0) (given by beta * sigma_r)
 # allele_info: tibble with alleles' affinity distributions and naive frequencies (see simulation_scenarios.R)
-# fixed_initial_affinities: if TRUE, all naive B cells have exactly the expected affinity or their V allele.
+# s: increase in mean affinity associated with high-affinity alleles
+# sigma_r: baseline variation in naive affinity due to VDJ recombination
+# gamma relative mutability of high mutability alleles (compared to 1, for regular alleles)
+
 
 # Describes expected growth rate per B cell (mu) as a function of carrying capacity K and total GC pop size (N)
 get_pop_mu <- function(N, mu_max, alpha){
@@ -47,25 +49,21 @@ get_alpha <- function(mu_max, delta, K){
 }
 
 # Creates a tibble with one row, representing a clone newly arrived at the germinal center
-recruit_naive_clone <- function(allele_info, fixed_initial_affinities){
+recruit_naive_clone <- function(allele_info){
 
     recruitment_pool <- sample(allele_info$allele, size = recruitment_pool_size,
                                prob = allele_info$naive_freq, replace = T)
     
     recruitment_pool <- left_join(tibble(allele = recruitment_pool),
-                                  allele_info %>% select(allele, alpha, beta, expected_affinity))
+                                  allele_info %>% select(allele, mean_affinity, sd_affinity, relative_mutability))
     
-    # Sample affinities of naive B cells
-    if(fixed_initial_affinities){
-      # If fixed_initial_affinities is TRUE, affinity is exactly the allele expectation
-      recruitment_pool <- recruitment_pool %>% mutate(affinity = expected_affinity)
-    }else{
-      recruitment_pool <- recruitment_pool %>%
-        rowwise() %>%
-        #Else it's sampled from a Gamma distribution
-        mutate(affinity = rgamma(n = 1, shape = alpha, rate = beta)) %>%
-        ungroup() 
-    }
+
+    recruitment_pool <- recruitment_pool %>%
+      rowwise() %>%
+      #Else it's sampled from a Gamma distribution
+      mutate(affinity = max(0,rnorm(n = 1, mean = mean_affinity, sd = sd_affinity))) %>%
+      ungroup() 
+    
     
     # Sample one arriving clone from the recruitment pool based on each cell's normalized affinity    
     recruitment_pool <- recruitment_pool %>%
@@ -79,7 +77,7 @@ recruit_naive_clone <- function(allele_info, fixed_initial_affinities){
     immigrant_tibble <- recruitment_pool %>%
       mutate(cell_number = 1:n()) %>%
       filter(cell_number == recruited_cell_number) %>%
-      select(allele, affinity)
+      select(allele, affinity, relative_mutability)
     
   
   return(immigrant_tibble)
@@ -97,7 +95,7 @@ get_immigration_parameters <- function(I_total, t_imm){
 
 
 simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
-                                 observation_times, initial_GC_state = NULL, fixed_initial_affinities){
+                                 observation_times, initial_GC_state = NULL){
   
   # Compute alpha (how fast division rate decreases with increasing pop size in GC.)
   alpha <- get_alpha(mu_max = mu_max, delta = delta, K = K)
@@ -171,7 +169,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
       # Implement next event
       if(next_event == 'immigration'){
         GC_next_t <- bind_rows(GC_t,
-                               recruit_naive_clone(allele_info, fixed_initial_affinities) %>%
+                               recruit_naive_clone(allele_info) %>%
                                  mutate(clone_id = clone_numbering_start)
         ) %>%
           mutate(t = time)
@@ -186,7 +184,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
           GC_next_t <- bind_rows(GC_t,
                                  GC_t %>%
                                    slice(dividing_cell) %>%
-                                   mutate(cell_mutates = rbinom(n = 1, size = 1, prob = mutation_rate),
+                                   mutate(cell_mutates = rbinom(n = 1, size = 1, prob = mutation_rate * relative_mutability),
                                           affinity = affinity + rnorm(1, mean = 0, sd = mutation_sd * cell_mutates)) %>%
                                    # If mutation takes affinity below zero, set it to zero.
                                    mutate(affinity = ifelse(affinity < 0, 0, affinity)) %>%
@@ -214,7 +212,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
 }
 
 master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
-                           initial_GC_state = NULL, fixed_initial_affinities){
+                           initial_GC_state = NULL){
   
   observation_times <- c(1, seq(5, tmax, 5))
   
@@ -222,8 +220,7 @@ master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutatio
                                      delta = delta, mutation_rate = mutation_rate,
                                      mutation_sd = mutation_sd, allele_info = allele_info,
                                      tmax = tmax, observation_times = observation_times,
-                                     initial_GC_state = initial_GC_state,
-                                     fixed_initial_affinities = fixed_initial_affinities)
+                                     initial_GC_state = initial_GC_state)
   
   # Return clone counts per GC over time, together with clone statistics (mean, median and SD affinity)
   clone_stats_per_GC <- simulation %>%
@@ -296,7 +293,7 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, allele_info, var
   
   # Add allele affinities /types, add naive allele frequencies and compute experienced-to-naive ratios,
   repertoire_allele_freqs <- left_join(repertoire_allele_freqs, allele_info %>%
-                                         select(individual, allele, allele_type, naive_freq, expected_affinity)) %>%
+                                         select(individual, allele, allele_type_affinity, naive_freq, mean_affinity, sd_affinity, relative_mutability)) %>%
     mutate(freq_ratio_log = log(experienced_freq) - log(naive_freq),
            freq_ratio = exp(freq_ratio_log)) %>% select(-freq_ratio_log)
   
@@ -431,7 +428,7 @@ count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars
       freq_ratio == 1 ~ 'stable',
       freq_ratio < 1 ~ 'decreasing'
     )) %>%
-    group_by(across(c(any_of(variable_pars), 't','allele', 'allele_type', 'direction_of_change'))) %>%
+    group_by(across(c(any_of(variable_pars), 't','allele', 'allele_type_affinity', 'direction_of_change'))) %>%
     summarise(n_individuals = n()) %>%
     ungroup() %>%
     pivot_wider(names_from = direction_of_change, values_from = n_individuals, values_fill = 0) %>%
@@ -446,10 +443,10 @@ count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars
 
 # Quick plots for visual tests:
 quick_plotting_function <- function(GC_tibble, allele_info){
-  left_join(GC_tibble, allele_info %>% select(allele, allele_type)) %>%
-    group_by(t, clone_id, allele, allele_type) %>% count() %>%
+  left_join(GC_tibble, allele_info %>% select(allele, allele_type_affinity)) %>%
+    group_by(t, clone_id, allele, allele_type_affinity) %>% count() %>%
     ggplot(aes(x = t, y = n, group = clone_id)) +
-    geom_line(aes(color = allele_type)) +
+    geom_line(aes(color = allele_type_affinity)) +
     theme(legend.position = 'top')
 }
 
@@ -458,14 +455,12 @@ quick_plotting_function <- function(GC_tibble, allele_info){
 # (this will stop simulations before tmax)
   # quick_plotting_function(
   #  simulate_GC_dynamics(K = 500, I_total = 100, t_imm = 10, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
-  #                       allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5)),
-  #                       fixed_initial_affinities = F),
+  #                       allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5))),
   #  allele_info = test_allele_info)
 
 # Otherwise the total GC population size should remain around K
  # simulate_GC_dynamics(K = 300, I_total = 100, t_imm = 6, mu_max = 2, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
- #                       allele_info = test_allele_info, tmax = 50, observation_times = c(1,seq(5,50,5)),
- #                      fixed_initial_affinities = F) %>%
+ #                       allele_info = test_allele_info, tmax = 50, observation_times = c(1,seq(5,50,5))) %>%
  #   group_by(t) %>%
  #   count() %>%
  #   ggplot(aes(x = t, y = n)) +
@@ -478,6 +473,7 @@ quick_plotting_function <- function(GC_tibble, allele_info){
 # An arbitrary initial state for testing purposes. Two clones with the same initial abundance but different affinities
 # test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
 #                          affinity = c(rep(1,20), rep(1.2, 20)),
+#                           relative_mutability = c(rep(1,20), rep(1, 20)),
 #                          clone_id = c(rep(1,20), rep(2, 20)),
 #                          t = 0)
 
@@ -486,8 +482,7 @@ quick_plotting_function <- function(GC_tibble, allele_info){
 #                                                      mutation_rate = 0, mutation_sd = 0,
 #                                                      allele_info = test_allele_info, tmax = 50,
 #                                                      observation_times = c(seq(5,50,5)),
-#                                                      initial_GC_state = test_initial_GC,
-#                                                      fixed_initial_affinities = F),
+#                                                      initial_GC_state = test_initial_GC),
 #           simplify = F), .id = 'replicate') %>%
 #   group_by(clone_id, replicate, t) %>%
 #   count() %>%
@@ -503,8 +498,7 @@ quick_plotting_function <- function(GC_tibble, allele_info){
 #                                                 mutation_rate = 0.05, mutation_sd = 4,
 #                                                 allele_info = test_allele_info, tmax = 50,
 #                                                 observation_times = c(seq(5,50,5)),
-#                                                 initial_GC_state = test_initial_GC,
-#                                                 fixed_initial_affinities = F),
+#                                                 initial_GC_state = test_initial_GC),
 #                     simplify = F), .id = 'replicate') %>%
 #   group_by(clone_id, replicate, t) %>%
 #   count() %>%

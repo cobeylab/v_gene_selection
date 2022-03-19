@@ -41,8 +41,7 @@ simulation <- master_simulation_function(K = K,
                              mutation_rate = mutation_rate,
                              mutation_sd = mutation_sd,
                              allele_info = allele_info,
-                             tmax = tmax, 
-                             fixed_initial_affinities = fixed_initial_affinities)
+                             tmax = tmax)
  
 # Add parameter values to simulation tibble
 for(i in 1:length(par_values)){

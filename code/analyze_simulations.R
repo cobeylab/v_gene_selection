@@ -163,7 +163,7 @@ save_plot(paste0(results_directory, basename(results_directory), '_total_GC_popu
           base_height = 4, base_width = 8)
 
 
-if("high_avg" %in% unique(allele_info$allele_type)){
+if("high_avg" %in% unique(allele_info$allele_type_affinity)){
   
   # For each high-average allele, plot fraction of individuals where allele has increased / decreased in freq. relative to naive rep. over time.
   fraction_increasing_pl <- n_increasing_decreasing %>%
@@ -228,15 +228,15 @@ if("high_avg" %in% unique(allele_info$allele_type)){
 }
 
 
-simulations %>%
-  filter(mutation_rate == 0.01, I_total == 100) %>%
-  group_by(individual, t,GC) %>%
-  summarise(mean_affinity = sum(clone_freq*mean_affinity)) %>%
-  ungroup() %>%
-  mutate(plotting_group = paste0(individual, GC, sep = ';')) %>%
-  ggplot(aes(x = t, y = mean_affinity)) +
-  geom_line(aes(group = plotting_group), alpha = 0.5) +
-  geom_smooth()
+#simulations %>%
+  # filter(mutation_rate == 0.01, I_total == 100) %>%
+  # group_by(individual, t,GC) %>%
+  # summarise(mean_affinity = sum(clone_freq*mean_affinity)) %>%
+  # ungroup() %>%
+  # mutate(plotting_group = paste0(individual, GC, sep = ';')) %>%
+  # ggplot(aes(x = t, y = mean_affinity)) +
+  # geom_line(aes(group = plotting_group), alpha = 0.5) +
+  # geom_smooth()
 
 
 
