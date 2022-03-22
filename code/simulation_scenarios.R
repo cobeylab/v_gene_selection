@@ -29,7 +29,7 @@ obs_naive_freqs <- naive_freqs %>%
 obs_naive_freqs <- adjust_zero_naive_freqs(obs_naive_freqs)
 
 
-generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, s, sigma_r, n_high_mutability_alleles, gamma,
+generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_high_mutability_alleles,
                                  selected_allele_eligibility_threshold){
   # Assigns affinity distributions to alleles. For each allele, the distribution is the same in all individuals where it occurs 
   # Uses empirical allele sets and naive frequencies. 
@@ -41,14 +41,6 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, s, sigma_r
   
   n_alleles_in_data <- length(obs_naive_freqs %>% select(v_gene) %>% unique() %>% pull(v_gene))
   
-  # Object specifying affinity distribution parameters for each allele category
-  allele_types_affinity <-   tibble(allele_type_affinity = c('low_avg', 'high_avg'),
-                           mean_affinity = c(1, 1 + s),
-                           sd_affinity = c(sigma_r, sigma_r*(1 + s)))
-  
-  # Same for mutability
-  allele_types_mutability <- tibble(allele_type_mutability = c('low_mut', 'high_mut'),
-                                    relative_mutability = c(1, gamma))
   
   #First, assign all alleles in all mice to the low_avg, low mutability category
   allele_info <- obs_naive_freqs %>%
@@ -83,10 +75,7 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, s, sigma_r
   allele_info <- left_join(allele_info, allele_integer_ids) %>% select(-v_gene) %>%
     select(individual, allele, allele_type_affinity, allele_type_mutability, naive_freq)
   
-  # Add affinity distribution parameters and relative mutability to the allele_info tibble
-  allele_info <- left_join(allele_info, allele_types_affinity)
-  
-  allele_info <- left_join(allele_info, allele_types_mutability)
+
   return(allele_info)
   
 
@@ -105,9 +94,7 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
   # If multiple parameter combinations sampled within scenario, they all share same allele info (naive freqs, selection)
   allele_info <- generate_allele_info(obs_naive_freqs = obs_naive_freqs,
                                       n_high_avg_alleles = n_high_avg_alleles,
-                                      s = s, sigma_r = sigma_r,
                                       n_high_mutability_alleles = n_high_mutability_alleles,
-                                      gamma = gamma,
                                       selected_allele_eligibility_threshold = selected_allele_eligibility_threshold)
   
   if(uniform_naive_freqs){
@@ -119,13 +106,11 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
   # Export allele information for simulations
   write_csv(allele_info, paste0(scenario_directory, 'allele_info.csv'))
   
-  # Set mutation sd relative to variation in naive B cell affinity
-  mutation_sd = beta * sigma_r
-  
+
   # Identify parameters with more than one value
   par_combinations <- expand_grid(K = K, I_total = I_total, t_imm = t_imm, mu_max = mu_max, delta = delta,
-                      mutation_rate = mutation_rate, mutation_sd = mutation_sd, tmax = tmax,
-                      uniform_naive_freqs = uniform_naive_freqs)
+                                  s = s, sigma_r = sigma_r, gamma = gamma, mutation_rate = mutation_rate,
+                                  beta = beta, tmax = tmax, uniform_naive_freqs = uniform_naive_freqs)
   
     
   n_par_values <- par_combinations %>%
@@ -153,47 +138,72 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 
 
 
-# ============================ NEUTRAL SCENARIO 1 ===================================
+# ============================ SCENARIO 1 ===================================
 # Truly neutral scenario, where all naive B cells have exactly the same affinity regardless of V gene
 # This is achieved by making sigma r = 0. Since the effect of mutations is sigma_r times beta, 
 # we set sigma_r = 0.0001 (effectively no variation in naive B cell affinity) and beta = 20000 to allow mutations to have an effect with sd=2
 
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario_1/',
+# create_scenario(scenario_directory = '../results/simulations/scenario_1/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 0,
+#                 s = 0,
+#                 sigma_r = 0.0001,
+#                 n_high_mutability_alleles = 0,
+#                 gamma = 1,
+#                 K = 2000,
+#                 I_total = c(50,100,200),
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2,
+#                 mutation_rate = c(0,0.01, 0.05),
+#                 beta = 20000,
+#                 tmax = 50,
+#                 uniform_naive_freqs = F)
+
+
+# ============================ SCENARIO 2 ===================================
+
+create_scenario(scenario_directory = '../results/simulations/scenario_2/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 0,
                 s = 0,
-                sigma_r = 0.0001,
+                sigma_r = c(0,0.5,1),
                 n_high_mutability_alleles = 0,
                 gamma = 1,
                 K = 2000,
-                I_total = c(50,100,200),
+                I_total = 100,
                 t_imm = 6,
                 mu_max = 3,
                 delta = 0.2,
-                mutation_rate = c(0,0.01, 0.05),
-                beta = 20000,
+                mutation_rate = 0.01,
+                beta = c(0.5,1,2),
                 tmax = 50,
                 uniform_naive_freqs = F)
 
-# ============================ NEUTRAL SCENARIO 2 ===================================
-# Naive B cells vary in affinity, but with the same distribution for all alleles.
 
-# create_scenario(scenario_directory = '../results/simulations/neutral_scenario_2/',
+
+# ============================ SCENARIO 3 ===================================
+
+
+# create_scenario(scenario_directory = '../results/simulations/scenario_3/',
 #                 obs_naive_freqs = obs_naive_freqs,
 #                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-#                 n_high_avg_alleles = 0,
-#                 n_long_tail_alleles = 0,
-#                 K = 2000, 
-#                 I_total = c(50,100,200), 
+#                 n_high_avg_alleles = 5,
+#                 s = c(0, 0.25, 0.5),
+#                 sigma_r = 0.2,
+#                 n_high_mutability_alleles = 0,
+#                 gamma = 1,
+#                 K = 2000,
+#                 I_total = 100,
 #                 t_imm = 6,
 #                 mu_max = 3,
-#                 delta = 0.2, 
-#                 mutation_rate = c(0,0.01, 0.05),
-#                 mutation_sd = 5, 
+#                 delta = 0.2,
+#                 mutation_rate = 0.01,
+#                 beta = c(0, 1, 2),
 #                 tmax = 50,
-#                 uniform_naive_freqs = F,
-#                 fixed_initial_affinities = F)
+#                 uniform_naive_freqs = F)
 
 # ============================ NON-NEUTRAL SCENARIO 1 ===================================
 

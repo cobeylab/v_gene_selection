@@ -9,6 +9,7 @@ library(readr)
 library(stringr)
 library(ggplot2)
 library(cowplot)
+library(truncnorm)
 theme_set(theme_cowplot())
 
 # For each sampling of clones to seed GCs, sample based on affinity 
@@ -60,8 +61,8 @@ recruit_naive_clone <- function(allele_info){
 
     recruitment_pool <- recruitment_pool %>%
       rowwise() %>%
-      #Else it's sampled from a Gamma distribution
-      mutate(affinity = max(0,rnorm(n = 1, mean = mean_affinity, sd = sd_affinity))) %>%
+      #Else it's sampled from a Truncated normal distribution
+      mutate(affinity = max(0,rtruncnorm(n = 1, a = 0, b = Inf, mean = mean_affinity, sd = sd_affinity))) %>%
       ungroup() 
     
     
@@ -236,6 +237,23 @@ master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutatio
   return(clone_stats_per_GC)
 }
 
+# Adds info on affinity distributions and mutability to tibble of allele info
+assign_allele_properties <- function(allele_info, s, sigma_r, gamma){
+  allele_types_affinity <- tibble(allele_type_affinity = c('low_avg', 'high_avg'),
+                                  mean_affinity = c(1, 1 + s),
+                                  sd_affinity = c(sigma_r, sigma_r*(1 + s)))
+  
+  allele_types_mutability <- tibble(allele_type_mutability = c('low_mut', 'high_mut'),
+                                    relative_mutability = c(1, gamma))
+  
+  allele_info <- left_join(allele_info, allele_types_affinity)
+  
+  allele_info <- left_join(allele_info, allele_types_mutability)
+  
+  return(allele_info)
+
+}
+
 
 # ========= Functions for summarizing simulations ===============
 # simulations: clone counts per time point per GC per individual
@@ -293,7 +311,7 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, allele_info, var
   
   # Add allele affinities /types, add naive allele frequencies and compute experienced-to-naive ratios,
   repertoire_allele_freqs <- left_join(repertoire_allele_freqs, allele_info %>%
-                                         select(individual, allele, allele_type_affinity, naive_freq, mean_affinity, sd_affinity, relative_mutability)) %>%
+                                         select(individual, allele, naive_freq, allele_type_affinity, allele_type_mutability)) %>%
     mutate(freq_ratio_log = log(experienced_freq) - log(naive_freq),
            freq_ratio = exp(freq_ratio_log)) %>% select(-freq_ratio_log)
   
