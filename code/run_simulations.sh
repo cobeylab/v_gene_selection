@@ -29,7 +29,7 @@ do
         echo "#SBATCH --job-name=run_simulations_"${sbatch_file_id} >> $sbatch_file
         echo "#SBATCH --nodes=1" >> $sbatch_file
         echo "#SBATCH --ntasks-per-node=1" >> $sbatch_file
-        echo "#SBATCH --partition=broadwl" >> $sbatch_file
+        echo "#SBATCH --partition=cobey" >> $sbatch_file
         echo "#SBATCH -o out_err_files/run_simulations_"${sbatch_file_id}"_%A_%a.out" >> $sbatch_file       
         echo "#SBATCH -e out_err_files/run_simulations_"${sbatch_file_id}"_%A_%a.err" >> $sbatch_file         
         echo "#SBATCH --time=00:15:00" >> $sbatch_file
