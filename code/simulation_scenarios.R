@@ -137,12 +137,12 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 
 
 
-# ============================ SCENARIO 1 ===================================
+# ============================ SCENARIO 0 ===================================
 # Truly neutral scenario, where all naive B cells have exactly the same affinity regardless of V gene
 # This is achieved by making sigma r = 0. Since the effect of mutations is sigma_r times beta, 
 # we set sigma_r = 0.0001 (effectively no variation in naive B cell affinity) and beta = 20000 to allow mutations to have an effect with sd=2
 
-# create_scenario(scenario_directory = '../results/simulations/scenario_1/',
+# create_scenario(scenario_directory = '../results/simulations/scenario_0/',
 #                 obs_naive_freqs = obs_naive_freqs,
 #                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
 #                 n_high_avg_alleles = 0,
@@ -161,9 +161,8 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 #                 uniform_naive_freqs = F)
 
 
-# ============================ SCENARIO 2 ===================================
-
-create_scenario(scenario_directory = '../results/simulations/scenario_2/',
+# ============================ SCENARIO 1 ===================================
+create_scenario(scenario_directory = '../results/simulations/scenario_1/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 0,
@@ -183,10 +182,8 @@ create_scenario(scenario_directory = '../results/simulations/scenario_2/',
 
 
 
-# ============================ SCENARIO 3 ===================================
-
-
-create_scenario(scenario_directory = '../results/simulations/scenario_3/',
+# ============================ SCENARIO 2 ===================================
+create_scenario(scenario_directory = '../results/simulations/scenario_2/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 5,
@@ -203,44 +200,4 @@ create_scenario(scenario_directory = '../results/simulations/scenario_3/',
                 beta = c(0.5, 1, 2, 4),
                 tmax = 50,
                 uniform_naive_freqs = F)
-
-# ============================ NON-NEUTRAL SCENARIO 1 ===================================
-
-# Naive B cells have fixed affinity given their V allele, but alleles vary in affinity.
-
-# create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_1/',
-#                 obs_naive_freqs = obs_naive_freqs,
-#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-#                 n_high_avg_alleles = 5,
-#                 n_long_tail_alleles = 0,
-#                 K = 2000,
-#                 I_total = c(50,100,200),
-#                 t_imm = 6,
-#                 mu_max = 3,
-#                 delta = 0.2,
-#                 mutation_rate = c(0,0.01, 0.05),
-#                 mutation_sd = 5,
-#                 tmax = 50,
-#                 uniform_naive_freqs = F,
-#                 fixed_initial_affinities = T)
-
-# ============================ NON-NEUTRAL SCENARIO 2 ===================================
-
-# Naive B cells have a distribution of affinities that differs between two sets of alleles
-
-# create_scenario(scenario_directory = '../results/simulations/non_neutral_scenario_2/',
-#                 obs_naive_freqs = obs_naive_freqs,
-#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-#                 n_high_avg_alleles = 5,
-#                 n_long_tail_alleles = 0,
-#                 K = 2000,
-#                 I_total = c(50,100,200),
-#                 t_imm = 6,
-#                 mu_max = 3,
-#                 delta = 0.2,
-#                 mutation_rate = c(0,0.01, 0.05),
-#                 mutation_sd = 5,
-#                 tmax = 50,
-#                 uniform_naive_freqs = F,
-#                 fixed_initial_affinities = F)
 
