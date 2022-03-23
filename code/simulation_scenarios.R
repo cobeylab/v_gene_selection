@@ -2,7 +2,6 @@ library(dplyr)
 library(tidyr)
 library(ggplot2)
 library(cowplot)
-library('DirichletReg')
 library(readr)
 theme_set(theme_cowplot())
 
