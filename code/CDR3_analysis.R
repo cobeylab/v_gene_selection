@@ -4,16 +4,74 @@ library(tidyr)
 library(ggplot2)
 library(ggdendro)
 library(cowplot)
+theme_set(theme_cowplot())
 library(scales)
 library(viridis)
 
 source('gene_frequency_functions.R')
+source('plot_options.R')
+
+min_compartment_size = 100
 
 clone_info <- read_csv('../processed_data/clone_info.csv')
-# clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+# clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 
-annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
+annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv') %>%
+  mutate(seq_id = as.character(seq_id),
+         clone_id = as.character(clone_id))
 
+annotated_seqs <- annotated_seqs %>%
+  filter(productive_partis)
+
+annotated_seqs <- get_info_from_mouse_id(annotated_seqs) %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
+
+# Plot CDR3 length distributions for each mouse for each cell type in the LN.
+# For naive B cells, using distribution across all tissues
+
+CDR3_lengths_naive <- annotated_seqs %>%
+  filter(group_controls_pooled != 'control',
+         cell_type == 'naive') %>%
+  select(mouse_id, day, infection_status, group, group_controls_pooled, seq_id, tissue, cell_type, cdr3_seq_partis) %>%
+  group_by(mouse_id, day, infection_status, group, group_controls_pooled) %>%
+  mutate(total_compartment_seqs = n(),
+         tissue = 'all') %>%
+  ungroup() %>%
+  mutate(cdr3_length = nchar(cdr3_seq_partis))
+
+CDR3_lengths_LN_experienced <- annotated_seqs %>%
+  filter(group_controls_pooled != 'control',
+         cell_type %in% c('GC','PC','mem'),
+         tissue == 'LN') %>%
+  select(mouse_id, day, infection_status, group, group_controls_pooled, seq_id, tissue, cell_type, cdr3_seq_partis) %>%
+  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type) %>%
+  mutate(total_compartment_seqs = n()) %>%
+  ungroup() %>%
+  mutate(cdr3_length = nchar(cdr3_seq_partis)) 
+
+
+CDR3_lengths <- bind_rows(CDR3_lengths_naive,
+                          CDR3_lengths_LN_experienced) %>%
+  mutate(cell_type = case_when(
+    cell_type == 'naive' ~ 'Naive cells (all tissues)',
+    cell_type == 'GC' ~ 'Lymph node GC cells',
+    cell_type == 'PC' ~ 'Lymph node PC cells',
+    cell_type == 'mem' ~ 'Lymph node memory cells'
+  )) %>%
+  mutate(cell_type = factor(cell_type,
+                            levels = c('Naive cells (all tissues)', 'Lymph node GC cells',
+                                       'Lymph node PC cells', 'Lymph node memory cells')))
+
+
+
+
+
+  
+
+
+
+
+# Old stuff: review/delete
 unique(annotated_seqs$cdr3_seq_partis)
 
 

@@ -178,7 +178,7 @@ create_scenario(scenario_directory = '../results/simulations/scenario_2/',
                 mu_max = 3,
                 delta = 0.2,
                 mutation_rate = 0.01,
-                beta = c(0.5,1,2),
+                beta = c(0,0.5,1,2),
                 tmax = 50,
                 uniform_naive_freqs = F)
 
@@ -187,23 +187,23 @@ create_scenario(scenario_directory = '../results/simulations/scenario_2/',
 # ============================ SCENARIO 3 ===================================
 
 
-# create_scenario(scenario_directory = '../results/simulations/scenario_3/',
-#                 obs_naive_freqs = obs_naive_freqs,
-#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-#                 n_high_avg_alleles = 5,
-#                 s = c(0, 0.25, 0.5),
-#                 sigma_r = 0.2,
-#                 n_high_mutability_alleles = 0,
-#                 gamma = 1,
-#                 K = 2000,
-#                 I_total = 100,
-#                 t_imm = 6,
-#                 mu_max = 3,
-#                 delta = 0.2,
-#                 mutation_rate = 0.01,
-#                 beta = c(0, 1, 2),
-#                 tmax = 50,
-#                 uniform_naive_freqs = F)
+create_scenario(scenario_directory = '../results/simulations/scenario_3/',
+                obs_naive_freqs = obs_naive_freqs,
+                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+                n_high_avg_alleles = 5,
+                s = c(0.05, 0.5, 1),
+                sigma_r = 1,
+                n_high_mutability_alleles = 0,
+                gamma = 1,
+                K = 2000,
+                I_total = 100,
+                t_imm = 6,
+                mu_max = 3,
+                delta = 0.2,
+                mutation_rate = 0.01,
+                beta = c(0.5, 1, 2, 4),
+                tmax = 50,
+                uniform_naive_freqs = F)
 
 # ============================ NON-NEUTRAL SCENARIO 1 ===================================
 

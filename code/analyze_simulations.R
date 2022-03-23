@@ -97,6 +97,7 @@ base_plotting_function <- function(summary_tibble, y_var, color_var, facet_wrap_
     theme(legend.position = 'top')
 }
 
+
 color_legend <- get_legend(base_plotting_function(summary_pairwise_correlations %>% filter(method == 'pearson'),
                                                               y_var = 'freq_correlation', color_var = color_var,
                                                               facet_wrap_var = facet_wrap_var))
@@ -193,7 +194,7 @@ if("high_avg" %in% unique(allele_info$allele_type_affinity)){
   
   combined_freq_of_high_avg_alleles_in_GCs <- left_join(allele_freqs_by_GC, allele_info %>%
               select(individual, allele, allele_type_affinity)) %>%
-    filter(I_total == 100) %>%
+    filter(s == 0.5) %>%
     group_by(across(c(any_of(variable_pars), 't', 'individual','GC'))) %>%
     summarise(combined_freq_high_avg = sum(allele_freq[allele_type_affinity == 'high_avg']),
               combined_freq_low_avg = sum(allele_freq[allele_type_affinity == 'low_avg'])) %>%
@@ -203,11 +204,11 @@ if("high_avg" %in% unique(allele_info$allele_type_affinity)){
   
   combined_freq_of_high_avg_alleles_in_GC_pl <- combined_freq_of_high_avg_alleles_in_GCs %>%
     filter(t %in% c(10, max(t))) %>%
-    mutate(mutation_rate = paste0('mutation rate = ', mutation_rate),
+    mutate(s = paste0('allele advantage = ', s),
            t = paste0(t, ' days')) %>%
     ggplot(aes(x = combined_freq_high_avg)) +
     geom_histogram(bins = 20) + 
-    facet_grid(reformulate(color_var, 't')) +
+    facet_grid(reformulate('t', color_var, )) +
     scale_y_continuous(labels = function(x){round(x/total_GCs_across_individuals, 2)}) +
     ylab('Fraction of GCs') +
     xlab('Combined frequency of high-affinity alleles within GC') +
