@@ -241,7 +241,7 @@ master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutatio
 assign_allele_properties <- function(allele_info, s, sigma_r, gamma){
   allele_types_affinity <- tibble(allele_type_affinity = c('low_avg', 'high_avg'),
                                   mean_affinity = c(1, 1 + s),
-                                  sd_affinity = c(sigma_r, sigma_r*(1 + s)))
+                                  sd_affinity = c(sigma_r, sigma_r))
   
   allele_types_mutability <- tibble(allele_type_mutability = c('low_mut', 'high_mut'),
                                     relative_mutability = c(1, gamma))
