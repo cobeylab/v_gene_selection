@@ -1,6 +1,7 @@
 *.pdf
 *.pptx
 *._.DS_Store
+*DS_Store
 results
 figures
 data
