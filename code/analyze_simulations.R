@@ -84,6 +84,7 @@ summary_pairwise_correlations <- pairwise_correlations %>%
 # =========== PLOTS ============
 
 base_plotting_function <- function(summary_tibble, y_var, color_var, facet_wrap_var){
+  
   summary_tibble %>%
     mutate(across(all_of(facet_wrap_var), function(x){factor(paste0(facet_wrap_var, ' = ',as.character(x)),
                                                              levels = paste0(facet_wrap_var, ' = ',  sort(unique(x))))})) %>%
@@ -92,7 +93,7 @@ base_plotting_function <- function(summary_tibble, y_var, color_var, facet_wrap_
     geom_linerange(aes_string(ymin = paste0(y_var, '_lowerq'), ymax = paste0(y_var, '_upperq')),
                    alpha = 0.5, size = 1.2) +
     geom_point(size = 3) +
-    facet_wrap(facet_wrap_var) +
+    facet_wrap(facet_wrap_var, nrow = 1) +
     xlab('Time') +
     theme(legend.position = 'top')
 }
