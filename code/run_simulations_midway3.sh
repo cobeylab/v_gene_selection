@@ -29,14 +29,14 @@ do
         echo "#SBATCH --job-name=run_simulations_"${sbatch_file_id} >> $sbatch_file
         echo "#SBATCH --cpus-per-task=1" >> $sbatch_file
         echo "#SBATCH --ntasks-per-node=1" >> $sbatch_file
-	    echo "#SBATCH --account=pi-cobey" >> $sbatch_file
+	echo "#SBATCH --account=pi-cobey" >> $sbatch_file
         echo "#SBATCH --partition=cobey" >> $sbatch_file
         echo "#SBATCH -o out_err_files/run_simulations_"${sbatch_file_id}"_%A_%a.out" >> $sbatch_file       
         echo "#SBATCH -e out_err_files/run_simulations_"${sbatch_file_id}"_%A_%a.err" >> $sbatch_file         
         echo "#SBATCH --time=00:15:00" >> $sbatch_file
         echo "#SBATCH --mem-per-cpu=2000" >> $sbatch_file
 
-        echo module load R/3.6.1 >> $sbatch_file
+        echo module load R/3.6.3 >> $sbatch_file
     
         # SLURM_ARRAY_TASK_ID will be an integer specifying a GC
     

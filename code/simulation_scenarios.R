@@ -184,28 +184,48 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 
 
 # ============================ SCENARIO 2 ===================================
-create_scenario(scenario_directory = '../results/simulations/scenario_2/',
-                obs_naive_freqs = obs_naive_freqs,
-                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                n_high_avg_alleles = 5,
-                s = c(0, 0.5, 1, 2),
-                sigma_r = 1,
-                n_high_mutability_alleles = 0,
-                gamma = 1,
-                K = 2000,
-                I_total = 100,
-                t_imm = 6,
-                mu_max = 3,
-                delta = 0.2,
-                mutation_rate = c(0, 0.01,0.05),
-                beta = 1,
-                tmax = 50,
-                uniform_naive_freqs = F)
+# create_scenario(scenario_directory = '../results/simulations/scenario_2/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 5,
+#                 s = c(0, 0.5, 1, 2),
+#                 sigma_r = 1,
+#                 n_high_mutability_alleles = 0,
+#                 gamma = 1,
+#                 K = 2000,
+#                 I_total = 100,
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2,
+#                 mutation_rate = c(0, 0.01,0.05),
+#                 beta = 1,
+#                 tmax = 50,
+#                 uniform_naive_freqs = F)
 
 
 # ============================ SCENARIO 2b ===================================
 # Like 2, but with much higher effect of mutation relative to sigma_r (beta = 4)
-create_scenario(scenario_directory = '../results/simulations/scenario_2b/',
+# create_scenario(scenario_directory = '../results/simulations/scenario_2b/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 5,
+#                 s = c(0, 0.5, 1, 2),
+#                 sigma_r = 1,
+#                 n_high_mutability_alleles = 0,
+#                 gamma = 1,
+#                 K = 2000,
+#                 I_total = 100,
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2,
+#                 mutation_rate = c(0, 0.01,0.05),
+#                 beta = 4,
+#                 tmax = 50,
+#                 uniform_naive_freqs = F)
+
+# ============================ SCENARIO 2C ===================================
+# Like 2B, but with more GCs (currently n GCs is chosen upon job submission)
+create_scenario(scenario_directory = '../results/simulations/scenario_2c/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 5,
@@ -222,3 +242,5 @@ create_scenario(scenario_directory = '../results/simulations/scenario_2b/',
                 beta = 4,
                 tmax = 50,
                 uniform_naive_freqs = F)
+
+
