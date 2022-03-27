@@ -264,7 +264,7 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 #                 uniform_naive_freqs = F)
 
 
-# ============================ SCENARIO 3 ===================================
+# ============================ HIGH AFFINITY SCENARIO ===================================
 # FINAL SCENARIO SHOWING DIFFERENCES IN ALLELE'S AFFINITIES
 # create_scenario(scenario_directory = '../results/simulations/high_affinity_scenario/',
 #                 obs_naive_freqs = obs_naive_freqs,
@@ -284,18 +284,37 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 #                 tmax = 50,
 #                 uniform_naive_freqs = F)
 
-# ============================ SCENARIO 4 ===================================
+# ============================ NEUTRAL SCENARIO ===================================
 # FINAL NEUTRAL SCENARIO
-create_scenario(scenario_directory = '../results/simulations/neutral_scenario/',
+# create_scenario(scenario_directory = '../results/simulations/neutral_scenario/',
+#                 obs_naive_freqs = obs_naive_freqs,
+#                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+#                 n_high_avg_alleles = 0,
+#                 s = 0,
+#                 sigma_r = 1,
+#                 n_high_mutability_alleles = 0,
+#                 gamma = 1,
+#                 K = 2000,
+#                 I_total = c(50,100,200),
+#                 t_imm = 6,
+#                 mu_max = 3,
+#                 delta = 0.2,
+#                 mutation_rate = c(0, 0.01, 0.05),
+#                 beta = c(1,2,3,4),
+#                 tmax = 50,
+#                 uniform_naive_freqs = F)
+
+# ============================ HIGH MUTABILITY SCENARIO ===================================
+create_scenario(scenario_directory = '../results/simulations/high_mutability_scenario/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 n_high_avg_alleles = 0,
-                s = 0,
+                s = 1,
                 sigma_r = 1,
-                n_high_mutability_alleles = 0,
-                gamma = 1,
+                n_high_mutability_alleles = 5,
+                gamma = c(1.5,2,4,6), # WILL ADD 1.1, 1.5, 3
                 K = 2000,
-                I_total = c(50,100,200),
+                I_total = 200,
                 t_imm = 6,
                 mu_max = 3,
                 delta = 0.2,
