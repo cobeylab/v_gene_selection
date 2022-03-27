@@ -456,6 +456,13 @@ count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars
     
 }
 
+find_variable_parameters <- function(model_parameters){
+  n_par_values <- model_parameters %>% summarise(across(everything(), function(x){length(unique(x))})) %>% unlist()
+  variable_pars <- names(n_par_values)[n_par_values >1]
+  
+  return(variable_pars)
+}
+
 # ----- Tests ------
 
 
