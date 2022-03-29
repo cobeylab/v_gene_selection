@@ -39,7 +39,7 @@ if(use_Greiff2017_naive_freqs){
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
 load(paste0(results_directory, precomputed_freqs_file))
 
-# These count objects are from the precomputed file, so they use either all seuqences or unique sequences
+# These count objects are from the precomputed file, so they use either all sequences or unique sequences
 seq_counts <- bind_rows(exp_seq_counts, naive_seq_counts)
 
 # Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
@@ -50,81 +50,41 @@ exported_figure_objects_dir <- paste0(figure_directory,'exported_ggplot_objects/
 # For some analyses, exclude mice with fewer than min_compartment_size reads
 min_compartment_size = 100
 
+# ===== CUMULATIVE NAIVE FREQUENCIES
 
-# ======= Example of gene rank frequency plot ======================================
-LN_PC_freqs_primary8 <- gene_freqs %>% 
-  filter(group_controls_pooled == 'primary-8', tissue == 'LN', cell_type == 'PC',
-         total_compartment_seqs >= min_compartment_size)
+cumulative_naive_freqs <- naive_freqs %>%
+  group_by(mouse_id) %>%
+  filter(total_mouse_naive_seqs >= min_compartment_size) %>%
+  arrange(mouse_id, naive_vgene_seq_freq) %>%
+  mutate(cumulative_naive_freq = cumsum(naive_vgene_seq_freq)) %>%
+  ungroup() %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
-vgene_order <- LN_PC_freqs_primary8 %>%
-  group_by(v_gene) %>%
-  summarise(median_freq_across_mice = median(vgene_seq_freq),
-            median_naive_freq_across_mice = median(naive_vgene_seq_freq)) %>%
-  arrange(desc(median_freq_across_mice)) %>%
-  pull(v_gene)
+cumulative_naive_freqs_pl <- cumulative_naive_freqs %>% 
+  ggplot(aes(x = naive_vgene_seq_freq, y = cumulative_naive_freq, group = mouse_id)) +
+  geom_line() +
+  geom_point() +
+  geom_vline(xintercept = c(0.02,0.03), linetype = 2)  +
+  geom_hline(yintercept = 0.5, linetype = 2) +
+  facet_wrap('group_controls_pooled') +
+  xlab('Allele frequency in the naive repertoire') +
+  ylab('Cumulative frequency')
 
-LN_PC_freqs_primary8  %>%
-  mutate(v_gene = factor(v_gene, levels = vgene_order)) %>%
-  ggplot(aes(x = v_gene)) +
-  geom_point(aes(y = vgene_seq_freq)) +
-  facet_wrap('mouse_id', nrow = 2) +
-  scale_y_log10(breaks = c(1e-4,1e-3,1e-2,1e-1)) +
-  background_grid(minor = 'none', major = 'y') +
-  theme(axis.text.x = element_blank()) +
-  xlab('V genes\n(ordered by median frequency across mice)') +
-  ylab('Frequency in lymph node plasma cells')
+
+
 
 # ===== CORRELATION BETWEEN NAIVE AND EXPERIENCED FREQUENCIES ==========
-
-# -- Select scatterplots showing exp. vs. naive freq correlations ------
-
-plot_naive_freq_corr <- function(group_controls_pooled, tissue, cell_type){
-  stopifnot(tissue == 'LN') # If looking at other tissues have to change y axis
-  
-  cell_type_label <- switch(cell_type,
-                            'GC' = 'germinal center cells',
-                            'PC' = 'plasma cells',
-                            'mem' = 'memory cells',
-                            'nonnaive_IgD+B220+' = 'non-naive IgD+B220+ cells')
-  
-  gene_freqs %>% 
-    filter(group_controls_pooled == !!group_controls_pooled, tissue == !!tissue, cell_type == !!cell_type) %>%
-    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
-    ggplot(aes(x = naive_vgene_seq_freq, vgene_seq_freq)) +
-    geom_point() +
-    facet_wrap('mouse_id', nrow = 2) +
-    scale_y_log10() +
-    scale_x_log10() + 
-    geom_abline(slope = 1, intercept = 0, linetype = 2) +
-    background_grid() +
-    xlab('Frequency in naive repertoire') +
-    ylab(paste0('Frequency in lymph node ', cell_type_label))
-}
-plot_naive_freq_corr('primary-8', 'LN','PC')
-plot_naive_freq_corr('primary-16', 'LN','PC')
-plot_naive_freq_corr('primary-24', 'LN','PC')
-
-
-
-plot_naive_freq_corr('primary-16', 'LN','GC')
-plot_naive_freq_corr('secondary-40', 'LN','GC')
-
-plot_naive_freq_corr('primary-8', 'LN','nonnaive_IgD+B220+')
-plot_naive_freq_corr('primary-16', 'LN','nonnaive_IgD+B220+')
-plot_naive_freq_corr('secondary-40', 'LN','nonnaive_IgD+B220+')
-
-
 
 
 
 # Spearman correlation coefficients
-naive_exp_correlations_obs <- get_naive_exp_correlations(gene_freqs) %>%
+naive_exp_correlations_obs <- get_naive_exp_correlations(gene_freqs, method = 'pearson') %>%
   filter(total_compartment_seqs > min_compartment_size, total_mouse_naive_seqs > min_compartment_size) %>%
   mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
   mutate(day = as.integer(as.character(day)))
 
 naive_exp_correlations_neutral <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
-                                         FUN = get_naive_exp_correlations)
+                                         FUN = get_naive_exp_correlations, method = 'pearson')
 
 naive_exp_correlations_neutral <- bind_rows(naive_exp_correlations_neutral, .id = 'replicate') %>%
   mutate(replicate = as.numeric(replicate)) %>%
@@ -169,7 +129,7 @@ naive_exp_correlations_plot <- naive_exp_correlations_obs %>%
   facet_grid(.~cell_type, scales = 'free') +
   theme(legend.position = 'top') +
   xlab('Days after primary infection') +
-  ylab('Spearman correlation in V gene frequencies between\nnaive repertoire and influenza induced populations') +
+  ylab('Correlation in V gene frequencies between\nnaive repertoire and influenza-induced populations') +
   geom_hline(yintercept = 0, linetype = 2) +
   scale_color_manual(values = c('green3','dodgerblue2')) +
   scale_size_continuous(name = 'Number of sequences',
@@ -179,49 +139,6 @@ naive_exp_correlations_plot <- naive_exp_correlations_obs %>%
   scale_x_continuous(breaks = unique(naive_exp_correlations_obs$day))
 
 plot(naive_exp_correlations_plot)
-
-naive_exp_correlations_obs %>%
-  filter(tissue == 'spleen') %>%
-  ggplot(aes(x = group_controls_pooled, y = naive_exp_corr, color = infection_status)) +
-  geom_boxplot(data = naive_exp_correlations_neutral %>% filter(tissue == 'spleen'),
-               outlier.alpha = 0) +
-  geom_point(aes(size = total_compartment_seqs), shape = 1,
-             position = position_jitter(width = 0.1, height = 0)) +
-  geom_point(data = naive_exp_corr_weighted_means %>%
-               filter(tissue == 'spleen'),
-             aes(y = naive_exp_corr_weighted_mean),
-             shape = 4, size = 4, stroke = 2, show.legend = F) +
-  facet_grid(.~cell_type, scales = 'free') +
-  theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'top') +
-  xlab('Group') +
-  ylab('Correlation in gene frequencies\nin naive repertoire vs. spleen cells') +
-  geom_hline(yintercept = 0, linetype = 2) +
-  #scale_color_manual(values = c('green3','dodgerblue2')) +
-  scale_size_continuous(name = 'Number of unique sequences',
-                        breaks = c(1000,10000,20000)) +
-  guides(color = 'none') +
-  background_grid()
-
-
-n_genes_by_deviation <- deviation_from_naive %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
-  mutate(total_genes = length(unique(v_gene))) %>%
-  ungroup() %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, total_genes, deviation_from_naive) %>%
-  summarise(n_genes = length(unique(v_gene))) %>%
-  ungroup() %>%
-  mutate(fraction_genes = n_genes / total_genes)
-
-n_genes_by_deviation %>% filter(group_controls_pooled != 'control', tissue == 'LN') %>%
-  #filter(!is.na(deviation_from_naive)) %>%
-  ggplot(aes(x = group_controls_pooled, y = fraction_genes, color = infection_status)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point() +
-  facet_grid(deviation_from_naive~cell_type) +
-  background_grid() + 
-  scale_color_manual(values = c('green3','dodgerblue2')) +
-  theme(axis.text.x = element_text(angle = 20, vjust = 0.5), legend.position = 'top') +
-  xlab('Group') + ylab('Fraction of genes')
 
 
 # Genes deviating somewhat consistently across mice 
@@ -742,30 +659,11 @@ pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
              alpha = point_alpha) +
   scale_y_continuous(limits = c(0,1)) +
   xlab('Type of pair') +
-  ylab('Spearman correlation in naive V gene frequencies\nbetween mouse pairs (excluding mice with < 100 sequences)') +
+  ylab('Correlation in naive V gene frequencies\nbetween mouse pairs (excluding mice with < 100 sequences)') +
   theme(legend.position = 'none') +
   background_grid()
 
 plot(pairwise_naive_correlations_plot)
-
-pairwise_correlations$freqs %>%
-  filter(cell_type != 'naive') %>%
-  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-         cell_type = factor(cell_type, levels = c('experienced','nonnaive_IgD+B220+','GC','PC','mem'))) %>%
-  filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size) %>%
-  ggplot(aes(x = pair_type, y = cor_coef_freqs, color = pair_type)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point(position = position_jitter(width = 0.1, height = 0),
-             alpha = 0.5) +
-  scale_y_continuous(limits = c(0,1)) +
-  theme(legend.position = 'top') +
-  xlab('Type of pair') +
-  ylab('Correlation in gene frequencies between mouse pairs') +
-  theme(legend.position = 'none',
-        axis.text.x = element_text(size = 9)) +
-  facet_grid(tissue~cell_type) +
-  scale_x_discrete(labels = function(x){str_replace(x, '/','\n&\n')}) +
-  background_grid()
 
 
 pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
@@ -973,38 +871,38 @@ left_join(rdm_beta_deviations_primary_only, beta_deviations_primary_only_OBS) %>
             fraction = n_replicates_smaller_than_or_equal_to_obs / n_replicates)
 
 # "Concordance" analyses (% of genes increasing in each pair of mice)
-deviation_concordance %>%
-  filter(cell_type %in% c('GC','PC','mem')) %>%
-  mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
-  filter(day_i == day_j, total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size,
-         total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size,
-         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
-  mutate(day_i = as.integer(as.character(day_i))) %>%
-  mutate(cell_type = case_when(
-    cell_type == 'GC' ~ 'Lymph node GC cells',
-    cell_type == 'PC' ~ 'Lymph node plasma cells',
-    cell_type == 'mem' ~ 'Lymph node memory cells'
-  )) %>%
-  mutate(cell_type = factor(cell_type, levels = c('Lymph node GC cells',
-                                                  'Lymph node plasma cells',
-                                                  'Lymph node memory cells'))) %>%
-  mutate(concordance_status = factor(concordance_status, levels = c('concordant-increasing',
-                                                                    'concordant-stable',
-                                                                     'discordant',
-                                                                     'concordant-decreasing'))) %>%
-  ggplot(aes(x = day_i, y = n_alleles, group = day_i)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point(position = position_jitter(width =0.2, height = 0), alpha = 0.8, size = 4,
-             aes(color = pair_type),
-  ) +
-  facet_grid(concordance_status ~ cell_type, scales = 'free') +
-  background_grid() +
-  scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
-  xlab('Days after primary infection') +
-  ylab('Number of alleles (excluding mice with < 100 seqs.)') +
-  theme(legend.position = 'top') +
-  scale_x_continuous(breaks = c(8,16,24,40,56)) +
-  scale_y_continuous(limits = c(0, NA))
+# deviation_concordance %>%
+#   filter(cell_type %in% c('GC','PC','mem')) %>%
+#   mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
+#   filter(day_i == day_j, total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size,
+#          total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size,
+#          tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
+#   mutate(day_i = as.integer(as.character(day_i))) %>%
+#   mutate(cell_type = case_when(
+#     cell_type == 'GC' ~ 'Lymph node GC cells',
+#     cell_type == 'PC' ~ 'Lymph node plasma cells',
+#     cell_type == 'mem' ~ 'Lymph node memory cells'
+#   )) %>%
+#   mutate(cell_type = factor(cell_type, levels = c('Lymph node GC cells',
+#                                                   'Lymph node plasma cells',
+#                                                   'Lymph node memory cells'))) %>%
+#   mutate(concordance_status = factor(concordance_status, levels = c('concordant-increasing',
+#                                                                     'concordant-stable',
+#                                                                      'discordant',
+#                                                                      'concordant-decreasing'))) %>%
+#   ggplot(aes(x = day_i, y = n_alleles, group = day_i)) +
+#   geom_boxplot(outlier.alpha = 0) +
+#   geom_point(position = position_jitter(width =0.2, height = 0), alpha = 0.8, size = 4,
+#              aes(color = pair_type),
+#   ) +
+#   facet_grid(concordance_status ~ cell_type, scales = 'free') +
+#   background_grid() +
+#   scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
+#   xlab('Days after primary infection') +
+#   ylab('Number of alleles (excluding mice with < 100 seqs.)') +
+#   theme(legend.position = 'top') +
+#   scale_x_continuous(breaks = c(8,16,24,40,56)) +
+#   scale_y_continuous(limits = c(0, NA))
   
 
 
@@ -1124,6 +1022,10 @@ dev.off()
 
 
 # PLOTS TO EXPORT
+save(cumulative_naive_freqs_pl,
+     file = paste0(exported_figure_objects_dir, 'cumulative_naive_freqs.RData'))
+
+
 save(naive_exp_correlations_plot,
      pairwise_naive_correlations_plot,
      pairwise_freq_correlations_plot,

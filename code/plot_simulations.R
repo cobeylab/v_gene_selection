@@ -97,7 +97,7 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
 
 # ======================== MAKING PLOTS ========================
 # Load simulation summaries
-scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutability_scenario')
+scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scenario')
 
 model_parameters <- bind_rows(
   lapply(as.list(scenarios),
@@ -119,7 +119,7 @@ for(scen in scenarios){
 main_fig_s <- 2
 main_fig_beta <- 4
 main_fig_I_total <- 200
-maing_fig_gamma <- 
+main_fig_gamma <- 6
 
 
 color_legend <- get_legend(base_plotting_function(summary_tibble = neutral_scenario_summary$summary_GC_stats %>%
@@ -134,14 +134,14 @@ correlations_fig_neutral <- generate_freq_cor_panels(summary_list = neutral_scen
 correlation_fig_high_affinity <- generate_freq_cor_panels(summary_list = high_affinity_scenario_summary, main_fig_s = main_fig_s,
                                                           main_fig_beta = main_fig_beta, main_fig_I_total = main_fig_I_total, 
                                                           main_fig_gamma = main_fig_gamma)
-correlation_fig_high_mutability <- generate_freq_cor_panels(summary_list = high_mutability_scenario_summary, main_fig_s = main_fig_s,
+correlation_fig_high_mutation <- generate_freq_cor_panels(summary_list = high_mutation_scenario_summary, main_fig_s = main_fig_s,
                                                             main_fig_beta = main_fig_beta, main_fig_I_total = main_fig_I_total, 
                                                             main_fig_gamma = main_fig_gamma)
 
 # Adjustments of labels
 correlations_fig_neutral$fraction_biggest_clone <- correlations_fig_neutral$fraction_biggest_clone +
   ylab('Frequency of biggest\nclone within GCs') +
-  ggtitle('All alleles contribute\nequally to fitness') +
+  ggtitle('Affinity distribution and mutation\nrate are the same across alleles') +
   theme(plot.title = element_text(hjust = 0.5, size = 14))
 correlations_fig_neutral$freq_corr <- correlations_fig_neutral$freq_corr + ylab('Pairwise correlation\nin allele frequencies')
 correlations_fig_neutral$freq_ratio_corr <- correlations_fig_neutral$freq_ratio_corr + ylab('Pairwise correlation in\nexperienced-to-naive ratios')
@@ -149,14 +149,22 @@ correlations_fig_neutral$freq_ratio_corr <- correlations_fig_neutral$freq_ratio_
 correlation_fig_high_affinity$fraction_biggest_clone <- correlation_fig_high_affinity$fraction_biggest_clone + ylab('') +
   ggtitle('Some alleles tend to encode\n receptors with higher affinity') +
   theme(plot.title = element_text(hjust = 0.5, size = 14))
-
 correlation_fig_high_affinity$freq_corr <- correlation_fig_high_affinity$freq_corr + ylab('')
 correlation_fig_high_affinity$freq_ratio_corr <- correlation_fig_high_affinity$freq_ratio_corr + ylab('')
+
+correlation_fig_high_mutation$fraction_biggest_clone <- correlation_fig_high_mutation$fraction_biggest_clone + ylab('') +
+  ggtitle('Some alleles tend to encode\n receptors with higher mutation rate')  +
+  theme(plot.title = element_text(hjust = 0.5, size = 14))
+correlation_fig_high_mutation$freq_corr <- correlation_fig_high_mutation$freq_corr + ylab('')
+correlation_fig_high_mutation$freq_ratio_corr <- correlation_fig_high_mutation$freq_ratio_corr + ylab('')
+
 
 
 correlations_fig <- plot_grid(
   plot_grid(plotlist = correlations_fig_neutral, nrow = 3),
-  plot_grid(plotlist = correlation_fig_high_affinity, nrow = 3))
+  plot_grid(plotlist = correlation_fig_high_affinity, nrow = 3),
+  plot_grid(plotlist = correlation_fig_high_mutation, nrow = 3),
+  nrow = 1)
 
 correlations_fig <- plot_grid(
   correlations_fig,
@@ -248,6 +256,32 @@ high_affinity_scenario_supp_fig <- base_plotting_function(summary_tibble = high_
 save_plot('../figures/simulations/high_affinity_scenario_supp_fig.pdf',
           high_affinity_scenario_supp_fig,
           base_width = 8, base_height = 9)
+
+high_mutation_scenario_supp_fig <-  base_plotting_function(summary_tibble = high_mutation_scenario_summary$summary_pairwise_correlations %>%
+                                                             filter(method == 'pearson'), y_var = 'freq_ratio_correlation',
+                                                           color_var = 'mutation_rate', facet_vars = c('gamma', 'beta')) +
+  ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
+  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  ylab('Pairwise correlation in experienced-to-naive frequency ratios')
+
+
+# FOR HIGH MUTATION ALLELES
+# combined_freq_of_high_mutation_alleles_in_GC_pl <- high_mutation_scenario_summary$combined_freq_of_high_avg_alleles_in_GCs %>%
+#   filter(beta == main_fig_beta, s == main_fig_s) %>%
+#   filter(t %in% c(10, max(t))) %>%
+#   mutate(s = paste0('allele advantage = ', s),
+#          t = paste0(t, ' days')) %>%
+#   ggplot(aes(x = combined_freq_high_avg)) +
+#   geom_histogram(bins = 20) + 
+#   facet_grid(reformulate('t', 'mutation_rate')) +
+#   scale_y_continuous(labels = function(x){round(x/total_GCs_across_individuals, 2)}) +
+#   ylab('Fraction of GCs') +
+#   xlab('Combined frequency of high-affinity alleles within GC') +
+#   geom_vline(xintercept = 0.5, alpha = 0.3, linetype = 2) 
+
+# save_plot('../figures/simulations/combined_freq_advantageous_alleles.pdf',
+#           combined_freq_of_high_avg_alleles_in_GC_pl,
+#           base_width = 8, base_height = 10)
 
 
 

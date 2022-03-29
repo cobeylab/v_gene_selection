@@ -12,11 +12,13 @@ source('plot_options.R')
 library(ggh4x)
 
 clone_info <- read_csv('../processed_data/clone_info.csv')
-# clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+# clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 
 # Load pre-computed gene frequencies
 load('../results/precomputed_gene_freqs.RData')
-# load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
+# [load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
+
+min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
 
 # ==========================================================================================
 # How many genes do mice use?
@@ -102,62 +104,13 @@ obs_n_genes <- left_join(obs_n_genes,
 write_csv(obs_n_genes, '../results/n_v_genes_by_mouse.csv')
 
 
-obs_n_genes %>%
-   filter(tissue == 'all', cell_type %in% c('naive', 'experienced')) %>%
-   pivot_longer(cols = c('n_genes','n_genes_chao1')) %>%
-   dplyr::rename(value_type = name) %>%
-   rowwise() %>%
-   mutate(point_label = ifelse(value < 50, as.character(mouse_id), '')) %>%
-   ungroup() %>%
-   mutate(value_type = case_when(
-     value_type == 'n_genes' ~ 'Observed',
-     value_type == 'n_genes_chao1' ~ 'Chao1 estimate'
-   )) %>%
-   mutate(value_type = factor(value_type,
-                              levels = c('Observed', 'Chao1 estimate'))) %>%
-   ggplot(aes(x = group_controls_pooled, y = value, color = infection_status)) +
-   geom_boxplot(outlier.alpha = 0, show.legend = F) +
-   geom_point(aes(size = total_compartment_seqs),
-              position = position_jitter(height = 0, width = 0.2),
-              shape = 1) +
-   #geom_text(aes(label = point_label), show.legend = F, size = 4,
-  #           position = position_nudge(y = 0, x = 0.5)) +
-   facet_grid(value_type~cell_type) +
-   theme(legend.position = 'top',
-         axis.text.x = element_text(size = 10, angle = 40, vjust = 0.5)) +
-   scale_color_discrete(guide = 'none') +
-   scale_size(name = 'Number of productive sequences') +
-   background_grid() +
-   xlab('Group') +
-   ylab('Number of V genes')
-
-
-# Number of V genes by group by tissue
-obs_n_genes %>%
-  filter(cell_type != 'naive', tissue != 'all', cell_type != 'experienced') %>%
-  ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
-  geom_boxplot(outlier.alpha = 0, show.legend = F) +
-  geom_point(aes(size = total_compartment_seqs),
-             position = position_jitter(height = 0, width = 0.2),
-             shape = 1) +
-  facet_grid(tissue~cell_type) +
-  theme(legend.position = 'top',
-        axis.text.x = element_text(size = 10, angle = 40, vjust = 0.5)) +
-  scale_color_discrete(guide = 'none') +
-  scale_size(name = 'Number of productive sequences', breaks = c(1000,10000,100000)) +
-  background_grid() +
-  xlab('Group') +
-  ylab('Number of V genes (chao1 estimate)')
-
-
-
-
 # PLOTS TO BE EXPORTED
 
 # Number of genes shared by pairs of mice
 n_shared_genes <- pairwise_gene_freqs %>%
   filter(cell_type == 'naive') %>%
-  filter(vgene_seq_freq_i != 0, vgene_seq_freq_j != 0) %>%
+  filter(vgene_seq_freq_i != 0, vgene_seq_freq_j != 0,
+         total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
   group_by(mouse_pair, pair_type) %>%
   dplyr::summarise(n_genes_shared = n()) %>%
   ungroup() %>%
@@ -195,7 +148,7 @@ total_genes_and_genes_in_LN_pops <-
   ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(aes(size = total_compartment_seqs),
-             position = position_jitter(height = 0, width = point_jitter_width),
+             position = position_jitter(height = 0, width = 0.1),
              alpha = point_alpha) +
   facet_grid(.~cell_type) +
   theme(legend.position = 'top',
@@ -206,13 +159,9 @@ total_genes_and_genes_in_LN_pops <-
   xlab('Group') +
   ylab('Number of V genes (Chao1 estimate)')
 
+# Put these plots in the folder with figures based on analysis of all sequences (as opposed to unique seqs only)
 save(total_genes_and_genes_in_LN_pops, n_shared_genes,
-     file = '../figures/exported_ggplot_objects/n_genes.RData')
-
-
-
-
-
+     file = '../figures/all_seqs_freqs/exported_ggplot_objects/n_genes.RData')
 
 
 

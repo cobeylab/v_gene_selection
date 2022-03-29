@@ -78,6 +78,22 @@ if("high_avg" %in% unique(allele_info$allele_type_affinity)){
   combined_freq_of_high_avg_alleles_in_GCs <- NULL
 }
 
+if("high_mut" %in% unique(allele_info$allele_type_mutability)){
+  combined_freq_of_high_mut_alleles_in_GCs <- left_join(allele_freqs_by_GC, allele_info %>%
+                                                          select(individual, allele, allele_type_mutability)) %>%
+    group_by(across(c(any_of(variable_pars), 't', 'individual','GC'))) %>%
+    summarise(combined_freq_high_mut = sum(allele_freq[allele_type_mutability == 'high_mut']),
+              combined_freq_low_mut = sum(allele_freq[allele_type_mutability == 'low_mut'])) %>%
+    ungroup() 
+    
+}else{
+  combined_freq_of_high_mut_alleles_in_GCs <- NULL
+}
+
+
+
+
+
 # Export .RData file with a list contaning summaries of current scenario:
 summary_object_name = paste0(basename(results_directory), '_summary')
 assign(summary_object_name,
@@ -93,8 +109,9 @@ assign(summary_object_name,
             #GC_statistics = GC_statistics, 
             #repertoire_allele_diversity = repertoire_allele_diversity,
             #repertoire_allele_freqs = repertoire_allele_freqs,
-            combined_freq_of_high_avg_alleles_in_GCs = combined_freq_of_high_avg_alleles_in_GCs),
-       )
+            combined_freq_of_high_avg_alleles_in_GCs = combined_freq_of_high_avg_alleles_in_GCs,
+            combined_freq_of_high_mut_alleles_in_GCs = combined_freq_of_high_mut_alleles_in_GCs
+       ))
 
 
 save(list = summary_object_name, 

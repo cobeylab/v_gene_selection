@@ -374,12 +374,14 @@ adjust_zero_exp_freqs <- function(exp_freqs){
 }
 
 # Correlation within each mouse between experienced and naive gene frequencies
-get_naive_exp_correlations <- function(gene_freqs){
+get_naive_exp_correlations <- function(gene_freqs, method){
   gene_freqs %>%
     group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type,
              total_compartment_seqs, total_mouse_naive_seqs) %>%
-    dplyr::summarise(naive_exp_corr = cor.test(vgene_seq_freq, naive_vgene_seq_freq)$estimate) %>%
-    ungroup()
+    dplyr::summarise(spearman = cor.test(vgene_seq_freq, naive_vgene_seq_freq, method = 'spearman')$estimate,
+                     pearson = cor.test(vgene_seq_freq, naive_vgene_seq_freq, method = 'pearson')$estimate) %>%
+    ungroup() %>%
+    pivot_longer(cols = c('spearman','pearson'), names_to = 'method', values_to = 'naive_exp_corr')
 }
 
 
@@ -582,16 +584,23 @@ get_pairwise_correlations <- function(pairwise_gene_freqs, min_genes_in_comparis
   
   pairwise_correlations_freqs <- pairwise_correlations %>%
     filter(n_genes_in_freqs_comparison >= min_genes_in_comparison) %>%
-    dplyr::summarise(cor_coef_freqs = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
-                                  method = 'spearman')$estimate) %>%
-    ungroup()
+    dplyr::summarise(spearman = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
+                                  method = 'spearman')$estimate,
+                     pearson = cor.test(vgene_seq_freq_i, vgene_seq_freq_j,
+                                         method = 'pearson')$estimate) %>%
+    ungroup() %>%
+    pivot_longer(cols = c('spearman', 'pearson'), names_to = 'method', values_to = 'cor_coef_freqs')
   
   if(include_freq_ratios){
     pairwise_correlations_freq_ratios <- pairwise_correlations %>%
       filter(n_genes_in_freq_ratio_comparison >= min_genes_in_comparison) %>%
-      dplyr::summarise(cor_coef_freq_ratios = cor.test(obs_rho_i, obs_rho_j,
-                                                       method = 'spearman')$estimate) %>%
-      ungroup()
+      dplyr::summarise(spearman = cor.test(obs_rho_i, obs_rho_j,
+                                           method = 'spearman')$estimate,
+                       pearson = cor.test(obs_rho_i, obs_rho_j,
+                                          method = 'pearson')$estimate) %>%
+      ungroup() %>%
+      pivot_longer(cols = c('spearman', 'pearson'), names_to = 'method', values_to = 'cor_coef_freq_ratios')
+    
     return(list(freqs = pairwise_correlations_freqs, freq_ratios = pairwise_correlations_freq_ratios))
   }else{
     return(pairwise_correlations_freqs)

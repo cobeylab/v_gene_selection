@@ -446,7 +446,7 @@ count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars
       freq_ratio == 1 ~ 'stable',
       freq_ratio < 1 ~ 'decreasing'
     )) %>%
-    group_by(across(c(any_of(variable_pars), 't','allele', 'allele_type_affinity', 'direction_of_change'))) %>%
+    group_by(across(c(any_of(variable_pars), 't','allele', 'allele_type_affinity', 'allele_type_mutability', 'direction_of_change'))) %>%
     summarise(n_individuals = n()) %>%
     ungroup() %>%
     pivot_wider(names_from = direction_of_change, values_from = n_individuals, values_fill = 0) %>%

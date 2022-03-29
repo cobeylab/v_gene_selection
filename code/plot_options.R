@@ -3,9 +3,9 @@ library(cowplot)
 library(dplyr)
 library(RColorBrewer)
 
-#point_jitter_width <- 0.2 # Not currently used
+point_jitter_width <- 0.2
 point_alpha <- 0.5
-#axis_text_x <- element_text(size = 10, angle = 40, vjust = 0.5) # Not currently used
+axis_text_x <- element_text(size = 10, angle = 40, vjust = 0.5) # Not currently used
 
 
 group_order <- c('primary-8','primary-16','primary-24',

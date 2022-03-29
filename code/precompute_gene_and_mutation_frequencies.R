@@ -4,6 +4,7 @@ library(tidyr)
 
 source('gene_frequency_functions.R')
 
+
 args <- commandArgs(trailingOnly = T)
 
 frequency_type <- as.character(args[1])
@@ -187,31 +188,6 @@ pairwise_correlations_randomized_noncontrol_groups <- list(freqs = pairwise_corr
                                                            freq_ratios = pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS %>%
                                                              select(replicate, everything()))
 
-
-
-# Null model realizations [We're no longer computing pairwise correlations for the null realizations]
-# neutral_pairwise_correlations_freqs <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
-#                                               FUN = function(x){
-#                                                 get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freqs
-#                                               })
-# 
-# neutral_pairwise_correlations_freq_ratios <- lapply(neutral_realizations %>% group_by(replicate) %>% group_split(),
-#                                                     FUN = function(x){
-#                                                       get_pairwise_correlations(get_pairwise_freqs(x, adjust_naive_zeros = T))$freq_ratios
-#                                                     })
-# 
-# for(i in 1:length(neutral_pairwise_correlations_freqs)){
-#   neutral_pairwise_correlations_freqs[[i]] <- neutral_pairwise_correlations_freqs[[i]] %>%
-#     mutate(replicate = i) %>% select(replicate, everything())
-#   neutral_pairwise_correlations_freq_ratios[[i]] <- neutral_pairwise_correlations_freq_ratios[[i]] %>%
-#     mutate(replicate = i) %>% select(replicate, everything())
-# }
-# 
-# neutral_pairwise_correlations_freqs <- bind_rows(neutral_pairwise_correlations_freqs)
-# neutral_pairwise_correlations_freq_ratios <- bind_rows(neutral_pairwise_correlations_freq_ratios)
-# 
-# neutral_pairwise_correlations <- list(freqs = neutral_pairwise_correlations_freqs,
-#                                       freq_ratios = neutral_pairwise_correlations_freq_ratios)
 
 # =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH TISSUE / CELL TYPE COMBINATION ==========
 

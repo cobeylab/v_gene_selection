@@ -13,7 +13,7 @@ source('plot_options.R')
 
 min_compartment_size = 100
 
-# These analyses are based on all productive sequences
+# These analyses are based on all productive sequences (as opposed to unique sequences only)
 
 # ====== Some functions ======
 
