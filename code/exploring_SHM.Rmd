@@ -15,18 +15,18 @@ theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 
 # Annotated sequences
-#annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
-annotated_seqs <- read_csv('~/Desktop/v_gene_selection_files/annotated_seqs.csv')
+annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
+#annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv')
 
-#clone_info <- read_csv('../processed_data/clone_info.csv')
-clone_info <- read_csv('~/Desktop/v_gene_selection_files/clone_info.csv')
+clone_info <- read_csv('../processed_data/clone_info.csv')
+#clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 clone_info <- get_info_from_mouse_id(clone_info) %>%
   mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
-#load('../results/precomputed_gene_freqs.RData')
-load('~/Desktop/v_gene_selection_files/precomputed_gene_freqs.RData')
+load('../results/precomputed_gene_freqs.RData')
+#load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
 
-# Add general clone information to objects contaning within-clone mutation frequencies
+# Add general clone information to objects containing within-clone mutation frequencies
 mutation_freqs_within_clones <- left_join(mutation_freqs_within_clones, clone_info) 
 mutation_freqs_within_clones_by_tissue_and_cell_type <- left_join(
   mutation_freqs_within_clones_by_tissue_and_cell_type,
@@ -35,6 +35,10 @@ mutation_freqs_within_clones_by_tissue_and_cell_type <- left_join(
   mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('naive','GC','PC','mem','nonnaive_IgD+B220+')),
          compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM')),
          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
+
+clone_freqs <- left_join(clone_freqs, clone_info %>% select(mouse_id, clone_id, v_gene))
+clone_freqs_by_tissue <- left_join(clone_freqs_by_tissue, clone_info %>% select(mouse_id, clone_id, v_gene))
+clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type, clone_info %>% select(mouse_id, clone_id, v_gene))
 
 ```
 
@@ -79,6 +83,7 @@ mutation_freq_threshold <- 0.5
 # If clone_freqs and mutation_freqs_within_clones are broken down by compartment, it will count the number of mutations in each clone 
 # at or above the threshold specifically in each compartment
 
+# For each clone, counts number of high-frequency mutations
 count_mutations_above_threshold_by_clone <- function(clone_freqs, mutation_freqs_within_clones,
                                                    mutation_freq_threshold){
   
@@ -89,10 +94,10 @@ count_mutations_above_threshold_by_clone <- function(clone_freqs, mutation_freqs
   
   
   all_productive_clones <- clone_freqs %>%
-    select(mouse_id, day, group_controls_pooled, infection_status, clone_id, matches('compartment_tissue'),
+    select(mouse_id, day, group_controls_pooled, infection_status, clone_id, v_gene, matches('compartment_tissue'),
            matches('compartment_cell_type'), n_clone_seqs_in_compartment)
   
-  grouping_vars <- c('mouse_id', 'group_controls_pooled', 'day', 'infection_status', 'clone_id')
+  grouping_vars <- c('mouse_id', 'group_controls_pooled', 'day', 'infection_status', 'clone_id','v_gene')
   
   compartment_vars <- c('compartment_cell_type','compartment_tissue')
   
@@ -101,9 +106,10 @@ count_mutations_above_threshold_by_clone <- function(clone_freqs, mutation_freqs
   }
   
   mutations_above_threshold_by_clone <- mutation_freqs_within_clones %>%
-    group_by(across(grouping_vars)) %>%
+    group_by(across(all_of(grouping_vars))) %>%
     filter(mutation_freq_in_compartment >= mutation_freq_threshold) %>%
-    dplyr::summarise(n_mutations_above_threshold = n())
+    dplyr::summarise(n_mutations_above_threshold = n(),
+                     mutations_list = paste(mutation, collapse = ';'))
 
   mutations_above_threshold_by_clone <- left_join(all_productive_clones, mutations_above_threshold_by_clone) %>%
     mutate(n_mutations_above_threshold = ifelse(is.na(n_mutations_above_threshold), 0,
@@ -112,12 +118,8 @@ count_mutations_above_threshold_by_clone <- function(clone_freqs, mutation_freqs
     select(mutation_freq_threshold, everything())
   
   return(mutations_above_threshold_by_clone)
-
-  
   
 }
-
-
 
 mutations_above_threshold_by_clone <- count_mutations_above_threshold_by_clone(clone_freqs,
                                                                              mutation_freqs_within_clones,
@@ -489,7 +491,7 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
      mean_n_mutations_all_tissues_plot,
      clone_rank_vs_high_freq_muts_LN_PCs_plot,
      clone_rank_vs_high_freq_muts_LN_GCs_plot,
-     file = '../figures/exported_ggplot_objects/high_frequency_mutations.RData')
+     file = '../figures/all_seqs_freqs/exported_ggplot_objects/high_frequency_mutations.RData')
 
 ```
 
@@ -501,15 +503,80 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
 
 
 ```{r echo = F}
-n_clones_with_each_mutation_above_threshold <- mutation_freqs_within_clones_by_tissue_and_cell_type %>%
-  mutate(global_clone_id = paste(mouse_id, clone_id, sep = ';')) %>%
-  filter(mutation_freq_in_compartment >= 0.5, prod_clone_seqs_in_compartment >= 10) %>%
-  group_by(compartment_tissue, compartment_cell_type, mouse_id, group_controls_pooled, v_gene, mutation) %>% 
-  dplyr::summarise(n_clones_with_mutation_above_threshold = length(unique(global_clone_id))) %>%
-  arrange(desc(n_clones_with_mutation_above_threshold)) %>%
-  filter(grepl('IGHV1-82', v_gene))
+# For each pair of mice, find all clones sharing the same V gene. For all pairs of clones, compute the number of high-frequency mutations they have in common
+get_n_clones_by_high_freq_mutation <- function(mutation)
+
+# Grouping must be done before calling this function so that only clones sharing the same v gene are compared
+# Otherwise shared mutations will be misleading (same mutation means different things in different genes)
+count_mutations_shared_by_clone_pairs <- function(mutations_list){
+  # Compares every element of mutations_list against the others
   
+  if(length(mutations_list) > 1){
+      paired_lists <- t(combn(mutations_list, 2))
+  colnames(paired_lists) <- c('mutations_list_clone_i', 'mutations_list_clone_j')
+  paired_lists <- as_tibble(paired_lists)
   
+  # Internal vectorized function.
+  compare_mutation_lists <- function(mutations_list_i, mutations_list_j){
+    split_list_i <- str_split(mutations_list_i,';')
+    split_list_j <- str_split(mutations_list_j,';')
+    
+    output <- mapply(list_i = split_list_i, list_j = split_list_j,
+                               FUN = function(list_i, list_j){
+                                 shared_mutations = list_i[list_i %in% list_j]
+                                 
+                                 return(length(shared_mutations[!is.na(shared_mutations)]))
+                                 }
+                     )
+    return(output)
+  }
+  
+  shared_mutations = paired_lists %>% mutate(shared_mutations = compare_mutation_lists(mutations_list_i = mutations_list_clone_i,
+                                                                    mutations_list_j = mutations_list_clone_j)) 
+  }else{
+    shared_mutations <- tibble(mutations_list_clone_i = c(), mutations_list_clone_j = c(), shared_mutations = c())
+  }  
+  return(shared_mutations)
+  
+}
+  
+shared_mutations_in_LN_clones <-  mutations_above_threshold_by_clone_by_compartment %>% 
+  filter(group_controls_pooled != 'control', 
+         compartment_tissue == 'LN', compartment_cell_type %in% c('GC','PC','mem')) %>%
+  group_by(group_controls_pooled, infection_status, compartment_cell_type, v_gene) %>%
+  summarise(count_mutations_shared_by_clone_pairs(mutations_list = mutations_list)) %>%
+  ungroup()
+
+shared_mutations_in_LN_clones %>%
+  mutate(any_mutations_shared = shared_mutations > 0) %>%
+  group_by(group_controls_pooled, compartment_cell_type, any_mutations_shared) %>%
+  count() %>%
+  group_by(group_controls_pooled, compartment_cell_type) %>%
+  mutate(probability = n/sum(n)) %>%
+  filter(any_mutations_shared == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = probability)) +
+  geom_col() +
+  facet_wrap('compartment_cell_type', nrow = 1) +
+  xlab('group') +
+  ylab('Probability that two clones sharing the same V allele\nhave high-frequency mutations in common') +
+  ylim(0,1)
+
+shared_mutations_in_LN_clones %>%
+  filter(grepl('IGHV14-4', v_gene)) %>%
+  mutate(any_mutations_shared = shared_mutations > 0) %>%
+  group_by(group_controls_pooled, compartment_cell_type, any_mutations_shared) %>%
+  count() %>%
+  group_by(group_controls_pooled, compartment_cell_type) %>%
+  mutate(probability = n/sum(n)) %>%
+  filter(any_mutations_shared == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = probability)) +
+  geom_col() +
+  facet_wrap('compartment_cell_type', nrow = 1) +
+  xlab('group') +
+  ylab('Probability that two clones sharing the same V allele\nhave high-frequency mutations in common') +
+  ylim(0,1)
+  
+
 
 
 ```
