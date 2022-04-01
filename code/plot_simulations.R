@@ -116,7 +116,7 @@ for(scen in scenarios){
 
 # Main text figure with behavior of frequency correlations
 # Across scenarios, where applicable, use simulations with these values
-main_fig_s <- 2
+main_fig_s <- 1.5
 main_fig_beta <- 4
 main_fig_I_total <- 200
 main_fig_gamma <- 6
@@ -142,19 +142,19 @@ correlation_fig_high_mutation <- generate_freq_cor_panels(summary_list = high_mu
 correlations_fig_neutral$fraction_biggest_clone <- correlations_fig_neutral$fraction_biggest_clone +
   ylab('Frequency of biggest\nclone within GCs') +
   ggtitle('Affinity distribution and mutation\nrate are the same across alleles') +
-  theme(plot.title = element_text(hjust = 0.5, size = 14))
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
 correlations_fig_neutral$freq_corr <- correlations_fig_neutral$freq_corr + ylab('Pairwise correlation\nin allele frequencies')
 correlations_fig_neutral$freq_ratio_corr <- correlations_fig_neutral$freq_ratio_corr + ylab('Pairwise correlation in\nexperienced-to-naive ratios')
 
 correlation_fig_high_affinity$fraction_biggest_clone <- correlation_fig_high_affinity$fraction_biggest_clone + ylab('') +
   ggtitle('Some alleles tend to encode\n receptors with higher affinity') +
-  theme(plot.title = element_text(hjust = 0.5, size = 14))
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
 correlation_fig_high_affinity$freq_corr <- correlation_fig_high_affinity$freq_corr + ylab('')
 correlation_fig_high_affinity$freq_ratio_corr <- correlation_fig_high_affinity$freq_ratio_corr + ylab('')
 
 correlation_fig_high_mutation$fraction_biggest_clone <- correlation_fig_high_mutation$fraction_biggest_clone + ylab('') +
   ggtitle('Some alleles tend to encode\n receptors with higher mutation rate')  +
-  theme(plot.title = element_text(hjust = 0.5, size = 14))
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
 correlation_fig_high_mutation$freq_corr <- correlation_fig_high_mutation$freq_corr + ylab('')
 correlation_fig_high_mutation$freq_ratio_corr <- correlation_fig_high_mutation$freq_ratio_corr + ylab('')
 
@@ -168,14 +168,14 @@ correlations_fig <- plot_grid(
 
 correlations_fig <- plot_grid(
   correlations_fig,
-  plot_grid(NULL, color_legend, nrow =1, rel_widths = c(1,5)),
+  plot_grid(NULL, color_legend, nrow =1, rel_widths = c(2,5)),
   nrow = 2,
   rel_heights = c(15,1)
 )
 
 save_plot('../figures/simulations/simulated_correlations.pdf',
           correlations_fig,
-          base_width = 8, base_height = 10)
+          base_width = 11, base_height = 11)
 
 # Main text figure showing % GCs occupied by high-affinity alleles in the high-affinity scenario
 
@@ -195,7 +195,7 @@ combined_freq_of_high_avg_alleles_in_GC_pl <- high_affinity_scenario_summary$com
   xlab('Combined frequency of high-affinity alleles within GC') +
   geom_vline(xintercept = 0.5, alpha = 0.3, linetype = 2) 
 
-save_plot('../figures/simulations/combined_freq_advantageous_alleles.pdf',
+save_plot('../figures/simulations/combined_freq_high_affinity_alleles.pdf',
           combined_freq_of_high_avg_alleles_in_GC_pl,
           base_width = 8, base_height = 10)
 
@@ -266,171 +266,22 @@ high_mutation_scenario_supp_fig <-  base_plotting_function(summary_tibble = high
 
 
 # FOR HIGH MUTATION ALLELES
-# combined_freq_of_high_mutation_alleles_in_GC_pl <- high_mutation_scenario_summary$combined_freq_of_high_avg_alleles_in_GCs %>%
-#   filter(beta == main_fig_beta, s == main_fig_s) %>%
-#   filter(t %in% c(10, max(t))) %>%
-#   mutate(s = paste0('allele advantage = ', s),
-#          t = paste0(t, ' days')) %>%
-#   ggplot(aes(x = combined_freq_high_avg)) +
-#   geom_histogram(bins = 20) + 
-#   facet_grid(reformulate('t', 'mutation_rate')) +
-#   scale_y_continuous(labels = function(x){round(x/total_GCs_across_individuals, 2)}) +
-#   ylab('Fraction of GCs') +
-#   xlab('Combined frequency of high-affinity alleles within GC') +
-#   geom_vline(xintercept = 0.5, alpha = 0.3, linetype = 2) 
+combined_freq_of_high_mutation_alleles_in_GC_pl <- high_mutation_scenario_summary$combined_freq_of_high_mut_alleles_in_GCs %>%
+  filter(beta == main_fig_beta, gamma == main_fig_gamma) %>%
+  filter(t %in% c(10, max(t))) %>%
+  mutate(gamma = paste0('Relative mutability = ', gamma),
+         t = paste0(t, ' days')) %>%
+  ggplot(aes(x = combined_freq_high_mut)) +
+  geom_histogram(bins = 20) +
+  facet_grid(reformulate('t', 'mutation_rate')) +
+  scale_y_continuous(labels = function(x){round(x/total_GCs_across_individuals, 2)}) +
+  ylab('Fraction of GCs') +
+  xlab('Combined frequency of high-mutability alleles within GC') +
+  geom_vline(xintercept = 0.5, alpha = 0.3, linetype = 2)
 
-# save_plot('../figures/simulations/combined_freq_advantageous_alleles.pdf',
-#           combined_freq_of_high_avg_alleles_in_GC_pl,
-#           base_width = 8, base_height = 10)
-
-
-
-# =========== OLD PLOT CODE ============
-
-
-
-color_legend <- get_legend(base_plotting_function(summary_pairwise_correlations %>% filter(method == 'pearson'),
-                                                  y_var = 'freq_correlation', color_var = color_var,
-                                                  primary_facet_var = primary_facet_var, secondary_facet_var = secondary_facet_var,
-                                                  secondary_facet_value = secondary_facet_value, plot_secondary_facet = F))
-
-pairwise_corr_freqs_pl <- base_plotting_function(summary_pairwise_correlations %>% filter(method == 'pearson'),
-                                                 y_var = 'freq_correlation', color_var = color_var, primary_facet_var = primary_facet_var) +
-  ylab('Pairwise correlation\nin allele frequencies') +
-  geom_hline(yintercept = 0, linetype =2) +
-  theme(strip.background = element_blank(), strip.text = element_blank(),
-        legend.position = 'none') +
-  xlab('')
-
-pairwise_corr_freq_ratios_pl <- base_plotting_function(summary_pairwise_correlations %>% filter(method == 'pearson'),
-                                                       y_var = 'freq_ratio_correlation', color_var = color_var,
-                                                       primary_facet_var = primary_facet_var) +
-  ylab('Pairwise correlation in\nexperienced-to-naive ratios') +
-  geom_hline(yintercept = 0, linetype =2) +
-  #ylim(-1,1) +
-  theme(strip.background = element_blank(), strip.text = element_blank(),
-        legend.position = 'none') +
-  xlab('')
-
-
-n_alleles_in_rep_pl <- base_plotting_function(summary_repertoire_allele_diversity,
-                                              y_var = 'n_alleles_in_experienced_repertoire', color_var = color_var,
-                                              primary_facet_var = primary_facet_var) +
-  ylab('Number of V alleles\nin the response') +
-  theme(strip.background = element_blank(), strip.text = element_blank(),
-        legend.position = 'none') +
-  xlab('Time')
-
-
-freq_dominant_clone_pl <- base_plotting_function(summary_GC_stats, y_var = 'fraction_biggest_clone', color_var = color_var,
-                                                 primary_facet_var = primary_facet_var) +
-  ylab('Frequency of biggest\nclone within GCs') +
-  ylim(0,1) +
-  theme(legend.position = 'none') +
-  xlab('')
-
-
-main_panel <- plot_grid(color_legend,
-                        freq_dominant_clone_pl,
-                        pairwise_corr_freqs_pl,
-                        pairwise_corr_freq_ratios_pl,
-                        n_alleles_in_rep_pl,
-                        align = 'v',
-                        axis = 'l',
-                        nrow = 5,
-                        rel_heights = c(0.1,1,1,1,1))
-
-
-save_plot(paste0(results_directory, basename(results_directory), '_main_panel.pdf'),
-          main_panel,
-          base_height = 12, base_width = 10)
-
-
-# Other plots
-GC_total_pop_pl <- base_plotting_function(summary_GC_stats, y_var = 'total_GC_pop', color_var = color_var,
-                                          primary_facet_var = primary_facet_var) +
-  ylab('Total population per GC') +
-  theme(legend.position = 'top') +
-  scale_color_discrete(name = 'Mutation rate')
-
-save_plot(paste0(results_directory, basename(results_directory), '_total_GC_population.pdf'),
-          GC_total_pop_pl,
-          base_height = 4, base_width = 8)
-
-
-if("high_avg" %in% unique(allele_info$allele_type_affinity)){
-  
-  # For each high-average allele, plot fraction of individuals where allele has increased / decreased in freq. relative to naive rep. over time.
-  fraction_increasing_pl <- n_increasing_decreasing %>%
-    filter(allele_type_affinity == 'high_avg') %>%
-    ggplot(aes(x = t, y = fraction_increasing)) +
-    geom_line(aes(group = allele), alpha= 1) +
-    geom_line(data = n_increasing_decreasing %>% 
-                filter(allele_type_affinity == 'high_avg') %>%
-                group_by(across(c(any_of(variable_pars), 't'))) %>%
-                summarise(fraction_increasing = mean(fraction_increasing)),
-              color = 'blue', size = 2, alpha = 0.7) +
-    #geom_smooth() +
-    facet_grid(reformulate(color_var, primary_facet_var)) +
-    geom_hline(yintercept = 0.5, linetype = 2) +
-    xlab('Time') +
-    ylim(0,1) +
-    ylab('Fraction of individuals where allele increased in frequency') +
-    theme(panel.border = element_rect(colour = 'black', linetype = 1))
-  
-  save_plot(paste0(results_directory, basename(results_directory), '_fraction_individuals_high_avg_alleles_increasing.pdf'),
-            fraction_increasing_pl,
-            base_height = 12, base_width = 10)
-  
-  
-  
-  
-  
-  total_GCs_across_individuals = length(unique(simulations$individual)) * length(unique(simulations$GC))
-  
-  
-  selected_s_value <- 2
-  combined_freq_of_high_avg_alleles_in_GC_pl <- combined_freq_of_high_avg_alleles_in_GCs %>%
-    filter(s == selected_s_value) %>%
-    filter(t %in% c(10, max(t))) %>%
-    mutate(s = paste0('allele advantage = ', s),
-           t = paste0(t, ' days')) %>%
-    ggplot(aes(x = combined_freq_high_avg)) +
-    geom_histogram(bins = 20) + 
-    facet_grid(reformulate('t', color_var)) +
-    scale_y_continuous(labels = function(x){round(x/total_GCs_across_individuals, 2)}) +
-    ylab('Fraction of GCs') +
-    xlab('Combined frequency of high-affinity alleles within GC') +
-    geom_vline(xintercept = 0.5, alpha = 0.3, linetype = 2) +
-    ggtitle(paste0('S = ', selected_s_value))
-  
-  save_plot(paste0(results_directory, basename(results_directory), '_combined_freq_of_high_avg_alleles_in_GCS.pdf'),
-            combined_freq_of_high_avg_alleles_in_GC_pl,
-            base_height = 10, base_width = 10)
-  
-  
-  # Cool to look at but hard to see patterns
-  # combined_freq_of_high_avg_alleles_in_GCs %>%
-  #   mutate(plotting_group = paste(individual, GC, sep = '_')) %>%
-  #   group_by(mutation_rate, s, plotting_group) %>%
-  #   mutate(dominated_by_high_avg = combined_freq_high_avg[t == max(t)] > 0.5) %>%
-  #   ungroup() %>%
-  #   ggplot(aes(x = t, y = combined_freq_high_avg, color = dominated_by_high_avg)) +
-  #   geom_line(aes(group = plotting_group), alpha = 0.5) +
-  #   facet_grid(mutation_rate~s)
-  
-}
-
-
-#simulations %>%
-# filter(mutation_rate == 0.01, I_total == 100) %>%
-# group_by(individual, t,GC) %>%
-# summarise(mean_affinity = sum(clone_freq*mean_affinity)) %>%
-# ungroup() %>%
-# mutate(plotting_group = paste0(individual, GC, sep = ';')) %>%
-# ggplot(aes(x = t, y = mean_affinity)) +
-# geom_line(aes(group = plotting_group), alpha = 0.5) +
-# geom_smooth()
+save_plot('../figures/simulations/combined_freq_high_mut_alleles.pdf',
+          combined_freq_of_high_mutation_alleles_in_GC_pl,
+          base_width = 8, base_height = 10)
 
 
 

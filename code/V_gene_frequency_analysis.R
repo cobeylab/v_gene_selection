@@ -75,8 +75,6 @@ cumulative_naive_freqs_pl <- cumulative_naive_freqs %>%
 
 # ===== CORRELATION BETWEEN NAIVE AND EXPERIENCED FREQUENCIES ==========
 
-
-
 # Spearman correlation coefficients
 naive_exp_correlations_obs <- get_naive_exp_correlations(gene_freqs, method = 'pearson') %>%
   filter(total_compartment_seqs > min_compartment_size, total_mouse_naive_seqs > min_compartment_size) %>%
@@ -634,17 +632,7 @@ if(frequency_type == 'all_seqs'){
   
 }
 
-# Export CSV for a closer look at top clones in each mouse / compartment
-top_clones_list <- clone_freqs_by_tissue_and_cell_type %>%
-  filter(clone_rank_in_compartment <= 10, compartment_cell_type != 'naive') %>%
-  arrange(mouse_id, compartment_tissue, compartment_cell_type,
-          desc(n_clone_seqs_in_compartment)) %>% select(mouse_id, infection_status, group_controls_pooled, compartment_tissue,
-                                                                  compartment_cell_type, clone_id, clone_rank_in_compartment,
-                                                        n_clone_seqs_in_compartment,total_seqs_in_compartment) 
 
-top_clones_table <- left_join(top_clones_list , clone_info) %>%
-  select(mouse_id, clone_id, v_gene, total_clone_prod_seqs, n_clone_seqs_in_compartment, everything())
-write_csv(top_clones_table, '../results/top_clones_table.csv')
 
 
 
@@ -661,7 +649,8 @@ pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
   xlab('Type of pair') +
   ylab('Correlation in naive V gene frequencies\nbetween mouse pairs (excluding mice with < 100 sequences)') +
   theme(legend.position = 'none') +
-  background_grid()
+  background_grid() +
+  facet_wrap('method')
 
 plot(pairwise_naive_correlations_plot)
 
@@ -685,7 +674,7 @@ pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   geom_point(position = position_jitter(width =0.1, height = 0), alpha = 0.8, size = 4,
              aes(color = pair_type),
   ) +
-  facet_wrap('cell_type') +
+  facet_grid(method ~ cell_type) +
   background_grid() +
   scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
   xlab('Days after primary infection') +
@@ -715,7 +704,7 @@ pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   geom_point(position = position_jitter(width =0.1, height = 0), alpha = 0.8, size = 4,
              aes(color = pair_type),
   ) +
-  facet_wrap('cell_type') +
+  facet_wrap(method~cell_type) +
   background_grid() +
   scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
   xlab('Days after primary infection') +
@@ -801,71 +790,71 @@ deviation_correlations_LN_randomized <- pairwise_correlations_randomized_noncont
   
 # Now we compute the regression coefficient separately for each cell type, first for observed data
 beta_freqs_OBS <- freq_correlations_LN_OBS  %>%
-  group_by(cell_type) %>%
-  summarise(beta_obs = lm(cor_coef_freqs~time)$coefficients[2])
+  group_by(cell_type, method) %>%
+  summarise(beta_obs = lm(cor_coef_freqs~time)$coefficients[2]) %>% ungroup()
  
 beta_deviations_OBS <- deviation_correlations_LN_OBS  %>%
-  group_by(cell_type) %>%
-  summarise(beta_obs = lm(cor_coef_freq_ratios~time)$coefficients[2])
+  group_by(cell_type, method) %>%
+  summarise(beta_obs = lm(cor_coef_freq_ratios~time)$coefficients[2]) %>% ungroup()
 
 beta_freqs_primary_only_OBS <- freq_correlations_LN_OBS  %>%
   filter(pair_type == 'primary') %>%
-  group_by(cell_type) %>%
-  summarise(beta_obs = lm(cor_coef_freqs~time)$coefficients[2])
+  group_by(cell_type, method) %>%
+  summarise(beta_obs = lm(cor_coef_freqs~time)$coefficients[2]) %>% ungroup()
 
 beta_deviations_primary_only_OBS <- deviation_correlations_LN_OBS  %>%
   filter(pair_type == 'primary') %>%
-  group_by(cell_type) %>%
-  summarise(beta_obs = lm(cor_coef_freq_ratios~time)$coefficients[2])
+  group_by(cell_type, method) %>%
+  summarise(beta_obs = lm(cor_coef_freq_ratios~time)$coefficients[2]) %>% ungroup()
 
 
 # Then for the randomizations
 
 rdm_beta_freqs <- freq_correlations_LN_randomized %>%
-  group_by(replicate, cell_type) %>%
+  group_by(replicate, cell_type, method) %>%
   summarise(beta_rdm = lm(cor_coef_freqs~time)$coefficients[2]) %>%
-  group_by(cell_type) 
+  ungroup() 
 
 
 rdm_beta_freqs_primary_only <- freq_correlations_LN_randomized %>%
-  group_by(replicate, cell_type) %>%
+  group_by(replicate, cell_type, method) %>%
   filter(pair_type == 'primary') %>%
   summarise(beta_rdm = lm(cor_coef_freqs~time)$coefficients[2]) %>%
-  group_by(cell_type) 
+  ungroup()
 
 rdm_beta_deviations <- deviation_correlations_LN_randomized %>%
-  group_by(replicate, cell_type) %>%
+  group_by(replicate, cell_type, method) %>%
   summarise(beta_rdm = lm(cor_coef_freq_ratios~time)$coefficients[2]) %>%
-  group_by(cell_type) 
+  ungroup()
 
 rdm_beta_deviations_primary_only<- deviation_correlations_LN_randomized %>%
-  group_by(replicate, cell_type) %>%
+  group_by(replicate, cell_type, method) %>%
   filter(pair_type == 'primary') %>%
   summarise(beta_rdm = lm(cor_coef_freq_ratios~time)$coefficients[2]) %>%
-  group_by(cell_type) 
+  ungroup()
 
 # Now we ask what % of randomizations are equal to or more negative than observed values
   
 left_join(rdm_beta_freqs, beta_freqs_OBS) %>%
-  group_by(cell_type) %>%
+  group_by(cell_type, method) %>%
   summarise(n_replicates = n(),
             n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs),
             fraction = n_replicates_smaller_than_or_equal_to_obs / n_replicates)
 
 left_join(rdm_beta_freqs_primary_only, beta_freqs_primary_only_OBS) %>%
-  group_by(cell_type) %>%
+  group_by(cell_type, method) %>%
   summarise(n_replicates = n(),
             n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs),
             fraction = n_replicates_smaller_than_or_equal_to_obs / n_replicates)
 
 left_join(rdm_beta_deviations, beta_deviations_OBS) %>%
-  group_by(cell_type) %>%
+  group_by(cell_type, method) %>%
   summarise(n_replicates = n(),
             n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs),
             fraction = n_replicates_smaller_than_or_equal_to_obs / n_replicates)
 
 left_join(rdm_beta_deviations_primary_only, beta_deviations_primary_only_OBS) %>%
-  group_by(cell_type) %>%
+  group_by(cell_type, method) %>%
   summarise(n_replicates = n(),
             n_replicates_smaller_than_or_equal_to_obs = sum(beta_rdm <= beta_obs),
             fraction = n_replicates_smaller_than_or_equal_to_obs / n_replicates)
