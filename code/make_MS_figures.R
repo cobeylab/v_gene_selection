@@ -4,6 +4,7 @@ library(magick)
 library(stringr)
 theme_set(theme_cowplot())
 
+
 source('plot_options.R')
 
 exported_objecs_dir <- '../figures/all_seqs_freqs/exported_ggplot_objects/'
@@ -21,18 +22,17 @@ for(f in ggplot_object_files){load(f)}
 top_2_rows <- plot_grid(total_genes_and_genes_in_LN_pops +
                           ylab('Number of V genes\n(Chao1 estimate)'), 
                         plot_grid(n_shared_genes + 
-                                    ylab ('Number of V genes\nshared by mouse pair') +
+                                    ylab ('Number of V alleles\nshared by mouse pair') +
                                     theme(axis.text.x = element_text(size = 10, angle = 15, vjust = 0.5),
                                           axis.title.y = element_text(size = 12)),
                                   pairwise_naive_correlations_plot +
-                                    ylab('Correlation in naive V gene\nfrequencies between mice') +
+                                    ylab('Correlation in naive V allele\nfrequencies between mice') +
                                     theme(axis.text.x = element_text(size = 9.5, angle = 15, vjust = 0.5),
                                           axis.title.y = element_text(size = 12)),
-                                  align = 'h',
                                   nrow = 1),
                         ncol = 1, labels = c('A','B'), label_size = 16) 
 
-bottom_row <- plot_grid(naive_exp_correlations_plot +
+bottom_row <- plot_grid(naive_exp_pearson_corr_plot  +
                           ylab('Correlation with naive\nfrequencies within each mouse'),
                         labels = c('C'), label_size = 16)
 
@@ -44,15 +44,19 @@ save_plot(paste0(final_figures_dir, 'gene_sets_and_naive_freqs.pdf'),
 
 # Correlations in V gene freqs and freq deviations
 top_row <- plot_grid(pairwise_freq_correlations_plot +
-                       ylab('Mouse-pair correlations in V gene\nfrequencies (mice with >= 100 seqs.)') +
+                       ylab('Correlation between pairs of mice') +
                        ylim(-0.2,0.9) +
-                       theme(axis.title.y = element_text(size = 12),
-                             plot.margin = margin(l = 20, r = 10,t = 5, b = 30)),
+                       theme(axis.title = element_text(size = 16),
+                             plot.margin = margin(l = 20, r = 10,t = 5, b = 30),
+                             plot.title = element_text(hjust = 0.5)) +
+                       ggtitle('Allele frequencies'),
                      pairwise_freq_deviations_plot +
-                       ylab('Mouse-pair correlations in frequency\ndeviations (mice with >= 100 seqs.)') +
+                       ylab('Correlation between pairs of mice') +
                        ylim(-0.2,0.9) +
-                       theme(axis.title.y = element_text(size = 12),
-                             plot.margin = margin(r = 20, l = 10, t = 5, b = 30)),
+                       theme(axis.title = element_text(size = 16),
+                             plot.margin = margin(r = 20, l = 10, t = 5, b = 30),
+                             plot.title = element_text(hjust = 0.5)) +
+                       ggtitle('Frequency deviations from the naive repertoire'),
                      align = 'h')
 
 
@@ -64,41 +68,63 @@ top_row_legend <- get_legend(pairwise_freq_correlations_plot +
 top_row <- plot_grid(top_row_legend, top_row, nrow = 2, rel_heights = c(0.1,1))
 
 
-freqs_heatmap_LN_PCs <- image_read_pdf(paste0(exported_objecs_dir,'freqs_heatmap_LN_PCs.pdf'),
-                                       density = 600) %>%
-  image_resize("1688x1125")
-
-deviations_heatmap_LN_PCs <- image_read_pdf(paste0(exported_objecs_dir,'deviations_heatmap_LN_PCs.pdf'),
-                                            density = 600) %>%
-  image_resize("1688x1125")
-
-middle_row <- plot_grid(ggdraw() + draw_image(freqs_heatmap_LN_PCs),
-                        group_controls_pooled_legend,
-                        ggdraw() + draw_image(deviations_heatmap_LN_PCs),
-                        nrow = 1, rel_widths = c(1,0.02,1))
 
 bottom_row <- top_genes_LN_PC_day8_plot +
   theme(plot.margin = margin(t = 15, b = 5, l = 20, r = 20),
         legend.position = c(0.200,0.9),
         legend.text = element_text(size = 11),
         legend.title = element_text(size = 11, margin = margin(l = 4, r = 4, t = 2)),
-        legend.background = element_rect(fill = 'white', color = 'black')) +
+        legend.background = element_rect(fill = 'white', color = 'black'),
+        axis.title = element_text(size = 16)) +
   #scale_y_continuous(expand = c(0.001,0.1),
   #                   limits = c(-0.05,NA)) +
-  xlab('Top 20 genes in lymph node plasma cells from each infected mouse on day 8')
+  xlab('Top 20 alleles in lymph node plasma cells from each infected mouse on day 8') +
+  ylab('V allele frequency')
 
 
 
 
-freq_and_deviation_correlations <- plot_grid(top_row, middle_row, bottom_row, nrow = 3,
-                                             rel_heights = c(1,1.5,2),
-                                             labels = c('A','B','C'),
+freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
+                                             rel_heights = c(2,2),
+                                             labels = c('A','B'),
                                              label_size = 16)
 
 
 save_plot(paste0(final_figures_dir, 'freq_and_deviation_correlations.pdf'),
           freq_and_deviation_correlations, 
           base_height = 16, base_width = 16)
+
+
+# Heatmaps go to the supplement
+
+freqs_heatmap_LN_PCs_pearson <- image_read_pdf(paste0(exported_objecs_dir,'freqs_heatmap_LN_PCs_pearson.pdf'),
+                                       density = 600) %>% image_resize("1688x1125")
+
+freqs_heatmap_LN_PCs_spearman <- image_read_pdf(paste0(exported_objecs_dir,'freqs_heatmap_LN_PCs_spearman.pdf'),
+                                               density = 600) %>% image_resize("1688x1125")
+
+deviations_heatmap_LN_PCs_pearson <- image_read_pdf(paste0(exported_objecs_dir,'deviations_heatmap_LN_PCs_pearson.pdf'),
+                                            density = 600) %>% image_resize("1688x1125")
+
+deviations_heatmap_LN_PCs_spearman <- image_read_pdf(paste0(exported_objecs_dir,'deviations_heatmap_LN_PCs_spearman.pdf'),
+                                                    density = 600) %>% image_resize("1688x1125")
+
+top_row <- plot_grid(ggdraw() + draw_image(freqs_heatmap_LN_PCs_pearson),
+                        group_controls_pooled_legend,
+                        ggdraw() + draw_image(deviations_heatmap_LN_PCs_pearson),
+                        nrow = 1, rel_widths = c(1,0.02,1))
+bottom_row <- plot_grid(ggdraw() + draw_image(freqs_heatmap_LN_PCs_spearman),
+                        NULL,
+                        ggdraw() + draw_image(deviations_heatmap_LN_PCs_spearman),
+                        nrow = 1, rel_widths = c(1,0.02,1))
+
+heatmaps_figure <- plot_grid(top_row, bottom_row, nrow = 2, label_x = c(0.5,0.5))
+
+save_plot(paste0(final_figures_dir, 'heatmaps_figure.pdf'),
+          heatmaps_figure, 
+          base_height = 16, base_width = 20)
+
+
 
 
 # Increasing titers, clonality, mutations over time
@@ -190,25 +216,8 @@ save_plot(paste0(final_figures_dir,'top_genes_LN_PC_day16_plot.pdf'),
           top_genes_LN_PC_day16_plot,
           base_height = 8, base_width = 14)
 
-# Supplementary figs with GC heat maps, GC top genes on days 8 and 16, 
+# Supplementary figs with GC top genes on days 8 and 16, 
 
-freqs_heatmap_LN_GCs <- image_read_pdf(paste0(exported_objecs_dir,'freqs_heatmap_LN_GCs.pdf'),
-                                       density = 600) %>%
-  image_resize("1688x1125")
-
-deviations_heatmap_LN_GCs <- image_read_pdf(paste0(exported_objecs_dir,'deviations_heatmap_LN_GCs.pdf'),
-                                            density = 600) %>%
-  image_resize("1688x1125")
-
-LN_GC_day16_heatmaps <- plot_grid(ggdraw() + draw_image(freqs_heatmap_LN_GCs),
-                                  NULL,
-                                  group_controls_pooled_legend,
-                                  ggdraw() + draw_image(deviations_heatmap_LN_GCs),
-                                  nrow = 1, rel_widths = c(1,0.1,0.2,1))
-
-save_plot(paste0(final_figures_dir,'LN_GC_day16_heatmaps.pdf'),
-          LN_GC_day16_heatmaps,
-          base_width = 15, base_height = 8)
 
 
 

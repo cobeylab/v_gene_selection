@@ -106,7 +106,7 @@ count_mutations_above_threshold_by_clone <- function(clone_freqs, mutation_freqs
   }
   
   mutations_above_threshold_by_clone <- mutation_freqs_within_clones %>%
-    group_by(across(all_of(grouping_vars))) %>%
+    group_by(across(grouping_vars)) %>%
     filter(mutation_freq_in_compartment >= mutation_freq_threshold) %>%
     dplyr::summarise(n_mutations_above_threshold = n(),
                      mutations_list = paste(mutation, collapse = ';'))
@@ -277,17 +277,17 @@ The number of clones with at least 1 mutation at or above 50% frequency (with th
 
 mutations_above_threshold_by_clone_by_compartment <- count_mutations_above_threshold_by_clone(clone_freqs_by_tissue_and_cell_type,
                                                                                               mutation_freqs_within_clones_by_tissue_and_cell_type,
-                                                                                              mutation_freq_threshold = 0.5) %>%
+                                                                                              mutation_freq_threshold = mutation_freq_threshold) %>%
    mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('naive','GC','PC','mem','nonnaive_IgD+B220+')), 
           group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels),
           compartment_tissue = factor(compartment_tissue, levels = c('LN','spleen','BM'))) %>%
-  filter(n_clone_seqs_in_compartment >= 10)
+  filter(n_clone_seqs_in_compartment >= min_clone_size)
 
 
   
 fraction_clones_with_1plus_mutations_by_compartment <-
   get_fraction_clones_with_n_mutations_above_threshold(mutations_above_threshold_by_clone_by_compartment,
-                                                       n_mutations_threshold = 1, min_clone_size = 10) %>%
+                                                       n_mutations_threshold = 1, min_clone_size = min_clone_size) %>%
     mutate(day = as.integer(as.character(day)))
 
 # Add clone rank in each compartment
@@ -503,8 +503,6 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
 
 
 ```{r echo = F}
-# For each pair of mice, find all clones sharing the same V gene. For all pairs of clones, compute the number of high-frequency mutations they have in common
-get_n_clones_by_high_freq_mutation <- function(mutation)
 
 # Grouping must be done before calling this function so that only clones sharing the same v gene are compared
 # Otherwise shared mutations will be misleading (same mutation means different things in different genes)
@@ -547,19 +545,23 @@ shared_mutations_in_LN_clones <-  mutations_above_threshold_by_clone_by_compartm
   summarise(count_mutations_shared_by_clone_pairs(mutations_list = mutations_list)) %>%
   ungroup()
 
-shared_mutations_in_LN_clones %>%
+shared_mutations_in_LN_clones_pl <- shared_mutations_in_LN_clones %>%
   mutate(any_mutations_shared = shared_mutations > 0) %>%
   group_by(group_controls_pooled, compartment_cell_type, any_mutations_shared) %>%
   count() %>%
   group_by(group_controls_pooled, compartment_cell_type) %>%
-  mutate(probability = n/sum(n)) %>%
+  mutate(total_n_clone_pairs = sum(n),
+         probability = n/total_n_clone_pairs) %>%
   filter(any_mutations_shared == T) %>%
-  ggplot(aes(x = group_controls_pooled, y = probability)) +
+  ggplot(aes(x = group_controls_pooled, y = probability, fill = group_controls_pooled)) +
   geom_col() +
+  geom_text(aes(y = probability + 0.02, label = total_n_clone_pairs)) +
   facet_wrap('compartment_cell_type', nrow = 1) +
   xlab('group') +
-  ylab('Probability that two clones sharing the same V allele\nhave high-frequency mutations in common') +
-  ylim(0,1)
+  ylab(paste0('Probability that two clones (', min_clone_size, '+ seqs.) sharing the same V allele\nhave high-frequency mutations in common')) +
+  ylim(0,1) +
+  theme(legend.position = 'none')
+
 
 shared_mutations_in_LN_clones %>%
   filter(grepl('IGHV14-4', v_gene)) %>%
@@ -567,15 +569,102 @@ shared_mutations_in_LN_clones %>%
   group_by(group_controls_pooled, compartment_cell_type, any_mutations_shared) %>%
   count() %>%
   group_by(group_controls_pooled, compartment_cell_type) %>%
-  mutate(probability = n/sum(n)) %>%
+  mutate(total_n_clone_pairs = sum(n),
+         probability = n/total_n_clone_pairs) %>%
   filter(any_mutations_shared == T) %>%
-  ggplot(aes(x = group_controls_pooled, y = probability)) +
+  ggplot(aes(x = group_controls_pooled, y = probability, fill = group_controls_pooled)) +
   geom_col() +
+  geom_text(aes(y = probability + 0.02, label = total_n_clone_pairs)) +
   facet_wrap('compartment_cell_type', nrow = 1) +
   xlab('group') +
-  ylab('Probability that two clones sharing the same V allele\nhave high-frequency mutations in common') +
-  ylim(0,1)
-  
+  ylab('Probability that two clones (10+ seqs.) using IGHV14-4\nhave high-frequency mutations in common') +
+  ylim(0,1.05) +
+  theme(legend.position = 'none')
+
+shared_mutations_in_LN_clones %>%
+  filter(grepl('IGHV1-82', v_gene)) %>%
+  mutate(any_mutations_shared = shared_mutations > 0) %>%
+  group_by(group_controls_pooled, compartment_cell_type, any_mutations_shared) %>%
+  count() %>%
+  group_by(group_controls_pooled, compartment_cell_type) %>%
+  mutate(total_n_clone_pairs = sum(n),
+         probability = n/total_n_clone_pairs) %>%
+  filter(any_mutations_shared == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = probability, fill = group_controls_pooled)) +
+  geom_col() +
+  geom_text(aes(y = probability + 0.02, label = total_n_clone_pairs)) +
+  facet_wrap('compartment_cell_type', nrow = 1) +
+  xlab('group') +
+  ylab('Probability that two clones (10+ seqs.) using IGHV1-82\nhave high-frequency mutations in common') +
+  ylim(0,1.05) +
+  theme(legend.position = 'none')
+
+shared_mutations_in_LN_clones %>%
+  filter(grepl('IGHV1-69', v_gene)) %>%
+  mutate(any_mutations_shared = shared_mutations > 0) %>%
+  group_by(group_controls_pooled, compartment_cell_type, any_mutations_shared) %>%
+  count() %>%
+  group_by(group_controls_pooled, compartment_cell_type) %>%
+  mutate(total_n_clone_pairs = sum(n),
+         probability = n/total_n_clone_pairs) %>%
+  filter(any_mutations_shared == T) %>%
+  ggplot(aes(x = group_controls_pooled, y = probability, fill = group_controls_pooled)) +
+  geom_col() +
+  geom_text(aes(y = probability + 0.02, label = total_n_clone_pairs)) +
+  facet_wrap('compartment_cell_type', nrow = 1) +
+  xlab('group') +
+  ylab('Probability that two clones (10+ seqs.) using IGHV1-82\nhave high-frequency mutations in common') +
+  ylim(0,1.05) +
+  theme(legend.position = 'none')
+
+
+# Looking closely  at mutations driving some peaks in the above figures...
+
+shared_mutations_in_LN_clones %>% filter(grepl('IGHV1-82', v_gene), compartment_cell_type == 'PC', group_controls_pooled == 'primary-16') %>%
+  filter(shared_mutations > 0) %>%
+  filter(grepl('F95Y', mutations_list_clone_i))
+
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(grepl('IGHV1-82', v_gene), compartment_cell_type == 'PC', compartment_tissue == 'LN', group_controls_pooled == 'primary-16',
+         grepl('F95Y', mutations_list))
+
+
+
+shared_mutations_in_LN_clones %>% filter(grepl('IGHV1-82', v_gene), compartment_cell_type == 'PC', group_controls_pooled == 'secondary-40') %>%
+  filter(shared_mutations > 0) %>%
+  filter(grepl('Y27F', mutations_list_clone_i), grepl('Y27F', mutations_list_clone_j))
+
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(grepl('IGHV1-82', v_gene), compartment_cell_type == 'PC', compartment_tissue == 'LN', group_controls_pooled == 'secondary-40',
+         grepl('Y27F', mutations_list))
+
+
+shared_mutations_in_LN_clones %>% filter(grepl('IGHV14-4', v_gene), compartment_cell_type == 'PC', group_controls_pooled == 'secondary-40') %>%
+  filter(shared_mutations > 0) %>%
+  filter(grepl('T91S', mutations_list_clone_i), grepl('T91S', mutations_list_clone_j))
+
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(grepl('IGHV14-4', v_gene), compartment_cell_type == 'PC', compartment_tissue == 'LN', group_controls_pooled == 'secondary-40',
+         grepl('T91S', mutations_list))
+
+
+shared_mutations_in_LN_clones %>% filter(grepl('IGHV14-4', v_gene), compartment_cell_type == 'mem', group_controls_pooled == 'secondary-56') %>%
+  filter(shared_mutations > 0) %>%
+  filter(grepl('Y32D', mutations_list_clone_i), grepl('Y32D', mutations_list_clone_j))
+
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(grepl('IGHV14-4', v_gene), compartment_cell_type == 'mem', compartment_tissue == 'LN', group_controls_pooled == 'secondary-56',
+         grepl('Y32D', mutations_list)) 
+
+
+shared_mutations_in_LN_clones %>% filter(grepl('IGHV1-69', v_gene), compartment_cell_type == 'PC', group_controls_pooled == 'secondary-40') %>%
+  filter(shared_mutations > 0) %>%
+  filter(grepl('Q43H;S56G;N59D;Q82R', mutations_list_clone_i), grepl('Q43H;S56G;N59D;Q82R', mutations_list_clone_j))
+
+mutations_above_threshold_by_clone_by_compartment %>%
+  filter(grepl('IGHV1-69', v_gene), compartment_cell_type == 'PC', compartment_tissue == 'LN', group_controls_pooled == 'secondary-40',
+         grepl('Q43H;S56G;N59D;Q82R', mutations_list)) 
+
 
 
 

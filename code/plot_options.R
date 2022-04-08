@@ -51,7 +51,6 @@ cell_type_facet_labeller <- function(data_tibble){
     
     
   data_tibble <- data_tibble  %>% 
-    mutate(day = as.integer(as.character(day))) %>%
     mutate(cell_type = case_when(
       cell_type == 'GC' ~ paste0(tissue_label, ' GC cells'),
       cell_type == 'PC' ~ paste0(tissue_label, ' plasma cells'),

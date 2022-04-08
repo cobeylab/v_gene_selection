@@ -2,7 +2,7 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(ggdendro)
+library(ggtext)
 library(cowplot)
 theme_set(theme_cowplot())
 library(scales)
@@ -187,7 +187,8 @@ compute_similarity_matched_samples <- function(matched_samples){
 }
 
 plot_cdr3_similarity <- function(matched_samples_similarity){
-  matched_samples_similarity %>%
+  
+  long_format_tibble <- matched_samples_similarity %>%
     pivot_longer(cols = c('cdr3_seq_similarity', 'cdr3_biochem_similarity'), names_to = 'similarity_type',
                  values_to = 'similarity') %>%
     mutate(similarity_type = case_when(
@@ -195,13 +196,22 @@ plot_cdr3_similarity <- function(matched_samples_similarity){
       similarity_type == 'cdr3_biochem_similarity' ~ 'biochemical similarity'
     )) %>%
     mutate(similarity_type = factor(similarity_type, levels = c('sequence similarity', 'biochemical similarity'))) %>%
-    ggplot(aes(x = group_controls_pooled, y = similarity, color = group_controls_pooled)) +
-    geom_boxplot() +
+    ungroup()
+  
+  n_comparisons_labels <- long_format_tibble %>% group_by(group_controls_pooled, cell_type, similarity_type) %>%
+    summarise(similarity = median(similarity), 
+              total_seqs_in_comparison = n())
+    
+  pl <- long_format_tibble %>%
+    ggplot(aes(x = group_controls_pooled, y = similarity)) +
+    geom_boxplot(aes(color = group_controls_pooled)) +
+    geom_label(data = n_comparisons_labels, aes(label = total_seqs_in_comparison)) +
     facet_grid(similarity_type~cell_type) +
     theme(legend.position = 'none', axis.text.x = element_text(size = 10)) +
     xlab('Group') +
     ylab('Similarity of length-matched\nCDR3 sequences from different mice') +
     scale_x_discrete(labels = function(x){str_replace(x, '-','\n')})
+  return(pl)
 }
 
 
@@ -288,12 +298,12 @@ CDR3_seqs <- bind_rows(CDR3_seqs_naive,
   mutate(cell_type = case_when(
     cell_type == 'naive' ~ 'Naive cells (all tissues)',
     cell_type == 'GC' ~ 'Lymph node GC cells',
-    cell_type == 'PC' ~ 'Lymph node PC cells',
+    cell_type == 'PC' ~ 'Lymph node plasma cells',
     cell_type == 'mem' ~ 'Lymph node memory cells'
   )) %>%
   mutate(cell_type = factor(cell_type,
                             levels = c('Naive cells (all tissues)', 'Lymph node GC cells',
-                                       'Lymph node PC cells', 'Lymph node memory cells')))
+                                       'Lymph node plasma cells', 'Lymph node memory cells')))
 
 
 # ======= CDR3 LENGTH ==========
@@ -356,16 +366,18 @@ length_and_allele_matched_sample <- bind_rows(length_and_allele_matched_sample_N
          biochem_cdr3_seq_j = translate_aa_to_biochem_class(cdr3_seq_j))
 
 length_and_allele_matched_CDR3_similarity <-
-  compute_similarity_matched_samples(matched_samples = length_and_allele_matched_sample) 
+  compute_similarity_matched_samples(matched_samples = length_and_allele_matched_sample)
+  
   
   
 # Looks like length- and allele-matched CDR3 sequences become much more similar on day 56 LN plasma cells:
-length_and_allele_matched_CDR3_similarity_plot <- plot_cdr3_similarity(length_and_allele_matched_CDR3_similarity)
+length_and_allele_matched_CDR3_similarity_plot <- plot_cdr3_similarity(length_and_allele_matched_CDR3_similarity)  +
+  ylab('Similarity of length- and allele-matched\nCDR3 sequences from different mice')
 
 
 save_plot('../figures/all_seqs_freqs/length_and_allele_matched_CDR3_similarity.pdf',
           length_and_allele_matched_CDR3_similarity_plot,
-          base_height = 5, base_width = 16)
+          base_height = 8, base_width = 16)
 
 # =Looking closely at pairs of mice from day 56:
 length_and_allele_matched_CDR3_similarity_day56_LN_PC <- length_and_allele_matched_CDR3_similarity %>%
@@ -407,7 +419,11 @@ save_plot('../figures/all_seqs_freqs/high_similarity_length_and_allele_matched_s
 combined_freq_of_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>% 
   filter(total_compartment_seqs >= min_compartment_size) %>%
   filter(cdr3_seq_partis %in% unique(cdr3_seqs_driving_similarity$cdr3_seq)) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, total_compartment_seqs) %>%
+  mutate(sequence_cluster = case_when(
+    cdr3_length <= 8 ~ 'short sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
+    cdr3_length >= 10 ~ 'long sequence cluster'
+  )) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, sequence_cluster, total_compartment_seqs) %>%
   summarise(total_n_focal_seqs = n()) %>%
   ungroup() %>%
   mutate(combined_freq_of_focal_seqs = total_n_focal_seqs / total_compartment_seqs) %>%
@@ -415,7 +431,7 @@ combined_freq_of_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
   geom_boxplot(outlier.alpha = 0) +
   geom_point(size = 3, position = position_jitter(width = 0.1, height = 0),
              alpha = 0.7) +
-  facet_wrap('cell_type', nrow = 1) +
+  facet_grid(sequence_cluster ~ cell_type) +
   xlab('Group') +
   ylab('Combined frequency of convergent\nday-56 LN PC CDR3 sequences') +
   theme(legend.position = 'none',
@@ -424,26 +440,36 @@ combined_freq_of_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
 
 save_plot('../figures/all_seqs_freqs/combined_freq_of_day56_LN_PC_convergent_CDRs.pdf',
           combined_freq_of_day56_LN_PC_convergent_CDRs,
-          base_height = 5, base_width = 16)
+          base_height = 8, base_width = 16)
   
 
 allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>% 
   filter(total_compartment_seqs >= min_compartment_size, group_controls_pooled == 'secondary-56',
-         tissue == 'LN') %>%
+         tissue == 'LN', cell_type == 'Lymph node plasma cells') %>%
   filter(cdr3_seq_partis %in% unique(cdr3_seqs_driving_similarity$cdr3_seq)) %>%
-  group_by(mouse_id, cell_type, v_gene) %>%
+  mutate(sequence_cluster = case_when(
+    cdr3_length <= 8 ~ 'short sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
+    cdr3_length >= 10 ~ 'long sequence cluster'
+  )) %>%
+  mutate(v_gene = str_remove(v_gene, 'IGHV')) %>%
+  group_by(mouse_id, sequence_cluster, v_gene) %>%
   count() %>%
-  group_by(mouse_id, cell_type) %>%
+  group_by(mouse_id, sequence_cluster) %>%
   mutate(rank_gene_in_convergent_seqs = rank(-n, ties.method = 'first'),
          gene_freq_in_convergent_seqs = n/sum(n)) %>%
   ungroup() %>%
+  filter(rank_gene_in_convergent_seqs <= 10) %>%
   ggplot(aes(x = rank_gene_in_convergent_seqs, y = n, label = v_gene)) +
   geom_col() +
-  facet_grid(cell_type~mouse_id, scales = 'free') +
-  geom_text(angle = 45)
-  
-  group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, total_compartment_seqs) %>%
-  mutate(v_gene_freq_in_convergent_seqs = n/sum(n))
+  facet_grid(sequence_cluster~mouse_id, scales = 'free') +
+  geom_text(angle = 90, size = 4, nudge_y = 1500) +
+  scale_y_continuous(expand = c(0.05,5)) +
+  xlab('Allele rank (up to 10 top genes)') +
+  ylab('Number of sequences')
+
+save_plot('../figures/all_seqs_freqs/allele_usage_day56_LN_PC_convergent_CDRs.pdf',
+          allele_usage_day56_LN_PC_convergent_CDRs,
+          base_height = 11, base_width = 17)
 
   
 # Some other stuff
@@ -511,45 +537,16 @@ save_plot('../figures/all_seqs_freqs/CDR3_lengths_by_allele_day8.pdf',
           CDR3_lengths_by_allele_day8,
           base_height = 10, base_width = 18)
 
+CDR3_lengths_by_allele_day16 <- 
+  plot_grid(plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'PC','primary-16') + xlab('') +
+              ggtitle('Day 16 plasma cells'),
+            plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'GC','primary-16') + ylab('') +
+              ggtitle('Day 16 GC cells'),
+            plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'mem','primary-16') + ylab('') +
+              ggtitle('Day 16 memory cells') + xlab(''),
+            nrow = 1
+  )
 
-# Enumerate all clones with, say, > 100 sequences.
-
-# For clones with the same V gene, how often do they share the same mutation?
-
-# For clones with the same V gene and a CDR3 of similar length, how similar are their CDR3s?
-
-large_clones <- clone_freqs_by_tissue_and_cell_type %>%
-  filter(compartment_tissue == 'LN', compartment_cell_type == 'PC') %>%
-  filter(total_seqs_in_compartment >= min_compartment_size,
-         n_clone_seqs_in_compartment >= 100) %>%
-  filter(compartment_cell_type == 'PC', group_controls_pooled != 'control') %>%
-  select(mouse_id, clone_id, v_gene, compartment_tissue, compartment_cell_type, clone_rank_in_compartment, n_clone_seqs_in_compartment, clone_freq_in_compartment) %>%
-  arrange(desc(clone_freq_in_compartment))
-
-large_clones <- left_join(large_clones, clone_info %>% select(mouse_id, clone_id,  cdr3_length_partis, clone_naive_cdr3_partis))
-
-
-
-
-large_clones %>% group_by(v_gene, cdr3_length_partis) %>% 
-  count() %>%
-  ungroup() %>%
-  arrange(v_gene, cdr3_length_partis, desc(n))
-
-comparisons <- large_clones %>% group_by(v_gene, cdr3_length_partis) %>%
-  summarise(compare_CDR3s_for_all_clone_pairs(cdr3_seqs = clone_naive_cdr3_partis, mouse_ids = mouse_id))
-
-comparisons %>%
-  ggplot(aes(x = v_gene, y = similarity)) +
-  geom_boxplot(outlier.alpha = 0) +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
-
-
-
-  
-
-
-
-
-
-
+save_plot('../figures/all_seqs_freqs/CDR3_lengths_by_allele_day16.pdf',
+          CDR3_lengths_by_allele_day16,
+          base_height = 10, base_width = 18)

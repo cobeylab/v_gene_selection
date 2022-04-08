@@ -374,7 +374,7 @@ adjust_zero_exp_freqs <- function(exp_freqs){
 }
 
 # Correlation within each mouse between experienced and naive gene frequencies
-get_naive_exp_correlations <- function(gene_freqs, method){
+get_naive_exp_correlations <- function(gene_freqs){
   gene_freqs %>%
     group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type,
              total_compartment_seqs, total_mouse_naive_seqs) %>%
@@ -976,7 +976,7 @@ list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, t
 
 # Clustering based on Spearman correlation of V gene frequencies as an inverse measure of distance.
 get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric,
-                                                  min_seqs){
+                                                  min_seqs, cor_method){
   
   
   cell_type_full_name <- case_when(
@@ -985,25 +985,26 @@ get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_ty
     cell_type == 'mem' ~ 'memory cells'
   )
   
+ 
+  
   
   if(metric == 'freqs'){
     data_subset <- pairwise_correlations$freqs %>%
       rename(cor_coef = cor_coef_freqs)
-    plot_title <- paste0('Mouse-pair correlations in ',
-                         str_sub(cell_type_full_name,1,-2),
-                         '\nV gene frequencies')
+    plot_title <- paste0(str_to_title(cor_method), ' correlation\nin ', str_sub(cell_type_full_name,1,-2), ' V allele frequencies')
   }else{
     stopifnot(metric == 'freq_ratios')
     data_subset <- pairwise_correlations$freq_ratios %>%
       rename(cor_coef = cor_coef_freq_ratios)
-    plot_title <- paste0('Mouse-pair correlations in frequency deviations\nbetween ',
+    plot_title <- paste0(str_to_title(cor_method), ' correlation in frequency deviations\nbetween ',
            cell_type_full_name,
            ' and the naive repertoire')
     }
   
   data_subset <- data_subset %>%
     filter(total_compartment_seqs_i >= min_seqs, total_compartment_seqs_j >= min_seqs) %>%
-    filter(cell_type == !!cell_type, !str_detect(pair_type, 'control')) 
+    filter(cell_type == !!cell_type, !str_detect(pair_type, 'control'),
+           method == cor_method) 
   
   if(!is.null(tissue)){
     data_subset <- data_subset %>%
@@ -1060,7 +1061,7 @@ get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_ty
             Colv = rev(dendrogram),
             RowSideColors = margin_colors,
             ColSideColors = margin_colors,
-            key.xlab = 'Spearman correlation',
+            key.xlab = paste0(str_to_title(cor_method), ' correlation'),
             key.ylab = '',
             denscol = 'black',
             key.title = '',

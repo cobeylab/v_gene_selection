@@ -52,7 +52,7 @@ base_plotting_function <- function(summary_tibble, y_var, color_var, facet_vars 
     geom_linerange(aes_string(ymin = paste0(y_var, '_lowerq'), ymax = paste0(y_var, '_upperq')),
                    alpha = 0.5, size = 1.2) +
     geom_point(size = 3) +
-    xlab('Time') +
+    xlab('Time (days)') +
     theme(legend.position = 'top') +
     facet_command
   
@@ -87,7 +87,7 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
                                               filter(across(any_of('gamma'), function(x){x == main_fig_gamma})) %>%
                                               filter(method == 'pearson'),
                                             y_var = 'freq_ratio_correlation', color_var = 'mutation_rate', facet_vars = NULL)  +
-    xlab('Time') + theme(legend.position = 'none') +
+    xlab('Time (days)') + theme(legend.position = 'none') +
     ylim(-0.2,1) +
     geom_hline(yintercept = 0, linetype = 2)
   
@@ -144,7 +144,7 @@ correlations_fig_neutral$fraction_biggest_clone <- correlations_fig_neutral$frac
   ggtitle('Affinity distribution and mutation\nrate are the same across alleles') +
   theme(plot.title = element_text(hjust = 0.5, size = 12))
 correlations_fig_neutral$freq_corr <- correlations_fig_neutral$freq_corr + ylab('Pairwise correlation\nin allele frequencies')
-correlations_fig_neutral$freq_ratio_corr <- correlations_fig_neutral$freq_ratio_corr + ylab('Pairwise correlation in\nexperienced-to-naive ratios')
+correlations_fig_neutral$freq_ratio_corr <- correlations_fig_neutral$freq_ratio_corr + ylab('Pairwise correlation in\nexperienced-to-naive ratios') + xlab('')
 
 correlation_fig_high_affinity$fraction_biggest_clone <- correlation_fig_high_affinity$fraction_biggest_clone + ylab('') +
   ggtitle('Some alleles tend to encode\n receptors with higher affinity') +
@@ -156,7 +156,7 @@ correlation_fig_high_mutation$fraction_biggest_clone <- correlation_fig_high_mut
   ggtitle('Some alleles tend to encode\n receptors with higher mutation rate')  +
   theme(plot.title = element_text(hjust = 0.5, size = 12))
 correlation_fig_high_mutation$freq_corr <- correlation_fig_high_mutation$freq_corr + ylab('')
-correlation_fig_high_mutation$freq_ratio_corr <- correlation_fig_high_mutation$freq_ratio_corr + ylab('')
+correlation_fig_high_mutation$freq_ratio_corr <- correlation_fig_high_mutation$freq_ratio_corr + ylab('') + xlab('')
 
 
 
@@ -264,6 +264,10 @@ high_mutation_scenario_supp_fig <-  base_plotting_function(summary_tibble = high
   scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
   ylab('Pairwise correlation in experienced-to-naive frequency ratios')
 
+save_plot('../figures/simulations/high_mutation_scenario_supp_fig.pdf',
+          high_mutation_scenario_supp_fig,
+          base_width = 8, base_height = 9)
+
 
 # FOR HIGH MUTATION ALLELES
 combined_freq_of_high_mutation_alleles_in_GC_pl <- high_mutation_scenario_summary$combined_freq_of_high_mut_alleles_in_GCs %>%
@@ -284,6 +288,26 @@ save_plot('../figures/simulations/combined_freq_high_mut_alleles.pdf',
           base_width = 8, base_height = 10)
 
 
+
+# Spearman correlation in simulations fig.
+
+
+spearman_freq_ratio_corr_neutral <- base_plotting_function(neutral_scenario_summary$summary_pairwise_correlations %>%
+                                                             filter(method == 'spearman', beta == main_fig_beta, I_total == main_fig_I_total),
+                                                           y_var = 'freq_ratio_correlation', 
+                                                           color_var = 'mutation_rate') +
+  ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
+  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  ylab('Pairwise correlation in allele frequencies')
+
+spearman_freq_ratio_corr_high_affinity <- base_plotting_function(high_affinity_scenario_summary$summary_pairwise_correlations %>%
+                                                             filter(method == 'spearman', beta == main_fig_beta, s == main_fig_s),
+                                                           y_var = 'freq_ratio_correlation', 
+                                                           color_var = 'mutation_rate') +
+  ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
+  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  ylab('Pairwise correlation in allele frequencies')
+  
 
 
 
