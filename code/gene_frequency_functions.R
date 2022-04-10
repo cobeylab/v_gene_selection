@@ -1108,6 +1108,15 @@ randomize_noncontrol_groups <- function(tibble_with_mouse_id){
 }
 
 
+get_freq_ratio_mutability_correlations <- function(gene_freqs, germline_mutability_by_region_type,
+                                                   min_compartment_size, method){
+  left_join(gene_freqs, germline_mutability_by_region_type) %>%
+    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
+    group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, total_compartment_seqs) %>%
+    summarise(across(matches('mutability'),
+                     function(x){cor.test(x, obs_rho, method = method)$estimate})) %>%
+    pivot_longer(cols = matches('_mutability'), names_to = 'mutability_metric', values_to = 'correlation')
+}
 
 
 

@@ -9,9 +9,14 @@ args <- commandArgs(trailingOnly = T)
 
 frequency_type <- as.character(args[1])
 use_Greiff2017_naive_freqs <- as.logical(args[2])
+collapse_novel_alleles <- as.logical(args[3])
+
 
 if(is.na(use_Greiff2017_naive_freqs)){
   use_Greiff2017_naive_freqs <- F
+}
+if(is.na(collapse_novel_alleles)){
+  collapse_novel_alleles <- F
 }
 
 
@@ -41,15 +46,14 @@ seq_counts <- get_info_from_mouse_id(seq_counts)
 seq_counts <- left_join(seq_counts, clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
   select(mouse_id, clone_id, v_gene, everything())
 
-# To check if patterns driven by these 3 genes
-# seq_counts <- seq_counts %>%
-#   filter(grepl('IGHV14-4', v_gene) == F,
-#          grepl('IGHV1-69', v_gene) == F,
-#          grepl('IGHV1-82', v_gene) == F)
-# clone_info <- clone_info %>% 
-#   filter(grepl('IGHV14-4', v_gene) == F,
-#          grepl('IGHV1-69', v_gene) == F,
-#          grepl('IGHV1-82', v_gene) == F)
+# If collapse_novel_alleles is true, assigns novel alleles to their reference allele
+if(collapse_novel_alleles){
+  stopifnot(use_Greiff2017_naive_freqs == F)
+  seq_counts <- seq_counts %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
+  clone_info <- clone_info %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
+  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_collapsed_novel_alleles.RData') 
+}
+
 
 # ======= Calculate V gene frequencies =========
 
@@ -86,6 +90,10 @@ if(use_Greiff2017_naive_freqs){
     ungroup()
  
   output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_Greiff2017_naive_freqs.RData') 
+}
+
+if(collapse_novel_alleles){
+  
 }
 
 

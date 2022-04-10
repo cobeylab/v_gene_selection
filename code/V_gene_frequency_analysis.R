@@ -15,7 +15,7 @@ source('plot_options.R')
 args <- commandArgs(trailingOnly = T)
 
 
-frequency_type <- args[1] #frequency_type <- 'all_seqs'
+frequency_type <- args[1] # frequency_type <- 'all_seqs'
 use_Greiff2017_naive_freqs <- as.logical(args[2]) # use_Greiff2017_naive_freqs <- F
 
 
@@ -29,6 +29,9 @@ figure_directory <- paste0('../figures/', frequency_type, '_freqs/')
 #figure_directory <- paste0('~/Desktop/v_gene_selection/figures/',frequency_type, '_freqs/')
 
 precomputed_freqs_file <- paste0('precomputed_gene_freqs_', frequency_type, '.RData')
+
+germline_mutability_by_region <- read_csv('../results/germline_mutability_by_region.csv')
+germline_mutability_by_region_type <- read_csv('../results/germline_mutability_by_region_type.csv')
 
 correlation_rdm_test_results <- paste0(results_directory, 'correlation_rdm_tests_', frequency_type, '_freqs.csv')
 deviations_by_allele_results_path <- paste0(results_directory, 'deviations_by_allele_', frequency_type, '_freqs.csv')
@@ -44,9 +47,6 @@ if(use_Greiff2017_naive_freqs){
 
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
 load(paste0(results_directory, precomputed_freqs_file))
-
-# These count objects are from the precomputed file, so they use either all sequences or unique sequences
-seq_counts <- bind_rows(exp_seq_counts, naive_seq_counts)
 
 # Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
 clone_info <- read_csv(paste0(processed_data_directory,'clone_info.csv'))
@@ -661,6 +661,62 @@ shared_top_genes_by_freq_pl <- shared_top_genes_by_freq %>%
   scale_y_continuous(limits = c(0, NA))
   
 
+
+###### Are allele frequencies correlated with mutability?
+
+freq_ratio_mutability_correlations <- get_freq_ratio_mutability_correlations(
+  gene_freqs,
+  germline_mutability_by_region_type,
+  min_compartment_size = min_compartment_size,
+  method = 'pearson') 
+
+freq_ratio_mutability_correlations_pl <- freq_ratio_mutability_correlations %>%
+  filter(cell_type %in% c('GC','PC', 'mem'), tissue == 'LN', group_controls_pooled != 'control',
+         total_compartment_seqs >= min_compartment_size) %>%
+  filter(mutability_metric %in% c('average_RS5NF_mutability_cdr', 'average_RS5NF_mutability_fwr')) %>%
+  mutate(mutability_metric = case_when(
+    mutability_metric == 'average_RS5NF_mutability_cdr' ~ 'CDRs',
+    mutability_metric == 'average_RS5NF_mutability_fwr' ~ 'FRs'
+  )) %>%
+  mutate(day = as.integer(as.character(day))) %>%
+  cell_type_facet_labeller() %>%
+  ggplot(aes(x = day, y = correlation, color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0,aes(group = day)) +
+  geom_point(aes(size = total_compartment_seqs), alpha = 0.5) +
+  facet_grid(mutability_metric~cell_type) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  theme(legend.position = 'top') + 
+  scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+  scale_size_continuous(name = 'Number of sequences', breaks = c(1000,10000,50000)) +
+  scale_x_continuous(breaks = as.integer(unique(freq_ratio_mutability_correlations$day))) +
+  xlab('Days after primary infection') + 
+  ylab('Correlation between average RS5NF mutability\nand experienced-to-naive frequency ratio') +
+  background_grid()
+
+germline_mutability_by_region <- germline_mutability_by_region %>%
+  mutate(region = case_when(
+    region == 'cdr1' ~ 'CDR1',
+    region == 'cdr2' ~ 'CDR2',
+    region == 'fwr1' ~ 'FR1',
+    region == 'fwr2' ~ 'FR2',
+    region == 'fwr3' ~ 'FR3',
+    region == 'whole_sequence' ~ 'whole sequence'
+  ))
+
+germline_mutability_by_region_pl <- germline_mutability_by_region  %>%
+  ggplot(aes(x = average_RS5NF_mutability)) +
+  geom_histogram() +
+  facet_wrap('region') +
+  geom_vline(data = germline_mutability_by_region %>% filter(v_gene %in% c('IGHV14-4*01',
+                                                                           'IGHV1-82*01',
+                                                                           'IGHV1-69*01')),
+             aes(xintercept = average_RS5NF_mutability, color = v_gene), size = 1.5) +
+  theme(legend.position = 'top') +
+  xlab('Average RS5NF mutability') +
+  ylab('Number of alleles') +
+  scale_color_discrete(name = 'V allele') +
+  background_grid()
+
 ###### HIERARCHICAL CLUSTERING ANALYSIS
 
 # ----- Dendrograms and heatmaps based on correlation in V gene frequencies -------
@@ -722,6 +778,8 @@ save(naive_exp_pearson_corr_plot,
      pairwise_freq_correlations_plot,
      pairwise_freq_deviations_plot,
      shared_top_genes_by_freq_pl,
+     freq_ratio_mutability_correlations_pl,
+     germline_mutability_by_region_pl,
      file = paste0(exported_figure_objects_dir, 'correlation_plots.RData')
      )
 

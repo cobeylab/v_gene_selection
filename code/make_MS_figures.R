@@ -219,8 +219,6 @@ save_plot(paste0(final_figures_dir,'top_genes_LN_PC_day16_plot.pdf'),
 # Supplementary figs with GC top genes on days 8 and 16, 
 
 
-
-
 top_genes_LN_GC_day8_plot$layers[[3]]$aes_params$size <- 2.5
 top_genes_LN_GC_day16_plot$layers[[3]]$aes_params$size <- 3
 top_genes_LN_GC_day16_plot$layers[[3]]$aes_params$angle <- -25
@@ -237,6 +235,20 @@ LN_GC_top_genes <- plot_grid(top_genes_LN_GC_day8_plot + background_grid() +
 save_plot(paste0(final_figures_dir,'LN_GC_top_genes.pdf'),
           LN_GC_top_genes,
           base_height = 15, base_width = 16)
+
+
+# Correlation between germline mutability and freq-deviations from naive repertoire
+save_plot(paste0(final_figures_dir,'germline_mutability_fig.pdf'),
+          plot_grid(germline_mutability_by_region_pl +
+                      theme(axis.text.x = element_text(angle = -45)) +
+                      ylab('\nNumber of alleles'),
+                    freq_ratio_mutability_correlations_pl ,
+                    nrow = 2,
+                    labels = c('A','B'),
+                    align = 'v'),
+          base_height = 13, base_width = 12)
+          
+
 
 # Clone rank vs. number of high frequency mutations.
 clone_rank_vs_high_freq_muts <- plot_grid(clone_rank_vs_high_freq_muts_LN_GCs_plot +
