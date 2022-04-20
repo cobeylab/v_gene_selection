@@ -208,7 +208,7 @@ format_partis_info <- function(yaml_object){
                            sequenced_bases_in_vgene_region_partis =sequenced_bases_in_vgene_region,
                            vgene_mutations_list_partis_nt = vgene_mutations_list_nt,
                            vgene_mutations_list_partis_aa = vgene_mutations_list_aa,
-                           vgene_region_seq_partis = v_gene_region_seqs
+                           partis_processed_seq = clone$input_seqs
     )
     
     # Get productivity of duplicate sequences by referring to the productivity of their corresponding reference seq.

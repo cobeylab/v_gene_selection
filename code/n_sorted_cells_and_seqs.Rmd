@@ -19,7 +19,7 @@ n_sorted_cells <- read_csv('../data/n_sorted_cells.csv') %>%
 n_sorted_cells$cell_type[n_sorted_cells$cell_type == 'naive'] <- 'IgD+B220+'
 
 processed_data_dir <- '../processed_data/'
-#processed_data_dir <- '~/Desktop/v_gene_selection_files/'
+#processed_data_dir <- '~/Desktop/v_gene_selection/processed_data/'
 
 
 seq_counts <- read_csv(paste0(processed_data_dir, 'seq_counts.csv'))
@@ -87,78 +87,78 @@ n_sorted_cells_plot <- n_sorted_cells %>%
 plot(n_sorted_cells_plot)
 # Export 
 save(n_sorted_cells_plot,
-     file = '../figures/exported_ggplot_objects/n_cells_sorted.RData')
+     file = '../figures/all_seqs_freqs/exported_ggplot_objects/n_cells_sorted.RData')
 ```
 
 
 Consistent with the finding above, few productive sequences from plasma, germinal center and memory cells were recovered from the lymph nodes of controls compared with infected mice:
 
 ```{r echo =F, warning=F, fig.width=12, fig.height=6}
-base_plotting_function <- function(seq_counts_tibble, seq_type){
-  if(seq_type == 'all productive sequences'){
-    ylabel = 'Number of productive sequences'
-  }else{
-    stopifnot(seq_type == 'unique productive sequences')
-    ylabel = 'Number of unique productive sequences'
-  }
-  seq_counts_tibble %>%
-    filter(seq_type == !!seq_type) %>%
-    ggplot(aes(x = group_controls_pooled, y = n_seqs, color = infection_status)) +
-    geom_boxplot(outlier.alpha = 0) +
-    geom_point() +
-    facet_grid(tissue~cell_type, scales = 'free') +
-    theme(legend.position = 'top',
-          axis.text.x = element_text(size = 8, angle = 40,
-                                     vjust = 0.5)) +
-    #scale_x_discrete(labels = function(x){str_replace(x, '-','\n')}) +
-    background_grid() +
-    xlab('Group') +
-    ylab(ylabel) +
-    scale_color_discrete(name = 'Infection status') +
-    scale_y_log10()
-    
-}
-
-base_plotting_function(seq_counts_tibble = seq_counts,
-                       seq_type = 'all productive sequences')
-
-base_plotting_function(seq_counts_tibble = seq_counts,
-                       seq_type = 'unique productive sequences')
+# base_plotting_function <- function(seq_counts_tibble, seq_type){
+#   if(seq_type == 'all productive sequences'){
+#     ylabel = 'Number of productive sequences'
+#   }else{
+#     stopifnot(seq_type == 'unique productive sequences')
+#     ylabel = 'Number of unique productive sequences'
+#   }
+#   seq_counts_tibble %>%
+#     filter(seq_type == !!seq_type) %>%
+#     ggplot(aes(x = group_controls_pooled, y = n_seqs, color = infection_status)) +
+#     geom_boxplot(outlier.alpha = 0) +
+#     geom_point() +
+#     facet_grid(tissue~cell_type, scales = 'free') +
+#     theme(legend.position = 'top',
+#           axis.text.x = element_text(size = 8, angle = 40,
+#                                      vjust = 0.5)) +
+#     #scale_x_discrete(labels = function(x){str_replace(x, '-','\n')}) +
+#     background_grid() +
+#     xlab('Group') +
+#     ylab(ylabel) +
+#     scale_color_discrete(name = 'Infection status') +
+#     scale_y_log10()
+#     
+# }
+# 
+# base_plotting_function(seq_counts_tibble = seq_counts,
+#                        seq_type = 'all productive sequences')
+# 
+# base_plotting_function(seq_counts_tibble = seq_counts,
+#                        seq_type = 'unique productive sequences')
 
 ```
 ```{r echo =F, warning=F, fig.width=12, fig.height=8}
 # Add sequence counts for all IgD+B220+ sequences to compare with cell sorting data
-seq_counts <- bind_rows(seq_counts,
-                        seq_counts %>% filter(cell_type %in% c('naive','nonnaive_IgD+B220+')) %>%
-                          group_by(seq_type, mouse_id, day, infection_status, group, group_controls_pooled, tissue) %>%
-                          summarise(n_seqs = sum(n_seqs)) %>%
-                          ungroup() %>%
-                          mutate(cell_type = 'IgD+B220+')) 
-
-seqs_per_sorted_cell <- left_join(seq_counts, n_sorted_cells) %>%
-  filter((cell_type %in% c('naive','nonnaive_IgD+B220+')) == F) %>%
-  mutate(cell_type = factor(cell_type, levels = c('IgD+B220+','GC','PC','mem'))) %>%
-  mutate(seqs_per_cell = n_seqs/sorted_cells)
-
-
-seqs_per_sorted_cell %>% 
-  filter(seq_type == 'all productive sequences') %>%
-  ggplot(aes(x = group_controls_pooled, y = seqs_per_cell, color = infection_status)) +
-    geom_boxplot(outlier.alpha = 0) +
-    geom_point() +
-    facet_grid(tissue~cell_type, scales = 'free') +
-    theme(legend.position = 'top',
-          axis.text.x = element_text(size = 8, angle = 40,
-                                     vjust = 0.5)) +
-    #scale_x_discrete(labels = function(x){str_replace(x, '-','\n')}) +
-    background_grid() +
-    xlab('Group') +
-    ylab('Number of productive sequences per sorted cell') +
-    scale_color_discrete(name = 'Infection status') +
-    scale_y_log10(breaks = c(0.001,0.01,0.1,1,10,100),
-                  labels = c(0.001,0.01,0.1,1,10,100)) +
-  geom_hline(yintercept = 1, linetype = 2)
-  
+# seq_counts <- bind_rows(seq_counts,
+#                         seq_counts %>% filter(cell_type %in% c('naive','nonnaive_IgD+B220+')) %>%
+#                           group_by(seq_type, mouse_id, day, infection_status, group, group_controls_pooled, tissue) %>%
+#                           summarise(n_seqs = sum(n_seqs)) %>%
+#                           ungroup() %>%
+#                           mutate(cell_type = 'IgD+B220+')) 
+# 
+# seqs_per_sorted_cell <- left_join(seq_counts, n_sorted_cells) %>%
+#   filter((cell_type %in% c('naive','nonnaive_IgD+B220+')) == F) %>%
+#   mutate(cell_type = factor(cell_type, levels = c('IgD+B220+','GC','PC','mem'))) %>%
+#   mutate(seqs_per_cell = n_seqs/sorted_cells)
+# 
+# 
+# seqs_per_sorted_cell %>% 
+#   filter(seq_type == 'all productive sequences') %>%
+#   ggplot(aes(x = group_controls_pooled, y = seqs_per_cell, color = infection_status)) +
+#     geom_boxplot(outlier.alpha = 0) +
+#     geom_point() +
+#     facet_grid(tissue~cell_type, scales = 'free') +
+#     theme(legend.position = 'top',
+#           axis.text.x = element_text(size = 8, angle = 40,
+#                                      vjust = 0.5)) +
+#     #scale_x_discrete(labels = function(x){str_replace(x, '-','\n')}) +
+#     background_grid() +
+#     xlab('Group') +
+#     ylab('Number of productive sequences per sorted cell') +
+#     scale_color_discrete(name = 'Infection status') +
+#     scale_y_log10(breaks = c(0.001,0.01,0.1,1,10,100),
+#                   labels = c(0.001,0.01,0.1,1,10,100)) +
+#   geom_hline(yintercept = 1, linetype = 2)
+#   
 ```
 
 

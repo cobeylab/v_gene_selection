@@ -8,7 +8,6 @@ theme_set(theme_cowplot())
 source('plot_options.R')
 
 exported_objecs_dir <- '../figures/all_seqs_freqs/exported_ggplot_objects/'
-#exported_objecs_dir <- '~/Desktop/v_gene_selection_files_all_seqs/figures/all_seqs_freqs/exported_ggplot_objects/'
 
 final_figures_dir <- paste0(dirname(exported_objecs_dir),'/')
 
@@ -146,19 +145,19 @@ right_panels_top_row <- fraction_in_top_10_clones_plot +
         plot.margin = margin(l = 20, r = 10, b = 20)) +
   guides(color = guide_legend(keywidth = 1),
          size = guide_legend(keywidth = 1)) +
-  ylab('Fraction of sequences\nin the 10 largest clones')
+  ylab('Fraction of sequences\nin the 10 largest lineages')
 
 right_panels_bottom_row <- plot_grid(fraction_clones_with_high_freq_muts_LN_plot +
                                   xlab('') +
                                   theme(legend.position = 'none',
                                         plot.margin = margin(l = 20, r = 10)) +
-                                  ylab('Fraction of clones (10+ seqs.) with at\nleast one high-frequency mutation'),
+                                  ylab('Fraction of lineages (10+ seqs.) with at\nleast one high-frequency mutation'),
                                 mean_n_mutations_LN_plot +
                                   theme(strip.background = element_rect(fill = 'white'),
                                         strip.text = element_text(color = 'white'),
                                         legend.position = 'none',
                                         plot.margin = margin(l = 20, r = 10)) +
-                                  ylab('Average number of high-frequency\nmutations (clones with 10+ seqs)'),
+                                  ylab('Average number of high-frequency\nmutations (lineages with 10+ seqs)'),
 
           nrow = 2, 
           align = 'v')
@@ -186,13 +185,13 @@ evidence_of_clonal_evolution_all_tissues <-  plot_grid(joint_legend,
                        theme(legend.position = 'none',
                              axis.text.x = element_blank()) +
                        xlab('') +
-                       ylab('Fraction of clones (10+ seqs.) with at\nleast one high-frequency mutation'),
+                       ylab('Fraction of lineages (10+ seqs.) with at\nleast one high-frequency mutation'),
                      mean_n_mutations_all_tissues_plot +
                        theme(legend.position = 'none',
                              strip.background.x = element_blank(),
                              strip.text.x = element_blank(),
                              axis.text.x = element_text(size = 10, angle = 20)) +
-                       ylab('Average number of high-frequency\nmutations (clones with 10+ seqs)'),
+                       ylab('Average number of high-frequency\nmutations (lineages with 10+ seqs)'),
                      nrow = 2, align = 'v', rel_heights = c(1,1.1)),
            nrow = 2, rel_heights = c(0.1,2))
 
@@ -264,6 +263,14 @@ save_plot(paste0(final_figures_dir,'clone_rank_vs_high_freq_muts.pdf'),
           base_width = 10, base_height = 12)
   
 
+# Shared mutations:
+save_plot(paste0(final_figures_dir,'shared_mutations_in_LN_clones.pdf'),
+          shared_mutations_in_LN_clones_pl + background_grid() +
+          ylab('Probability that two lineages (10+ seqs.) sharing the same\nV allele have high-frequency mutations in common'),
+          base_width = 15, base_height = 7)
+
+
+
 # Fraction of clones dominated by a single tissue or a single cell type
 joint_legend <- get_legend(fraction_clones_dominated_by_single_tissue_plot +
                              theme(legend.box.margin = margin(l = 250)))
@@ -286,5 +293,38 @@ save_plot(paste0(final_figures_dir,'day24_LN_mem_top_genes.pdf'),
           base_height = 5,
           base_width = 8)
 
+
+
+# CDR3 analyses
+
+cdr3_similarity <- plot_grid(length_matched_CDR3_similarity_plot + ylab('Similarity of sequence pairs\nsampled from different mice') +
+            ggtitle('\nCDR3 sequences matched for length') +
+            theme(plot.title = element_text(hjust = 0.5, size = 14)) + background_grid(),
+          length_and_allele_matched_CDR3_similarity_plot +
+            ggtitle('\nCDR3 sequences matched for length and V allele') +
+            ylab('Similarity of sequence pairs\nsampled from different mice') +
+            theme(plot.title = element_text(hjust = 0.5, size = 14)) + background_grid(),
+          nrow = 2
+)
+save_plot(paste0(final_figures_dir,'cdr3_similarity.pdf'),
+          cdr3_similarity,
+          base_width = 15, base_height = 13)
+
+
+
+
+convergent_cdr3_seqs <- plot_grid(high_similarity_length_and_allele_matched_seqs_day56_LN_PCs,
+                                  plot_grid(allele_usage_day56_LN_PC_convergent_CDRs +
+                                              ylab('Fraction of sequences') + ylim(0,1),
+                                            combined_freq_of_day56_LN_PC_convergent_CDRs +
+                                              theme(legend.position = 'top') , nrow = 2, 
+                                            labels = c("B", "C")),
+                                  nrow = 1, rel_widths = c(5,10),
+                                  labels = c("A",""))
+
+save_plot(paste0(final_figures_dir,'convergent_cdr3_seqs.pdf'),
+          convergent_cdr3_seqs,
+          base_width = 16, base_height = 11)
+                                  
 
 

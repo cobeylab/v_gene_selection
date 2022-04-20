@@ -223,8 +223,16 @@ top_genes_LN_mem_day8_plot <- plot_most_common_genes('mem','LN','primary-8') +
 top_genes_LN_mem_day16_plot <- plot_most_common_genes('mem','LN','primary-16') +
   theme(legend.position = c(0.85,0.30))
 
+top_genes_LN_mem_day8_plot <- plot_most_common_genes('mem','LN','primary-8') +
+  theme(legend.position = c(0.85,0.30))
+
+top_genes_LN_mem_day16_plot <- plot_most_common_genes('mem','LN','primary-16') +
+  theme(legend.position = c(0.85,0.30))
+
 top_genes_LN_mem_day24_plot <- plot_most_common_genes('mem','LN','primary-24') +
   theme(legend.position = c(0.85,0.30))
+
+
 
 
 # ======= MAKE DETAILED PLOTS TRACKING THE FATE OF FOCAL GENES =======

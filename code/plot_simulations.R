@@ -97,7 +97,7 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
 
 # ======================== MAKING PLOTS ========================
 # Load simulation summaries
-scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scenario')
+scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scenario', 'neutral_uniform_freqs_scenario')
 
 model_parameters <- bind_rows(
   lapply(as.list(scenarios),
@@ -140,7 +140,7 @@ correlation_fig_high_mutation <- generate_freq_cor_panels(summary_list = high_mu
 
 # Adjustments of labels
 correlations_fig_neutral$fraction_biggest_clone <- correlations_fig_neutral$fraction_biggest_clone +
-  ylab('Frequency of biggest\nclone within GCs') +
+  ylab('Frequency of biggest\nlineage within GCs') +
   ggtitle('Affinity distribution and mutation\nrate are the same across alleles') +
   theme(plot.title = element_text(hjust = 0.5, size = 12))
 correlations_fig_neutral$freq_corr <- correlations_fig_neutral$freq_corr + ylab('Pairwise correlation\nin allele frequencies')
@@ -298,15 +298,34 @@ spearman_freq_ratio_corr_neutral <- base_plotting_function(neutral_scenario_summ
                                                            color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
   scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
-  ylab('Pairwise correlation in allele frequencies')
+  ylab('Pairwise spearman correlation\nin experienced-to-naive ratios') +
+  theme(legend.position = c(0.1,0.8),
+        plot.title = element_text(hjust = 0.5, size = 12),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 10)) +
+  ggtitle('Alleles have identical affinity distributions\nand mutation rates but different naive frequencies')
 
-spearman_freq_ratio_corr_high_affinity <- base_plotting_function(high_affinity_scenario_summary$summary_pairwise_correlations %>%
-                                                             filter(method == 'spearman', beta == main_fig_beta, s == main_fig_s),
-                                                           y_var = 'freq_ratio_correlation', 
-                                                           color_var = 'mutation_rate') +
+spearman_freq_ratio_corr_neutral_uniform_freqs <- base_plotting_function(neutral_uniform_freqs_scenario_summary$summary_pairwise_correlations %>%
+                         filter(method == 'spearman', beta == main_fig_beta, I_total == main_fig_I_total),
+                       y_var = 'freq_ratio_correlation', 
+                       color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
   scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
-  ylab('Pairwise correlation in allele frequencies')
+  ylab('') +
+  theme(legend.position = 'none')  +
+  ggtitle('Alleles have identical affinity distributions,\n mutation rates and naive frequencies') +
+  theme(plot.title = element_text(hjust = 0.5, size = 12))
+
+freq_ratio_spearman_correlations <- plot_grid(spearman_freq_ratio_corr_neutral, spearman_freq_ratio_corr_neutral_uniform_freqs)
+
+save_plot('../figures/simulations/freq_ratio_spearman_correlations.pdf',
+          freq_ratio_spearman_correlations,
+          base_width = 10, base_height = 5)
+
+
+
+
+
   
 
 

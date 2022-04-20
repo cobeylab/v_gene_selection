@@ -8,8 +8,6 @@ mouse_yaml_file_path = args[1] # e.g. mouse_yaml_file_path = '../results/partis/
 mouse_data_file_path = args[2] # e.g. mouse_data_file_path = '../processed_data/mouse_specific_data_files/8-5.csv'
 
 
-
-
 merge_info <- function(yaml_object, mouse_data_file_path){
  
   mouse_raw_data <- as_tibble(read.csv(mouse_data_file_path))
@@ -36,19 +34,12 @@ merge_info <- function(yaml_object, mouse_data_file_path){
            clone_id_igblast = igh_igblast_clone_id, productive_igblast = productive,
            v_segment_support_igblast = v_score) 
   
-  # Overwrite mouse-specific data file with new file including partis annotation.
-  # Only necessary for heuristic clustering analysis, which we're no longer doing.
-  #write.csv(merged_data %>% select(-clone_naive_cdr3_partis, -clone_consensus_cdr3_partis, -cdr3_mutations_partis_nt, -cdr3_mutations_partis_aa,
-  #                   -n_mutations_partis_nt, -n_mutations_partis_aa, -clone_naive_seq_nt_partis, -clone_naive_seq_aa_partis,-vgene_mutations_list_partis_nt,
-  #                   -vgene_mutations_list_partis_aa,-vgene_mutations_partis_nt, -sequenced_bases_in_vgene_region_partis, -vgene_region_seq_partis),
-  #          mouse_data_file_path, row.names = F)
-  
   # Export file with sequence-level annotations
   annotated_seqs <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
            vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa,
-           vgene_region_seq_partis) %>%
+           partis_processed_seq) %>%
     dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset, clone_id = clone_id_partis) %>%
     mutate(cell_type = as.character(cell_type))
   
@@ -78,9 +69,7 @@ merge_info <- function(yaml_object, mouse_data_file_path){
               max_n_mutations_partis_aa = max(n_mutations_partis_aa),
               max_cdr3_mutations_partis_aa = max(cdr3_mutations_partis_aa),
               min_n_mutations_partis_aa = min(n_mutations_partis_aa),
-              min_cdr3_mutations_partis_aa = min(cdr3_mutations_partis_aa),
-              #productive_consensus_CDR3 = consensusString(AAStringSet(cdr3_seq_partis)),
-              productive_v_region_consensus = consensusString(DNAStringSet(vgene_region_seq_partis))) %>%
+              min_cdr3_mutations_partis_aa = min(cdr3_mutations_partis_aa)) %>%
     ungroup() %>%
     mutate(clone_id = as.character(clone_id))
   

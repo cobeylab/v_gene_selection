@@ -2,7 +2,6 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(ggtext)
 library(cowplot)
 theme_set(theme_cowplot())
 library(scales)
@@ -102,7 +101,8 @@ sample_sequence_pairs <- function(pairwise_gene_freqs, annotated_seqs, sample_si
     sample_mouse_i <- seqs_mouse_i %>%
       group_by(mouse_id, tissue, cell_type) %>%
       slice_sample(n = sample_size) %>%
-      arrange(tissue, cell_type, cdr3_length)
+      arrange(tissue, cell_type, cdr3_length) %>%
+      ungroup()
     
     
     sample_distribution_grouping_vars <- c('mouse_id', 'tissue', 'cell_type', 'cdr3_length')
@@ -196,21 +196,27 @@ plot_cdr3_similarity <- function(matched_samples_similarity){
       similarity_type == 'cdr3_biochem_similarity' ~ 'biochemical similarity'
     )) %>%
     mutate(similarity_type = factor(similarity_type, levels = c('sequence similarity', 'biochemical similarity'))) %>%
-    ungroup()
+    ungroup() %>%
+    mutate(infection_status = str_extract(group_controls_pooled,'[A-Z|a-z]*')) %>%
+    mutate(day = as.integer(as.character(day)))
   
-  n_comparisons_labels <- long_format_tibble %>% group_by(group_controls_pooled, cell_type, similarity_type) %>%
+  n_comparisons_labels <- long_format_tibble %>% group_by(group_controls_pooled, day, cell_type, similarity_type) %>%
     summarise(similarity = median(similarity), 
-              total_seqs_in_comparison = n())
-    
+              total_seqs_in_comparison = n()) %>%
+    mutate(infection_status = str_extract(group_controls_pooled,'[A-Z|a-z]*')) %>%
+    mutate(day = as.integer(as.character(day)))
+
   pl <- long_format_tibble %>%
-    ggplot(aes(x = group_controls_pooled, y = similarity)) +
-    geom_boxplot(aes(color = group_controls_pooled)) +
-    geom_label(data = n_comparisons_labels, aes(label = total_seqs_in_comparison)) +
+    mutate(day = as.integer(as.character(day))) %>%
+    ggplot(aes(x = day, y = similarity)) +
+    geom_boxplot(aes(color = infection_status, group = group_controls_pooled)) +
+    #geom_label(data = n_comparisons_labels, aes(label = total_seqs_in_comparison)) +
     facet_grid(similarity_type~cell_type) +
-    theme(legend.position = 'none', axis.text.x = element_text(size = 10)) +
-    xlab('Group') +
+    theme(legend.position = 'top', axis.text.x = element_text(size = 10)) +
+    xlab('Days after primary infection') +
     ylab('Similarity of length-matched\nCDR3 sequences from different mice') +
-    scale_x_discrete(labels = function(x){str_replace(x, '-','\n')})
+    scale_x_continuous(breaks = unique(n_comparisons_labels$day)) +
+    scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection')
   return(pl)
 }
 
@@ -321,10 +327,7 @@ CDR3_length_distribution_pl <- CDR3_seqs %>%
   ylab('CDR3 amino acid length') +
   scale_x_discrete(labels = function(x){str_replace(x, '-','\n')}) +
   scale_y_continuous(breaks = seq(0,25,5), limits = c(0, NA))
-  
-save_plot('../figures/all_seqs_freqs/CDR3_length_distribution.pdf',
-          CDR3_length_distribution_pl,
-          base_height = 5, base_width = 16)
+
 
 # ======== CDR3 SIMILARITY =======
 
@@ -345,10 +348,6 @@ length_matched_CDR3_sample <-  bind_rows(length_matched_sample_NAIVE %>% select(
 length_matched_CDR3_similarity <- compute_similarity_matched_samples(matched_samples = length_matched_CDR3_sample)
   
 length_matched_CDR3_similarity_plot <- plot_cdr3_similarity(length_matched_CDR3_similarity)
-
-save_plot('../figures/all_seqs_freqs/length_matched_CDR3_similarity.pdf',
-          length_matched_CDR3_similarity_plot,
-          base_height = 8, base_width = 16)
 
 
 # Sample length-matched **AND ALLELE-MATCHED** CDR3 sequences from different mice, compute similarity,
@@ -375,10 +374,6 @@ length_and_allele_matched_CDR3_similarity_plot <- plot_cdr3_similarity(length_an
   ylab('Similarity of length- and allele-matched\nCDR3 sequences from different mice')
 
 
-save_plot('../figures/all_seqs_freqs/length_and_allele_matched_CDR3_similarity.pdf',
-          length_and_allele_matched_CDR3_similarity_plot,
-          base_height = 8, base_width = 16)
-
 # =Looking closely at pairs of mice from day 56:
 length_and_allele_matched_CDR3_similarity_day56_LN_PC <- length_and_allele_matched_CDR3_similarity %>%
   filter(cell_type == 'Lymph node plasma cells', group_controls_pooled == 'secondary-56') %>%
@@ -388,9 +383,6 @@ length_and_allele_matched_CDR3_similarity_day56_LN_PC <- length_and_allele_match
   xlab("Mouse pair") +
   ylab("Similarity of length- and allele-matched\nCDR3 sequences from lymph node plasma cells")
 
-save_plot('../figures/all_seqs_freqs/length_and_allele_matched_CDR3_similarity_day56_LN_PC.pdf',
-          length_and_allele_matched_CDR3_similarity_day56_LN_PC,
-          base_height = 5, base_width = 16)
 
 # Looking at sequences driving this pattern (those associated with seq. pairs of over 75% similarity)
 cdr3_seqs_driving_similarity <-  length_and_allele_matched_CDR3_similarity %>%
@@ -403,44 +395,49 @@ cdr3_seqs_driving_similarity <-  length_and_allele_matched_CDR3_similarity %>%
 
 # Plot showing what those sequences look like
 high_similarity_length_and_allele_matched_seqs_day56_LN_PCs <- cdr3_seqs_driving_similarity %>%
-  group_by(cdr3_seq) %>%
+  mutate(cdr3_length = nchar(cdr3_seq)) %>%
+  mutate(sequence_cluster = case_when(
+    cdr3_length <= 8 ~ 'short-sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
+    cdr3_length >= 10 ~ 'long-sequence cluster'
+  )) %>%
+  group_by(cdr3_seq, sequence_cluster) %>%
   summarise(n = sum(n)) %>%
+  group_by(sequence_cluster) %>%
   mutate(seq_rank = rank(-n, ties.method = 'first')) %>%
-  ggplot(aes(x = 1, y = seq_rank, label = cdr3_seq)) +
+  ggplot(aes(x = sequence_cluster, y = seq_rank, label = cdr3_seq)) +
   geom_text() +
   scale_y_reverse() +
-  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
-  xlab('Sequences driving high similarity in length-\nand allele-matched CDR3 sequences from day 56 LN PCs') + ylab('Rank in paired samples')
-save_plot('../figures/all_seqs_freqs/high_similarity_length_and_allele_matched_seqs_day56_LN_PCs.pdf',
-          high_similarity_length_and_allele_matched_seqs_day56_LN_PCs,
-          base_height = 10, base_width = 6)
+  xlab('Convergent allele-matched CDR3\nsequences from day 56 LN PCs') + ylab('Rank in paired samples')
+
 
 # Collectively, how common were those sequences in LN cells from mice at all time points?
 combined_freq_of_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>% 
   filter(total_compartment_seqs >= min_compartment_size) %>%
   filter(cdr3_seq_partis %in% unique(cdr3_seqs_driving_similarity$cdr3_seq)) %>%
   mutate(sequence_cluster = case_when(
-    cdr3_length <= 8 ~ 'short sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
-    cdr3_length >= 10 ~ 'long sequence cluster'
+    cdr3_length <= 8 ~ 'short-sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
+    cdr3_length >= 10 ~ 'long-sequence cluster'
   )) %>%
   group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, sequence_cluster, total_compartment_seqs) %>%
   summarise(total_n_focal_seqs = n()) %>%
   ungroup() %>%
   mutate(combined_freq_of_focal_seqs = total_n_focal_seqs / total_compartment_seqs) %>%
-  ggplot(aes(x = group_controls_pooled, y = combined_freq_of_focal_seqs, color = group_controls_pooled)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point(size = 3, position = position_jitter(width = 0.1, height = 0),
+  mutate(tissue = 'LN',
+         day = as.integer(as.character(day))) %>%
+  ggplot(aes(x = day, y = combined_freq_of_focal_seqs, color = infection_status)) +
+  geom_boxplot(outlier.alpha = 0, aes(group = group_controls_pooled)) +
+  geom_point(aes(size = total_n_focal_seqs), position = position_jitter(width = 0.1, height = 0),
              alpha = 0.7) +
   facet_grid(sequence_cluster ~ cell_type) +
-  xlab('Group') +
+  xlab('Days after primary infection') +
   ylab('Combined frequency of convergent\nday-56 LN PC CDR3 sequences') +
   theme(legend.position = 'none',
         axis.text.x = element_text(size = 10)) +
-  scale_x_discrete(labels = function(x){str_replace(x, '-','\n')})
-
-save_plot('../figures/all_seqs_freqs/combined_freq_of_day56_LN_PC_convergent_CDRs.pdf',
-          combined_freq_of_day56_LN_PC_convergent_CDRs,
-          base_height = 8, base_width = 16)
+  scale_x_continuous(breaks = as.integer(unique(CDR3_seqs$day))) +
+  scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+  scale_size_continuous(name = 'Number of sequences') +
+  background_grid()
+  
   
 
 allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>% 
@@ -448,32 +445,30 @@ allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
          tissue == 'LN', cell_type == 'Lymph node plasma cells') %>%
   filter(cdr3_seq_partis %in% unique(cdr3_seqs_driving_similarity$cdr3_seq)) %>%
   mutate(sequence_cluster = case_when(
-    cdr3_length <= 8 ~ 'short sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
-    cdr3_length >= 10 ~ 'long sequence cluster'
+    cdr3_length <= 8 ~ 'short-sequence cluster', # To match the observed lengths of the clusters of seqs driving similarity
+    cdr3_length >= 10 ~ 'long-sequence cluster'
   )) %>%
   mutate(v_gene = str_remove(v_gene, 'IGHV')) %>%
-  group_by(mouse_id, sequence_cluster, v_gene) %>%
+  group_by(sequence_cluster, v_gene) %>%
   count() %>%
-  group_by(mouse_id, sequence_cluster) %>%
+  group_by(sequence_cluster) %>%
   mutate(rank_gene_in_convergent_seqs = rank(-n, ties.method = 'first'),
          gene_freq_in_convergent_seqs = n/sum(n)) %>%
   ungroup() %>%
   filter(rank_gene_in_convergent_seqs <= 10) %>%
-  ggplot(aes(x = rank_gene_in_convergent_seqs, y = n, label = v_gene)) +
+  ggplot(aes(x = rank_gene_in_convergent_seqs, y = gene_freq_in_convergent_seqs, label = v_gene)) +
   geom_col() +
-  facet_grid(sequence_cluster~mouse_id, scales = 'free') +
-  geom_text(angle = 90, size = 4, nudge_y = 1500) +
-  scale_y_continuous(expand = c(0.05,5)) +
-  xlab('Allele rank (up to 10 top genes)') +
-  ylab('Number of sequences')
+  facet_grid(sequence_cluster~., scales = 'free_y') +
+  geom_text(size = 4, nudge_y = 0.05) +
+  #scale_y_continuous() +
+  xlab('Allele rank (top 10 alleles)') +
+  ylab('Fraction of sequences')  +
+  scale_x_continuous(breaks = 1:10)
 
-save_plot('../figures/all_seqs_freqs/allele_usage_day56_LN_PC_convergent_CDRs.pdf',
-          allele_usage_day56_LN_PC_convergent_CDRs,
-          base_height = 11, base_width = 17)
+
 
   
 # Some other stuff
-
 
 # CDR3 length distributions by allele
 CDR3_length_distributions_by_allele_NAIVE <- CDR3_seqs_naive %>%
@@ -532,21 +527,17 @@ CDR3_lengths_by_allele_day8 <-
               ggtitle('Day 8 memory cells') + xlab(''),
             nrow = 1
             )
+# 
+# save_plot('../figures/all_seqs_freqs/CDR3_lengths_by_allele_day8.pdf',
+#           CDR3_lengths_by_allele_day8,
+#           base_height = 10, base_width = 18)
 
-save_plot('../figures/all_seqs_freqs/CDR3_lengths_by_allele_day8.pdf',
-          CDR3_lengths_by_allele_day8,
-          base_height = 10, base_width = 18)
 
-CDR3_lengths_by_allele_day16 <- 
-  plot_grid(plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'PC','primary-16') + xlab('') +
-              ggtitle('Day 16 plasma cells'),
-            plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'GC','primary-16') + ylab('') +
-              ggtitle('Day 16 GC cells'),
-            plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'mem','primary-16') + ylab('') +
-              ggtitle('Day 16 memory cells') + xlab(''),
-            nrow = 1
-  )
-
-save_plot('../figures/all_seqs_freqs/CDR3_lengths_by_allele_day16.pdf',
-          CDR3_lengths_by_allele_day16,
-          base_height = 10, base_width = 18)
+save(CDR3_length_distribution_pl,
+     length_matched_CDR3_similarity_plot,
+     length_and_allele_matched_CDR3_similarity_plot,
+     length_and_allele_matched_CDR3_similarity_day56_LN_PC,
+     high_similarity_length_and_allele_matched_seqs_day56_LN_PCs,
+     combined_freq_of_day56_LN_PC_convergent_CDRs,
+     allele_usage_day56_LN_PC_convergent_CDRs,
+     file = '../figures/all_seqs_freqs/exported_ggplot_objects/CDR3_plots.RData')
