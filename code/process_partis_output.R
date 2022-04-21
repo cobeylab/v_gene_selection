@@ -62,7 +62,7 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   clones_summary <- annotated_seqs %>%
     filter(productive_partis == T) %>%
     group_by(mouse_id, clone_id) %>%
-    summarise(mean_n_mutations_partis_aa = mean(n_mutations_partis_aa),
+    dplyr::summarise(mean_n_mutations_partis_aa = mean(n_mutations_partis_aa),
               mean_cdr3_mutations_partis_aa = mean(cdr3_mutations_partis_aa),
               median_n_mutations_partis_aa = median(n_mutations_partis_aa),
               median_cdr3_mutations_partis_aa = median(cdr3_mutations_partis_aa),
@@ -87,7 +87,9 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   annotated_seqs <- annotated_seqs %>%
     mutate(across(c('clone_id','partis_uniq_ref_seq','seq_id'), as.character))
   
-  annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene))
+  annotated_seqs <- left_join(annotated_seqs %>% 
+                                mutate(clone_id = as.character(clone_id)),
+                              clone_info %>% select(mouse_id, clone_id, v_gene))
   
   mut_probs_per_gene_position <- estimate_mut_probs_per_vgene_position(annotated_seqs)
   
