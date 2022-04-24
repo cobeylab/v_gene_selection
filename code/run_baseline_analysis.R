@@ -4,6 +4,10 @@ library(tidyr)
 library(shazam)
 library(stringr)
 
+args <- commandArgs(trailingOnly = T)
+mouse_id = as.character(args[1])
+nproc = as.integer(args[2])
+
 baseline_test_statistic <- 'focused'
 collapse_clones_threshold <- 0.5
 focal_tissue = 'LN'
@@ -21,14 +25,15 @@ annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') %>%
 # annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv') %>% mutate(seq_id = as.character(seq_id), clone_id = as.character(clone_id))
 
 # Read tsv with FR and CDR3 annotation for clone's naive ancestors
-naive_ancestor_annotations <- read_csv('../results/clone_naive_seqs_igblast.tsv')
+naive_ancestor_annotations <- read_tsv('../results/clone_naive_seqs_igblast.tsv')
 # naive_ancestor_annotations <- read_tsv('~/Desktop/v_gene_selection/results/clone_naive_seqs_igblast.tsv')
 
 naive_ancestor_annotations <- naive_ancestor_annotations %>%
   separate(sequence_id, into = c('mouse_id', 'clone_id'), sep = '_')
 
 # Subset sequences to look only at clones from focal tissue (productive sequences only)
-focal_seqs <- annotated_seqs %>% filter(tissue == focal_tissue, productive_partis == T) %>%
+focal_seqs <- annotated_seqs %>% filter(tissue == focal_tissue, productive_partis == T, mouse_id == !!mouse_id,
+                                        cell_type != 'naive') %>%
             select(mouse_id, clone_id, seq_id, tissue, cell_type, partis_processed_seq)
 
 # Only consider clone/cell type combinations with at least min_clone_size sequences
@@ -54,7 +59,7 @@ focal_seqs <- focal_seqs %>%
 clone_effective_seqs <- collapseClones(focal_seqs, sequenceColumn = "partis_processed_seq", cloneColumn = "baseline_grouping_var",
                germlineColumn = 'clone_naive_seq_nt_partis',
                method="thresholdedFreq", minimumFrequency=collapse_clones_threshold, includeAmbiguous=FALSE,
-               breakTiesStochastic = FALSE) %>% select(-partis_processed_seq, -clonal_germline)
+               breakTiesStochastic = FALSE, nproc = nproc) %>% select(-partis_processed_seq, -clonal_germline)
 
 clone_effective_seqs <- left_join(clone_effective_seqs,
                                   naive_ancestor_annotations %>% select(mouse_id, clone_id, matches('fwr'), matches('cdr'))) %>%
@@ -85,7 +90,7 @@ clone_effective_seqs <- clone_effective_seqs %>%
   ungroup()
 
 # Function for running baseline when each clone has potentially different FR/CDR boundaries
-run_baseline <- function(clone_effective_seqs){
+run_baseline <- function(clone_effective_seqs, nproc){
   
     baseline_list <- mapply(
       FUN = function(baseline_input_seq, baseline_input_naive_seq, regional_definition_string){
@@ -96,7 +101,8 @@ run_baseline <- function(clone_effective_seqs){
         input_data <- tibble(baseline_input_seq, baseline_input_naive_seq)
         
         baseline_results <- calcBaseline(input_data, sequenceColumn = 'baseline_input_seq', germlineColumn = 'baseline_input_naive_seq',
-                     targetingModel = MK_RS5NF, regionDefinition = regional_definition, testStatistic = baseline_test_statistic)
+                     targetingModel = MK_RS5NF, regionDefinition = regional_definition, testStatistic = baseline_test_statistic,
+                     nproc = nproc)
         return(baseline_results)
       },
       baseline_input_seq = clone_effective_seqs$baseline_input_seq, 
@@ -135,9 +141,18 @@ run_baseline <- function(clone_effective_seqs){
 }
 
 
-baseline_results <- run_baseline(clone_effective_seqs)
+baseline_results <- run_baseline(clone_effective_seqs, nproc = nproc)
+stopifnot(length(unique(baseline_results@db$tissue)) == 1)
 
-save(baseline_results,
-     file = '../results/baseline_results.RData')
+# Convolve results for this mice, separately for each cell type
+convolved_baseline_results <- groupBaseline(baseline_results, groupBy = 'cell_type', nproc = nproc)
+
+# Add number of clones per compartment to stats component of results
+
+convolved_baseline_results@stats <- left_join(convolved_baseline_results@stats, 
+          clone_effective_seqs %>% group_by(tissue, cell_type) %>% count() %>% dplyr::rename(n_clones_in_compartment = n))
+
+save(convolved_baseline_results,
+     file = paste0('../results/baseline_analysis/baseline_analysis_', mouse_id,'.RData'))
 
 
