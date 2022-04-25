@@ -13,6 +13,7 @@ collapse_clones_threshold <- 0.5
 focal_tissue = 'LN'
 min_clone_size <- 10
 
+
 # Read clone information to get clone's naive ancestral sequences
 clone_info <- read_csv('../processed_data/clone_info.csv') %>% mutate(clone_id = as.character(clone_id))
 # clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')  %>% mutate(clone_id = as.character(clone_id))
