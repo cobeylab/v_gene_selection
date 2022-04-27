@@ -14,6 +14,7 @@ do
     echo "#SBATCH --nodes=1" >> $sbatch_file
     echo "#SBATCH --ntasks-per-node=11" >> $sbatch_file
     echo "#SBATCH --partition=cobey" >> $sbatch_file
+    echo "#SBATCH --account=pi-cobey" >> $sbatch_file
     echo "#SBATCH -o out_err_files/run_baseline_$mid.out" >> $sbatch_file       
     echo "#SBATCH -e out_err_files/run_baseline_$mid.err" >> $sbatch_file         
     echo "#SBATCH --time=100:00:00" >> $sbatch_file

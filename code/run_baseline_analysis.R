@@ -145,6 +145,10 @@ run_baseline <- function(clone_effective_seqs, nproc){
 baseline_results <- run_baseline(clone_effective_seqs, nproc = nproc)
 stopifnot(length(unique(baseline_results@db$tissue)) == 1)
 
+save(baseline_results,
+     file = paste0('../results/baseline_analysis/baseline_analysis_per_clone_', mouse_id,'.RData'))
+
+
 # Convolve results for this mice, separately for each cell type
 convolved_baseline_results <- groupBaseline(baseline_results, groupBy = 'cell_type', nproc = nproc)
 
@@ -154,6 +158,6 @@ convolved_baseline_results@stats <- left_join(convolved_baseline_results@stats,
           clone_effective_seqs %>% group_by(tissue, cell_type) %>% count() %>% dplyr::rename(n_clones_in_compartment = n))
 
 save(convolved_baseline_results,
-     file = paste0('../results/baseline_analysis/baseline_analysis_', mouse_id,'.RData'))
+     file = paste0('../results/baseline_analysis/convolution_baseline_analysis_', mouse_id,'.RData'))
 
 

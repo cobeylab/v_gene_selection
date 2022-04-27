@@ -12,7 +12,6 @@ code/.Rhistory
 *.html
 *.err
 *.pyc
-*.sbatch
 .idea*
 ._*
 code/RAxML*
