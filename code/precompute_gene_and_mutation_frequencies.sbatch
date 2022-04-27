@@ -6,7 +6,7 @@
 #SBATCH --account=pi-cobey
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --time=100:00:00
+#SBATCH --time=20:00:00
 #SBATCH --mem-per-cpu=16000
 
 module load R/3.6.1
