@@ -373,6 +373,23 @@ adjust_zero_exp_freqs <- function(exp_freqs){
   return(adj_exp_freqs)
 }
 
+# Combine naive and experienced frequencies into a single tibble in wide format
+format_gene_freqs_wide <- function(exp_freqs, naive_freqs){
+  left_join(exp_freqs,naive_freqs) %>%
+    mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
+           group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
+}
+
+
+
+# Rho: ratio of experienced to naive frequency
+compute_rho <- function(gene_freqs){
+  gene_freqs %>%
+    mutate(log_rho = log(vgene_seq_freq) - log(naive_vgene_seq_freq)) %>%
+    mutate(obs_rho = exp(log_rho)) 
+}
+
+
 # Correlation within each mouse between experienced and naive gene frequencies
 get_naive_exp_correlations <- function(gene_freqs){
   gene_freqs %>%
@@ -432,14 +449,11 @@ calculate_frequency_ratio_matrix <- function(gene_freqs){
   return(frequency_ratio_matrix)
 }
 
-# For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
-get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
-  # Assumes gene_freqs in wide format:
-  stopifnot('naive_vgene_seq_freq' %in% names(gene_freqs))
+# Generates vector of unique mouse pairs, using gene_freqs as a basis
+get_unique_pairs <- function(gene_freqs, within_groups_only){
   
-  mouse_info <- gene_freqs %>%
-    select(mouse_id, day, infection_status, group, group_controls_pooled) %>%
-    unique()
+  # Tibble containing group of each mouse.
+  mouse_group_assignments <- gene_freqs %>% select(mouse_id, group_controls_pooled) %>% unique()
   
   unique_pairs <- gene_freqs %>% select(mouse_id) %>% unique() %>%
     dplyr::rename(mouse_id_i = mouse_id) %>%
@@ -449,14 +463,45 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
     mutate(pair = paste0(sort(c(mouse_id_i, mouse_id_j)), collapse = ';')) %>%
     ungroup() %>%
     filter(mouse_id_i != mouse_id_j) %>%
-    select(pair) %>%
-    unique() %>% pull(pair)
+    unique()
   
+  # Add info on mouse groups 
+  unique_pairs <- left_join(unique_pairs,  mouse_group_assignments %>%
+              dplyr::rename(mouse_id_i = mouse_id, group_controls_pooled_i = group_controls_pooled))
+  unique_pairs <- left_join(unique_pairs, mouse_group_assignments %>%
+                              dplyr::rename(mouse_id_j = mouse_id, group_controls_pooled_j = group_controls_pooled))
+  
+  # If true, only return pairs of the same group (e.g. both controls, both primary-8, etc.)
+  if(within_groups_only){
+    unique_pairs <- unique_pairs %>%
+      filter(group_controls_pooled_i == group_controls_pooled_j)
+  }
+  
+  unique_pairs <- unique_pairs %>%
+    pull(pair)
+  
+  return(unique_pairs)
+  
+}
+
+
+# For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
+get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_only){
+  # Assumes gene_freqs in wide format:
+  stopifnot('naive_vgene_seq_freq' %in% names(gene_freqs))
+  
+  mouse_info <- gene_freqs %>%
+    select(mouse_id, day, infection_status, group, group_controls_pooled) %>%
+    unique()
+  
+  unique_pairs <- get_unique_pairs(gene_freqs = gene_freqs, within_groups_only = within_groups_only)
+   
+
   # Get naive and experienced frequencies into separate tibbles
   exp_freqs <- gene_freqs %>% select(mouse_id, day, infection_status, group, group_controls_pooled,
                                      v_gene, tissue, cell_type, n_vgene_seqs, total_compartment_seqs,
-                                     vgene_seq_freq, obs_rho, mean_sim_rho, lbound_sim_rho, ubound_sim_rho,
-                                     deviation_from_naive, v_gene_rank)
+                                     vgene_seq_freq, obs_rho, matches('rho'), matches('deviation_from_naive'),
+                                     matches('v_gene_rank'))
   
   naive_freqs <- gene_freqs %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene,
@@ -552,15 +597,16 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros){
     select(mouse_pair, pair_type, matches('id'), matches('day'), matches('infection_status'), matches('group'),
            matches('total_compartment_seqs'), matches('total_mouse_naive_seqs'),
            everything())
-  
-  # Label each gene in a paper in terms of concordant/discordant direction of change from the naive repertoire
-  paired_gene_freqs <- paired_gene_freqs %>%
-    mutate(concordance_status = case_when(
-      (deviation_from_naive_i == 'positive' & deviation_from_naive_j == 'positive') ~ 'concordant-increasing',
-      (deviation_from_naive_i == 'negative' & deviation_from_naive_j == 'negative') ~ 'concordant-decreasing',
-      (deviation_from_naive_i == 'neutral' & deviation_from_naive_j == 'neutral') ~ 'concordant-stable',
-      (deviation_from_naive_i != deviation_from_naive_j) ~ 'discordant',
-      (is.na(deviation_from_naive_i) | is.na(deviation_from_naive_j)) ~ 'NA'))
+  if('deviation_from_naive_i' %in% names(paired_gene_freqs)){
+    # Label each gene in a paper in terms of concordant/discordant direction of change from the naive repertoire
+    paired_gene_freqs <- paired_gene_freqs %>%
+      mutate(concordance_status = case_when(
+        (deviation_from_naive_i == 'positive' & deviation_from_naive_j == 'positive') ~ 'concordant-increasing',
+        (deviation_from_naive_i == 'negative' & deviation_from_naive_j == 'negative') ~ 'concordant-decreasing',
+        (deviation_from_naive_i == 'neutral' & deviation_from_naive_j == 'neutral') ~ 'concordant-stable',
+        (deviation_from_naive_i != deviation_from_naive_j) ~ 'discordant',
+        (is.na(deviation_from_naive_i) | is.na(deviation_from_naive_j)) ~ 'NA'))
+  }
       
     
   return(paired_gene_freqs)
@@ -1076,6 +1122,17 @@ get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_ty
   
 }
 
+get_freq_ratio_mutability_correlations <- function(gene_freqs, germline_mutability_by_region_type,
+                                                   min_compartment_size, method){
+  left_join(gene_freqs, germline_mutability_by_region_type) %>%
+    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
+    group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, total_compartment_seqs) %>%
+    summarise(across(matches('mutability'),
+                     function(x){cor.test(x, obs_rho, method = method)$estimate})) %>%
+    pivot_longer(cols = matches('_mutability'), names_to = 'mutability_metric', values_to = 'correlation')
+}
+
+
 randomize_noncontrol_groups <- function(tibble_with_mouse_id){
   
   # Distributes non-control mice randomly between groups (primary-8, secondary-40, etc.), keeping the original number of mice in each group.
@@ -1108,14 +1165,57 @@ randomize_noncontrol_groups <- function(tibble_with_mouse_id){
 }
 
 
-get_freq_ratio_mutability_correlations <- function(gene_freqs, germline_mutability_by_region_type,
-                                                   min_compartment_size, method){
-  left_join(gene_freqs, germline_mutability_by_region_type) %>%
-    filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
-    group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, total_compartment_seqs) %>%
-    summarise(across(matches('mutability'),
-                     function(x){cor.test(x, obs_rho, method = method)$estimate})) %>%
-    pivot_longer(cols = matches('_mutability'), names_to = 'mutability_metric', values_to = 'correlation')
+# For each clone, samples a new V gene from the naive repertoire of the corresponding mouse (with replacement)
+resample_clone_v_alleles <- function(exp_seq_counts, naive_freqs, adjust_naive_zeros){
+  
+  if(adjust_naive_zeros){
+    naive_freqs <- adjust_zero_naive_freqs(naive_freqs)
+  }
+  
+  clone_v_genes <- exp_seq_counts %>% select(mouse_id, clone_id, v_gene) %>% unique()
+  
+  # Does the resampling for data, where data is a grouped tibble with each group containing a single mouse
+  internal_resampling_function <- function(mouse_id, naive_freqs){
+    
+    n_clones <- length(mouse_id)
+    mouse_id = unique(mouse_id)
+    # Ensures there's only a single mouse
+    stopifnot(length(mouse_id) == 1)
+    
+    mouse_specific_freqs <- naive_freqs %>% filter(mouse_id == !!mouse_id) %>%
+      select(mouse_id, v_gene, naive_vgene_seq_freq)
+    
+    new_v_genes <- sample(mouse_specific_freqs$v_gene, size = n_clones,
+                                 prob = mouse_specific_freqs$naive_vgene_seq_freq,
+                                 replace = T) 
+    
+    return(new_v_genes)
+      
+  }
+  
+  # A built-in test to see if the grouping is done correctly: rename all genes as the id of corresponding mouse
+  # Run internal resampling function and check that each mouse only has genes with its name
+  internal_function_test <- clone_v_genes %>% group_by(mouse_id) %>%
+    mutate(new_v_gene = internal_resampling_function(mouse_id = mouse_id, 
+                                                     naive_freqs = naive_freqs %>% mutate(v_gene = mouse_id)))
+    
+  stopifnot(all(internal_function_test$mouse_id == internal_function_test$new_v_gene))
+  
+
+  # run resampling for each mouse in clone_v_genes
+  resampled_v_genes <- clone_v_genes %>% group_by(mouse_id) %>%
+    mutate(new_v_gene = internal_resampling_function(mouse_id = mouse_id, 
+                                                     naive_freqs = naive_freqs))
+  
+
+  # Return sequence counts with resampled v genes
+  return(
+    left_join(exp_seq_counts, resampled_v_genes) %>%
+    select(-v_gene) %>%
+    dplyr::rename(v_gene = new_v_gene) %>%
+    select(mouse_id, clone_id, v_gene, everything())
+  )
+  
 }
 
 

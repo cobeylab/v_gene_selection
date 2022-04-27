@@ -92,25 +92,15 @@ if(use_Greiff2017_naive_freqs){
   output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_Greiff2017_naive_freqs.RData') 
 }
 
-if(collapse_novel_alleles){
-  
-}
-
 
 # Combine naive and experienced frequencies into a single tibble
-gene_freqs <- left_join(exp_freqs,naive_freqs) %>%
-  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-         group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
+gene_freqs <- format_gene_freqs_wide(exp_freqs = exp_freqs, naive_freqs = naive_freqs)
 
 # Gene frequencies with adjusted naive zeros. 
 # i.e. genes present in mouse but with 0 obs seqs in naive rep. are assigned 1 sequence, with freqs adjusted accordingly
-gene_freqs_adj_naive_zeros <- left_join(exp_freqs, adjust_zero_naive_freqs(naive_freqs)) %>%
-  mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
-         group_controls_pooled = factor(group_controls_pooled,
-                                        levels = group_controls_pooled_factor_levels))
-
-
-# Generate realizations under neutral model
+gene_freqs_adj_naive_zeros <- format_gene_freqs_wide(exp_freqs = exp_freqs, naive_freqs = adjust_zero_naive_freqs(naive_freqs))
+  
+# Generate realizations under neutral model, drawing V allele counts based on their naive freqs.
 neutral_realizations <- simulate_selection_freq_changes(exp_seq_counts = exp_seq_counts,
                                                         naive_seq_counts = naive_seq_counts,
                                                         clone_info = clone_info,
@@ -119,9 +109,7 @@ neutral_realizations <- simulate_selection_freq_changes(exp_seq_counts = exp_seq
                                                         n_reps = 100)
 
 # Rho: ratio of experienced to naive frequency
-obs_rhos <- gene_freqs_adj_naive_zeros %>%
-  mutate(log_rho = log(vgene_seq_freq) - log(naive_vgene_seq_freq)) %>%
-  mutate(obs_rho = exp(log_rho)) %>%
+obs_rhos <- compute_rho(gene_freqs_adj_naive_zeros) %>%
   rename(obs_n_vgene_seqs = n_vgene_seqs) %>%
   select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, v_gene,
          obs_n_vgene_seqs,obs_rho)
@@ -159,23 +147,22 @@ gene_freqs <- gene_freqs %>%
 # =========== PAIRWISE CORRELATIONS IN GENE FREQUENCIES BETWEEN MICE ==========
 
 # Pairwise correlations in observed data
-pairwise_gene_freqs <- get_pairwise_freqs(gene_freqs, adjust_naive_zeros = T)
+pairwise_gene_freqs <- get_pairwise_freqs(gene_freqs, adjust_naive_zeros = T, within_groups_only =F)
 pairwise_correlations <- get_pairwise_correlations(pairwise_gene_freqs)
 deviation_concordance <- compute_deviation_concordance(pairwise_gene_freqs)
 
 
-# Pairwise correlations with randomized noncontrol groups
-gene_freqs_randomized_noncontrol_groups <- replicate(500, randomize_noncontrol_groups(gene_freqs),
-                                   simplify = F)
-
+# Pairwise correlations with randomized noncontrol groups (LN only)
 pairwise_correlations_randomized_noncontrol_groups_FREQS <- tibble()
 pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS <- tibble()
 
 # 
 for(i in 1:500){
-  gene_freqs_randomized_noncontrol_groups <- randomize_noncontrol_groups(gene_freqs)
-  pairwise_gene_freqs_randomized_noncontrol_groups <- get_pairwise_freqs(gene_freqs_randomized_noncontrol_groups, 
-                                                                                adjust_naive_zeros = T)
+  gene_freqs_randomized_noncontrol_groups <- randomize_noncontrol_groups(gene_freqs %>% filter(tissue == 'LN'))
+  pairwise_gene_freqs_randomized_noncontrol_groups <- get_pairwise_freqs(gene_freqs_randomized_noncontrol_groups,
+                                                                         adjust_naive_zeros = T,
+                                                                         # For randomizations, compare only within groups.
+                                                                         within_groups_only = T)
   pw_corr <- get_pairwise_correlations(pairwise_gene_freqs_randomized_noncontrol_groups)
   
   pairwise_correlations_randomized_noncontrol_groups_FREQS <- bind_rows(
@@ -194,6 +181,50 @@ for(i in 1:500){
 pairwise_correlations_randomized_noncontrol_groups <- list(freqs = pairwise_correlations_randomized_noncontrol_groups_FREQS %>%
                                                              select(replicate, everything()),
                                                            freq_ratios = pairwise_correlations_randomized_noncontrol_groups_FREQ_RATIOS %>%
+                                                             select(replicate, everything()))
+
+
+# Pairwise correlations with randomized V gene assigned to each lineage from naive repertoire, keeping lineage abundances
+# (LN ONLY)
+
+pairwise_correlations_randomized_lineage_V_allele_FREQS <- tibble()
+pairwise_correlations_randomized_lineage_V_allele_FREQ_RATIOS <- tibble()
+for(i in 1:500){
+  
+  # Experienced sequence counts with randomized V alleles in each lineage
+  exp_seq_counts_randomized_lineage_V <- resample_clone_v_alleles(exp_seq_counts = exp_seq_counts, 
+                                                                  naive_freqs = naive_freqs, 
+                                                                  adjust_naive_zeros = T)
+  # Calculate gene freqs and freq deviations from naive repertoire
+  gene_freqs_randomized_lineage_V <- calc_gene_freqs(exp_seq_counts = exp_seq_counts_randomized_lineage_V,
+                                                     naive_seq_counts = naive_seq_counts,
+                                                     clone_info = clone_info, long_format = F, by_tissue = T)
+  
+  gene_freqs_randomized_lineage_V <- format_gene_freqs_wide(exp_freqs = gene_freqs_randomized_lineage_V$exp_freqs,
+                                                            naive_freqs = adjust_zero_naive_freqs(naive_freqs))
+  gene_freqs_randomized_lineage_V <- compute_rho(gene_freqs_randomized_lineage_V)
+  
+  # Generate pairwise freqs and compute correlations
+  pairwise_gene_freqs_randomized_lineage_V <- get_pairwise_freqs(gene_freqs_randomized_lineage_V, adjust_naive_zeros = T,
+                                                                 within_groups_only = T) %>%
+    filter(tissue == 'LN')
+  
+  pw_corr <- get_pairwise_correlations(pairwise_gene_freqs_randomized_lineage_V)
+  
+  pairwise_correlations_randomized_lineage_V_allele_FREQS <- bind_rows(
+    pairwise_correlations_randomized_lineage_V_allele_FREQS,
+    pw_corr$freqs %>% mutate(replicate = i)
+  )
+  
+  pairwise_correlations_randomized_lineage_V_allele_FREQ_RATIOS <- bind_rows(
+    pairwise_correlations_randomized_lineage_V_allele_FREQ_RATIOS,
+    pw_corr$freq_ratios %>% mutate(replicate = i)
+  )
+}
+
+pairwise_correlations_randomized_lineage_V_alleles <- list(freqs = pairwise_correlations_randomized_lineage_V_allele_FREQS %>%
+                                                             select(replicate, everything()),
+                                                           freq_ratios = pairwise_correlations_randomized_lineage_V_allele_FREQ_RATIOS %>%
                                                              select(replicate, everything()))
 
 
@@ -291,6 +322,7 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      pairwise_correlations,
      #neutral_pairwise_correlations,
      pairwise_correlations_randomized_noncontrol_groups,
+     pairwise_correlations_randomized_lineage_V_alleles,
      mutation_freqs_within_clones,
      mutation_freqs_within_clones_by_tissue_and_cell_type,
      file = output_file)
