@@ -17,7 +17,7 @@ args <- commandArgs(trailingOnly = T)
 
 frequency_type <- args[1] # frequency_type <- 'all_seqs'
 use_Greiff2017_naive_freqs <- as.logical(args[2]) # use_Greiff2017_naive_freqs <- F
-
+collapsed_novel_alleles <- as.logical(args[3]) # collapsed_novel_alleles <- F
 
 results_directory <- '../results/'
 #results_directory <- '~/Desktop/v_gene_selection/results/'
@@ -38,18 +38,24 @@ deviations_by_allele_results_path <- paste0(results_directory, 'deviations_by_al
 
 if(use_Greiff2017_naive_freqs){
   stopifnot(frequency_type == 'all_seqs')
+  stopifnot(collapsed_novel_alleles == F)
   figure_directory <- '../figures/all_seqs_freqs_Greiff2017_naive_freqs/'
   precomputed_freqs_file <- 'precomputed_gene_freqs_all_seqs_Greiff2017_naive_freqs.RData'
   correlation_rdm_test_results <- paste0(results_directory, 'correlation_rdm_tests_', frequency_type, 'freqs_Greiff2017_naive_freqs.csv')
   deviations_by_allele_results_path  <-paste0(results_directory, 'deviations_by_allele_', frequency_type, 'freqs_Greiff2017_naive_freqs.csv')
 }
-
+if(collapsed_novel_alleles){
+  stopifnot(frequency_type == 'all_seqs')
+  stopifnot(use_Greiff2017_naive_freqs == F)
+  figure_directory <- '../figures/all_seqs_freqs_collapsed_novel_alleles/'
+  precomputed_freqs_file <- 'precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData'
+  correlation_rdm_test_results <- paste0(results_directory, 'correlation_rdm_tests_', frequency_type, '_collapsed_novel_alleles.csv')
+  deviations_by_allele_results_path  <-paste0(results_directory, 'deviations_by_allele_', frequency_type, '_collapsed_novel_alleles.csv')
+  
+}
 
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
 load(paste0(results_directory, precomputed_freqs_file))
-
-# Basic info for each clone (germline genes, CDR lenght, naive CDR seq)
-clone_info <- read_csv(paste0(processed_data_directory,'clone_info.csv'))
 
 exported_figure_objects_dir <- paste0(figure_directory,'exported_ggplot_objects/')
 dir.create(exported_figure_objects_dir, showWarnings = F)
@@ -86,11 +92,11 @@ plot_naive_exp_correlations <- function(naive_exp_correlations_obs, naive_exp_co
     filter(cell_type %in% c('GC','PC','mem')) %>%
     cell_type_facet_labeller() %>%
     ggplot(aes(x = day, y = naive_exp_corr, color = infection_status, group = day)) +
-    geom_boxplot(data = naive_exp_correlations_neutral %>%
-                   filter(tissue == 'LN', group_controls_pooled != 'control',
-                          cell_type %in% c('GC','PC','mem'), method == !!method) %>%
-                   cell_type_facet_labeller(),
-                 outlier.alpha = 0, linetype = 2) +
+    #geom_boxplot(data = naive_exp_correlations_neutral %>%
+    #               filter(tissue == 'LN', group_controls_pooled != 'control',
+    #                      cell_type %in% c('GC','PC','mem'), method == !!method) %>%
+    #               cell_type_facet_labeller(),
+    #             outlier.alpha = 0, linetype = 2) +
     geom_boxplot(outlier.alpha = 0) +
     geom_point(aes(size = total_compartment_seqs),
                position = position_jitter(width = 0.1, height = 0),
@@ -206,6 +212,12 @@ top_genes_LN_PC_day8_plot <- plot_most_common_genes('PC','LN','primary-8') +
   theme(legend.position = c(0.87,0.35)) + background_grid()
 top_genes_LN_PC_day16_plot <- plot_most_common_genes('PC','LN','primary-16') +
   theme(legend.position = c(0.67,0.25)) + background_grid()
+top_genes_LN_PC_day24_plot <- plot_most_common_genes('PC','LN','primary-24') +
+  theme(legend.position = c(0.67,0.25)) + background_grid()
+top_genes_LN_PC_day40_plot <- plot_most_common_genes('PC','LN','secondary-40') +
+  theme(legend.position = c(0.67,0.25)) + background_grid()
+top_genes_LN_PC_day56_plot <- plot_most_common_genes('PC','LN','secondary-56') +
+  theme(legend.position = c(0.67,0.25)) + background_grid()
 
 
 top_genes_LN_GC_day8_plot <- plot_most_common_genes('GC','LN','primary-8') +
@@ -216,12 +228,12 @@ top_genes_LN_GC_day16_plot <- plot_most_common_genes('GC','LN','primary-16') +
 
 top_genes_LN_GC_day24_plot <- plot_most_common_genes('GC','LN','primary-24') +
   theme(legend.position = c(0.33,0.2))
+top_genes_LN_GC_day40_plot <- plot_most_common_genes('GC','LN','secondary-40') +
+  theme(legend.position = c(0.33,0.2))
+top_genes_LN_GC_day56_plot <- plot_most_common_genes('GC','LN','secondary-56') +
+  theme(legend.position = c(0.53,0.2))
 
-top_genes_LN_mem_day8_plot <- plot_most_common_genes('mem','LN','primary-8') +
-  theme(legend.position = c(0.85,0.30))
 
-top_genes_LN_mem_day16_plot <- plot_most_common_genes('mem','LN','primary-16') +
-  theme(legend.position = c(0.85,0.30))
 
 top_genes_LN_mem_day8_plot <- plot_most_common_genes('mem','LN','primary-8') +
   theme(legend.position = c(0.85,0.30))
@@ -230,6 +242,12 @@ top_genes_LN_mem_day16_plot <- plot_most_common_genes('mem','LN','primary-16') +
   theme(legend.position = c(0.85,0.30))
 
 top_genes_LN_mem_day24_plot <- plot_most_common_genes('mem','LN','primary-24') +
+  theme(legend.position = c(0.85,0.30))
+
+top_genes_LN_mem_day40_plot <- plot_most_common_genes('mem','LN','secondary-40') +
+  theme(legend.position = c(0.85,0.30))
+
+top_genes_LN_mem_day56_plot <- plot_most_common_genes('mem','LN','secondary-56') +
   theme(legend.position = c(0.85,0.30))
 
 
@@ -284,7 +302,7 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
       theme(legend.position = 'top',
             panel.border = element_rect(color = 'black')) +
       scale_y_log10() +
-      #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+      scale_color_discrete(name = 'Deviation from naive repertoire (bootstrap)') +
       xlab("Days after primary infection") +
       ylab("Ratio of experienced-to-naive frequencies \n (log10 + 1e-4)") +
       label_controls_as_day_0 + 
@@ -298,13 +316,12 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
       theme(legend.position = 'top',
             panel.border = element_rect(color = 'black')) +
       scale_y_log10() +
-      #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+      scale_color_discrete(name = 'Deviation from naive repertoire (bootstrap)') +
       xlab("Days after primary infection") +
       label_controls_as_day_0 + 
-      ylab("Experienced frequency \n (log10 + 1e-4)") +
+      ylab("Germline allele frequency \n (log10 + 1e-4)") +
+      background_grid()
       
-      scale_x_continuous(breaks = sort(as.integer(unique(gene_freqs$day)))) + background_grid()
-    
     clone_ranks_pl <- clone_ranks_data %>%
       ggplot(aes(x = day, y = rank_biggest_clone)) +
       geom_boxplot(aes(group = day), outlier.alpha = 0) +
@@ -313,7 +330,7 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
       theme(legend.position = 'top',
             panel.border = element_rect(color = 'black')) +
       scale_y_log10() +
-      #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+      scale_color_discrete(name = 'Deviation from naive repertoire (bootstrap)') +
       xlab("Days after primary infection") +
       ylab("Rank of biggest clone") +
       label_controls_as_day_0 +
@@ -333,7 +350,7 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
   
 }
 
-day8_LN_PC_overrep_genes <- plot_focal_genes(gene_freqs = gene_freqs,
+focal_alleles_plot <- plot_focal_genes(gene_freqs = gene_freqs,
                                              clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
                                              focal_genes = c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01'),
                                              min_compartment_size = min_compartment_size)
@@ -515,7 +532,7 @@ pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
   background_grid() 
 
 pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
-  filter(cell_type %in% c('GC','PC','mem')) %>%
+  filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
   mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
   filter(day_i == day_j, total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size,
          tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
@@ -536,7 +553,7 @@ pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   geom_hline(yintercept = 0, linetype = 2)
 
 pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
-  filter(cell_type %in% c('GC','PC','mem')) %>%
+  filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
   mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
   filter(day_i == day_j, total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size,
          total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size,
@@ -776,6 +793,53 @@ dev.off()
 
 
 
+# Additional null model suggested by Sarah
+
+summary_pwcorr_randomized_lineage_V_alleles <-
+  list(freqs = pairwise_correlations_randomized_lineage_V_alleles$freqs %>%
+         filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_i >= min_compartment_size,
+                total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
+         group_by(pair_type, day_i, tissue, cell_type, method) %>%
+         summarise(cor_coef_lower = quantile(cor_coef_freqs, 0.25, na.rm = T),
+                   cor_coef_upper = quantile(cor_coef_freqs, 0.75, na.rm = T),
+                   cor_coef_freqs = median(cor_coef_freqs, na.rm = T)),
+       freq_ratios = pairwise_correlations_randomized_lineage_V_alleles$freq_ratios %>%
+         filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_i >= min_compartment_size,
+                total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
+         group_by(pair_type, day_i, tissue, cell_type, method) %>%
+         summarise(cor_coef_lower = quantile(cor_coef_freq_ratios, 0.25, na.rm = T),
+                   cor_coef_upper = quantile(cor_coef_freq_ratios, 0.75, na.rm = T),
+                   cor_coef_freq_ratios = median(cor_coef_freq_ratios, na.rm = T))
+  )
+
+
+
+pw_freq_cors_randomized_lineage_V_alleles <- pairwise_freq_correlations_plot +
+  geom_pointrange(data = summary_pwcorr_randomized_lineage_V_alleles$freqs %>% 
+                    filter(cell_type %in% c('GC','PC','mem'), pair_type != 'control',
+                           method == 'pearson') %>%
+                    mutate(day_i = as.integer(day_i)) %>%
+                    cell_type_facet_labeller(),
+                  color = 'red',
+                  aes(ymin = cor_coef_lower,
+                      ymax = cor_coef_upper),
+                  size = 1.2
+  )
+
+
+pw_freq_deviations_randomized_lineage_V_alleles <- pairwise_freq_deviations_plot +
+  geom_pointrange(data = summary_pwcorr_randomized_lineage_V_alleles$freq_ratios %>% 
+                    filter(cell_type %in% c('GC','PC','mem'), pair_type != 'control',
+                           method == 'pearson') %>%
+                    mutate(day_i = as.integer(day_i)) %>%
+                    cell_type_facet_labeller(),
+                  color = 'red',
+                  aes(ymin = cor_coef_lower,
+                      ymax = cor_coef_upper),
+                  size = 1.2
+  ) 
+
+
 # PLOTS TO EXPORT
 save(cumulative_naive_freqs_pl,
      file = paste0(exported_figure_objects_dir, 'cumulative_naive_freqs.RData'))
@@ -788,6 +852,8 @@ save(naive_exp_pearson_corr_plot,
      shared_top_genes_by_freq_pl,
      freq_ratio_mutability_correlations_pl,
      germline_mutability_by_region_pl,
+     pw_freq_cors_randomized_lineage_V_alleles,
+     pw_freq_deviations_randomized_lineage_V_alleles,
      file = paste0(exported_figure_objects_dir, 'correlation_plots.RData')
      )
 
@@ -796,7 +862,7 @@ save(top_genes_LN_PC_day8_plot,
      top_genes_LN_GC_day8_plot,
      top_genes_LN_GC_day16_plot,
      top_genes_LN_mem_day24_plot,
-     day8_LN_PC_overrep_genes,
+     focal_alleles_plot,
      file = paste0(exported_figure_objects_dir, 'top_genes_plots.RData'))
 
 
@@ -820,4 +886,9 @@ save(top_genes_LN_PC_day8_plot,
 save(fraction_in_top_10_clones_plot,
      fraction_in_top_10_genes_plot,
      file = paste0(exported_figure_objects_dir, 'fraction_in_top_10_clones_plot.RData'))
+
+
+
+
+
 

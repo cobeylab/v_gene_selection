@@ -76,28 +76,6 @@ assign_infection_status <- function(day, mouse_id_number){
 }
 
 
-# compile_clone_info <- function(clone_info_dir){
-#   # Read clone files for all mice 
-#   # Combined tibble has one row per cell subpopulation in a clone in tissue in a mouse
-#   # (e.g. memory B cells from clone X in the spleen of mouse Y)
-#   mouse_clone_files = list.files(clone_info_dir, pattern = '_clones.csv')
-#   mouse_clone_files = paste0(clone_info_dir, mouse_clone_files)
-#   clone_info <- lapply(mouse_clone_files, FUN = function(x){return(as_tibble(read.csv(x)))})
-#   clone_info <- bind_rows(clone_info)
-# 
-#   #lapply(mouse_clone_files, FUN = function(x){return(as_tibble(read.csv(x)) %>%
-#   #                                                     filter(is.na(clone_id)))})
-#   #lapply(mouse_clone_files, FUN = function(x){return(  unique(as_tibble(read.csv(x))$mouse_id)  )})
-#   
-#   # Add variables for observation day, infection status
-#   clone_info <- get_info_from_mouse_id(clone_info %>% filter(is.na(clone_id) == F))
-#   
-#   clone_info <- clone_info %>% mutate(mouse_id = factor(mouse_id, levels = mouse_id_factor_levels)) %>%
-#     mutate(cell_type = factor(cell_type, levels = c('naive', 'GC','PC','mem')))
-#   return(clone_info)
-# }
-
-
 get_clone_purity <- function(seq_counts){
   
   # The object will have a "unique_prod_seqs" column if has counts obtained after clustering identical sequences
@@ -402,53 +380,6 @@ get_naive_exp_correlations <- function(gene_freqs){
 }
 
 
-# Creates matrix with the frequency ratios of all pairs of genes
-calculate_frequency_ratio_matrix <- function(gene_freqs){
-  # Internal function to construct the matrix for a single cell type for a single mouse
-  internal_matrix_function <- function(gene_freqs, cell_type, mouse_id){
-    sub_tibble <- gene_freqs %>% filter(cell_type == !!cell_type, mouse_id == !!mouse_id)
-    
-    # All pairs for a mouse
-    long_form_matrix <- t(combn(as.character(unique(sub_tibble$v_gene)),2))
-    # This ensures genes in each pair will be sorted alphabetically
-    long_form_matrix <- t(apply(long_form_matrix, 1, sort))
-    long_form_matrix <- tibble(gene_i = long_form_matrix[,1], gene_j = long_form_matrix[,2])
-    
-    long_form_matrix <- left_join(long_form_matrix,
-                                  sub_tibble %>%
-                                    dplyr::rename(gene_i = v_gene, vgene_seq_freq_i = vgene_seq_freq) %>%
-                                    select(gene_i, vgene_seq_freq_i), by = 'gene_i') 
-    long_form_matrix <- left_join(long_form_matrix,
-                                  sub_tibble %>%
-                                    dplyr::rename(gene_j = v_gene, vgene_seq_freq_j = vgene_seq_freq) %>%
-                                    select(gene_j, vgene_seq_freq_j), by = 'gene_j')
-    long_form_matrix <- long_form_matrix %>% 
-      mutate(log_freq_ratio = log(vgene_seq_freq_i) - log(vgene_seq_freq_j)) %>%
-      mutate(mouse_id = mouse_id, cell_type = cell_type) %>%
-      select(mouse_id, cell_type, everything())
-    
-    return(long_form_matrix)
-  }
-  
-  mouse_cell_type_combinations <- gene_freqs %>%
-    select(mouse_id, cell_type) %>% unique()
-  
-  frequency_ratio_matrix <- mapply(internal_matrix_function,
-         cell_type = mouse_cell_type_combinations$cell_type,
-         mouse_id = mouse_cell_type_combinations$mouse_id,
-         MoreArgs = list(gene_freqs = gene_freqs), SIMPLIFY = F)
-  frequency_ratio_matrix <- bind_rows(frequency_ratio_matrix)
-  
-  # add mouse-specific info
-  frequency_ratio_matrix <- left_join(frequency_ratio_matrix, 
-            gene_freqs %>% select(mouse_id, day, infection_status, group_controls_pooled) %>%
-              unique(),
-            by = 'mouse_id') %>%
-    select(mouse_id, day, infection_status, group_controls_pooled, everything())
-  
-  return(frequency_ratio_matrix)
-}
-
 # Generates vector of unique mouse pairs, using gene_freqs as a basis
 get_unique_pairs <- function(gene_freqs, within_groups_only){
   
@@ -483,7 +414,6 @@ get_unique_pairs <- function(gene_freqs, within_groups_only){
   return(unique_pairs)
   
 }
-
 
 # For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
 get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_only){
@@ -688,7 +618,7 @@ compute_deviation_concordance <- function(pairwise_gene_freqs, min_genes_in_comp
 
 # Generates datasets with selected genes specified for each mouse in synth_data_input_tibble
 # If synth_data_input_tibble is 'neutral', assumes neutrality (i.e. genes in exp. repertoire are sampled based on naive frequencies)
-simulate_selection_freq_changes <- function(exp_seq_counts, naive_seq_counts, clone_info, synth_data_input_tibble, by_tissue = T, n_reps = 100){
+sample_experienced_from_naive <- function(exp_seq_counts, naive_seq_counts, clone_info, synth_data_input_tibble, by_tissue = T, n_reps = 100){
   
   # Get gene frequencies
   gene_freqs <- calc_gene_freqs(exp_seq_counts, naive_seq_counts, clone_info, long_format = F, by_tissue = by_tissue)
@@ -712,32 +642,13 @@ simulate_selection_freq_changes <- function(exp_seq_counts, naive_seq_counts, cl
                                  naive_freqs %>% select(mouse_id, v_gene, n_naive_vgene_seqs,naive_vgene_seq_freq, total_mouse_naive_seqs),
                                  by = c('mouse_id','v_gene')) 
     
-    if(is.character(synth_data_input_tibble)){
-      stopifnot(synth_data_input_tibble == 'neutral')
-      simulated_freqs <- simulated_freqs %>% mutate(fitness = 1) # In neutral scenario, set fitness to arbitrary value
-    }else{
-      simulated_freqs <- left_join(simulated_freqs, synth_data_input_tibble) 
-    }
-    
-    simulated_freqs <- simulated_freqs %>%
-      # Set simulated experienced freq to naive freq * fitness
-      mutate(log_sim_exp_freq = log(naive_vgene_seq_freq) + log(fitness)) %>%
-      group_by(across(any_of(c('mouse_id','tissue','cell_type')))) %>%
-      mutate(sim_exp_freq = exp(log_sim_exp_freq)) %>%
-      mutate(sim_exp_freq = sim_exp_freq / sum(sim_exp_freq)) %>%
-      ungroup()
-    
-    stopifnot(all(simulated_freqs$sim_exp_freq <= 1))
-    
     simulated_counts <- simulated_freqs  %>%
       group_by(across(any_of(c('mouse_id','tissue','cell_type')))) %>%
-      mutate(n_vgene_seqs = rmultinom(1, size = unique(total_compartment_seqs), prob = sim_exp_freq)) %>%
+      mutate(n_vgene_seqs = rmultinom(1, size = unique(total_compartment_seqs), prob = naive_vgene_seq_freq)) %>%
       ungroup() %>%
-      rename(true_sim_exp_freq = sim_exp_freq) %>%
       mutate(vgene_seq_freq = n_vgene_seqs / total_compartment_seqs) %>%
-      select(mouse_id, day, infection_status, group, group_controls_pooled, cell_type, matches('tissue'), v_gene, fitness,
-             n_naive_vgene_seqs, total_mouse_naive_seqs, naive_vgene_seq_freq, n_vgene_seqs ,total_compartment_seqs,
-             true_sim_exp_freq, vgene_seq_freq)
+      select(mouse_id, day, infection_status, group, group_controls_pooled, cell_type, matches('tissue'), v_gene,
+             n_naive_vgene_seqs, total_mouse_naive_seqs, naive_vgene_seq_freq, n_vgene_seqs ,total_compartment_seqs, vgene_seq_freq)
     
     return(simulated_counts)
   }
@@ -745,12 +656,9 @@ simulate_selection_freq_changes <- function(exp_seq_counts, naive_seq_counts, cl
   realizations <- replicate(n_reps, generate_replicate(naive_freqs = naive_freqs, exp_freqs = exp_freqs),
                             simplify = F)  
   
-  replicates_tibble <- c()
-  for(i in 1:length(realizations)){
-    replicates_tibble <- bind_rows(replicates_tibble,
-                                   realizations[[i]] %>% mutate(replicate = i) %>%
-                                     select(replicate, everything()))
-  }
+  replicates_tibble <- bind_rows(realizations, .id = 'replicate') %>% select(replicate, everything())
+  
+  replicates_tibble <- compute_rho(replicates_tibble)
   
   # Check frequencies sum to 1 in each mouse-cell-type-(tissue) combination for all replicates
   checks <- replicates_tibble %>% group_by(across(any_of(c('replicate','mouse_id','tissue','cell_type')))) %>% 
@@ -780,7 +688,6 @@ generate_mutation_null_model <- function(annotated_seqs, estimated_seq_error_rat
   return(null_model_mutations)
   
 }
-
 
 # Gets distribution of the number of mutations by mouse, tissue and cell type
 get_distribution_of_mutations <- function(annotated_seqs, n_mutations_variable, disable_grouping = F){
@@ -1020,7 +927,7 @@ list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, t
   return(mutations_above_threshold)
 }
 
-# Clustering based on Spearman correlation of V gene frequencies as an inverse measure of distance.
+# Clustering based on correlation coefficient of V gene frequencies as an inverse measure of distance.
 get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric,
                                                   min_seqs, cor_method){
   
@@ -1194,7 +1101,7 @@ resample_clone_v_alleles <- function(exp_seq_counts, naive_freqs, adjust_naive_z
   }
   
   # A built-in test to see if the grouping is done correctly: rename all genes as the id of corresponding mouse
-  # Run internal resampling function and check that each mouse only has genes with its name
+  # Run internal resampling function and check that each mouse only has genes labelled with its name
   internal_function_test <- clone_v_genes %>% group_by(mouse_id) %>%
     mutate(new_v_gene = internal_resampling_function(mouse_id = mouse_id, 
                                                      naive_freqs = naive_freqs %>% mutate(v_gene = mouse_id)))
@@ -1218,8 +1125,68 @@ resample_clone_v_alleles <- function(exp_seq_counts, naive_freqs, adjust_naive_z
   
 }
 
+# Uses resample_clone_v_alleles to generate gene freqs under a null model where lineages are randomly assigned V alleles based on naive freqs
+gene_freqs_random_lineage_alleles <- function(exp_seq_counts, naive_seq_counts, naive_freqs, adjust_naive_zeros){
+  
+  # Randomize lineage alleles in exp_seq_counts object
+  null_model_exp_counts <- resample_clone_v_alleles(exp_seq_counts = exp_seq_counts, 
+                                                    naive_freqs = naive_freqs, 
+                                                    adjust_naive_zeros = adjust_naive_zeros)
+  
+  # Calculate allele (gene) frequencies
+  null_model_gene_freqs <- calc_gene_freqs(exp_seq_counts = null_model_exp_counts,
+                                           naive_seq_counts = naive_seq_counts,
+                                           clone_info = clone_info, long_format = F, by_tissue = T)
+  
+  if(adjust_naive_zeros){
+    naive_freqs <- adjust_zero_naive_freqs(null_model_gene_freqs$naive_freqs)
+  }else{
+    naive_freqs <- null_model_gene_freqs$naive_freqs
+  }
+  
+  # Convert gene frequencies to wide format
+  null_model_gene_freqs <- format_gene_freqs_wide(exp_freqs = null_model_gene_freqs$exp_freqs,
+                                                  naive_freqs = naive_freqs)
+  
+  # Add values of rho (ratio of experienced to naive frequencies)
+  null_model_gene_freqs <- compute_rho(null_model_gene_freqs)
+  
+  return(null_model_gene_freqs)
 
+}
 
+# Applies functions for getting pairwise correlations to list with multiple gene freqs. objects (obtained by randomization)
+get_pairwise_corrs_for_randomized_datasets <- function(randomized_gene_freqs_list, adjust_naive_zeros, within_groups_only,
+                                                       focal_tissue = NULL){
+  
+  # Master objects containing pw correlation in gene frequencies and experienced-to-naive ratios.
+  pw_corr_freqs <- tibble()
+  pw_corr_freq_ratios <- tibble()
+  
+  # For each object in input, convert to pairwise format
+  pw_freqs <- lapply(randomized_gene_freqs_list, FUN = get_pairwise_freqs,
+                     adjust_naive_zeros = adjust_naive_zeros, within_groups_only = within_groups_only)
+  
+  if(!is.null(focal_tissue)){
+    stopifnot(length(focal_tissue) == 1)
+    pw_freqs <- lapply(pw_freqs, FUN = function(x){x %>% filter(tissue == focal_tissue)})
+  }
+  
+  
+  # For each paired gene freqs object, compute pairwise correlations, add to master objects
+  # More efficient do to loop here because get_pairwise_correlations outputs a list
+  for(i in 1:length(pw_freqs)){
+    pw_corr <- get_pairwise_correlations(pairwise_gene_freqs = pw_freqs[[i]])
+    pw_corr_freqs <- bind_rows(pw_corr_freqs, pw_corr$freqs %>% mutate(replicate = i))
+    pw_corr_freq_ratios <- bind_rows(pw_corr_freq_ratios, pw_corr$freq_ratios %>% mutate(replicate = i))
+  }
+  
+  pw_corr_freqs <- pw_corr_freqs %>% select(replicate, everything())
+  pw_corr_freq_ratios <- pw_corr_freq_ratios %>% select(replicate, everything())
+  
+  return(list(freqs = pw_corr_freqs, freq_ratios = pw_corr_freq_ratios))
+  
+}
 
 
 
