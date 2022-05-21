@@ -13,6 +13,7 @@ library(cowplot)
 theme_set(theme_cowplot())
 
 source('gene_frequency_functions.R')
+source('plot_options.R')
 
 # Annotated sequences
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
@@ -304,16 +305,9 @@ mutations_above_threshold_by_clone_by_compartment <- left_join(
 
 # Plots for exporting
 fraction_clones_with_high_freq_muts_LN_plot <- fraction_clones_with_1plus_mutations_by_compartment %>%
-  filter(compartment_cell_type %in% c('GC','mem','PC'), compartment_tissue == 'LN',
-       group_controls_pooled != 'control') %>%
-  mutate(compartment_cell_type = case_when(
-    compartment_cell_type == 'GC' ~ 'Lymph node GC cells',
-    compartment_cell_type == 'PC' ~ 'Lymph node plasma cells',
-    compartment_cell_type == 'mem' ~ 'Lymph node memory cells'
-  )) %>%
-  mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('Lymph node GC cells',
-                                                  'Lymph node plasma cells',
-                                                  'Lymph node memory cells'))) %>%
+  filter(compartment_cell_type %in% c('GC','mem','PC'), compartment_tissue == 'LN') %>%
+  cell_type_facet_labeller() %>%
+  mutate(day = ifelse(group_controls_pooled == 'control', 0, day)) %>%
   ggplot(aes(x = day,
              y = fraction_clones_with_at_least_n_mutations,
              color = infection_status,
@@ -324,12 +318,13 @@ fraction_clones_with_high_freq_muts_LN_plot <- fraction_clones_with_1plus_mutati
   theme(legend.position = 'top') +
   xlab('Days after primary infection') +
   ylab('Fraction of clones with at least 10 sequences\nthat have mutations at or above 50% frequency') +
-  scale_color_manual(values = c('green3','dodgerblue2')) +
+  #scale_color_manual(values = c('green3','dodgerblue2')) +
   scale_size_continuous(name = 'Number of clones') +
   scale_y_continuous(limits = c(0,NA)) +
   facet_grid(.~compartment_cell_type)  +
   guides(color = 'none') +
-  scale_x_continuous(breaks = c(8,16,24,40,56))
+  scale_x_continuous(breaks = c(0,8,16,24,40,56),
+                     labels = c('0','8','16','24','40','56'))
 
 fraction_clones_with_high_freq_muts_all_tissues_plot <- fraction_clones_with_1plus_mutations_by_compartment %>%
   filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
@@ -379,16 +374,9 @@ mean_n_mutations_above_threshold_by_compartment <- mutations_above_threshold_by_
 
 
 mean_n_mutations_LN_plot <- mean_n_mutations_above_threshold_by_compartment %>%
-  filter(compartment_cell_type %in% c('GC','mem','PC'), compartment_tissue == 'LN',
-       group_controls_pooled != 'control') %>%
-  mutate(compartment_cell_type = case_when(
-    compartment_cell_type == 'GC' ~ 'Lymph node GC cells',
-    compartment_cell_type == 'PC' ~ 'Lymph node plasma cells',
-    compartment_cell_type == 'mem' ~ 'Lymph node memory cells'
-  )) %>%
-  mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('Lymph node GC cells',
-                                                  'Lymph node plasma cells',
-                                                  'Lymph node memory cells'))) %>%
+  filter(compartment_cell_type %in% c('GC','mem','PC'), compartment_tissue == 'LN') %>%
+  cell_type_facet_labeller() %>%
+  mutate(day = ifelse(group_controls_pooled == 'control', 0, day)) %>%
   ggplot(aes(x = day,
              y = mean_n_mutations_above_threshold,
              color = infection_status,
@@ -399,12 +387,13 @@ mean_n_mutations_LN_plot <- mean_n_mutations_above_threshold_by_compartment %>%
   theme(legend.position = 'top') +
   xlab('Days after primary infection') +
   ylab('Average number of mutations at or\nabove 50% frequency in clones with at least 10 seqs.') +
-  scale_color_manual(values = c('green3','dodgerblue2')) +
+  #scale_color_manual(values = c('green3','dodgerblue2')) +
   scale_y_continuous(limits = c(-0.05,NA)) +
   facet_grid(.~compartment_cell_type) +
   scale_size_continuous(name = 'Number of clones') +
   guides(color = 'none') +
-  scale_x_continuous(breaks = c(8,16,24,40,56))
+  scale_x_continuous(breaks = c(0,8,16,24,40,56),
+                     labels = c('0','8','16','24','40','56'))
   
   
 
@@ -668,7 +657,7 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
      mean_n_mutations_all_tissues_plot,
      clone_rank_vs_high_freq_muts_LN_PCs_plot,
      clone_rank_vs_high_freq_muts_LN_GCs_plot,
-     shared_mutations_in_LN_clones_pl
+     shared_mutations_in_LN_clones_pl,
      file = '../figures/all_seqs_freqs/exported_ggplot_objects/high_frequency_mutations.RData')
 
 ```

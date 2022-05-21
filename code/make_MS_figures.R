@@ -58,14 +58,14 @@ top_row <- plot_grid(pairwise_freq_correlations_plot +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
                              plot.margin = margin(l = 20, r = 10,t = 5, b = 30),
-                             plot.title = element_text(hjust = 0.5)) +
+                             plot.title = element_text(hjust = 0.5), legend.position = 'none') +
                        ggtitle('Allele frequencies'),
                      pairwise_freq_deviations_plot +
                        ylab('Correlation between pairs of mice') +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
                              plot.margin = margin(r = 20, l = 10, t = 5, b = 30),
-                             plot.title = element_text(hjust = 0.5)) +
+                             plot.title = element_text(hjust = 0.5), legend.position = 'none') +
                        ggtitle('Frequency deviations from the naive repertoire'),
                      align = 'h')
 
@@ -79,7 +79,8 @@ top_row <- plot_grid(top_row_legend, top_row, nrow = 2, rel_heights = c(0.1,1))
 
 
 
-bottom_row <- top_genes_LN_PC_day8_plot +
+bottom_row <- top_20_genes_day8_LN_PC +
+  facet_wrap('mouse_id', scales = 'free') +
   theme(plot.margin = margin(t = 15, b = 5, l = 20, r = 20),
         legend.position = c(0.200,0.9),
         legend.text = element_text(size = 11),
@@ -88,7 +89,7 @@ bottom_row <- top_genes_LN_PC_day8_plot +
         axis.title = element_text(size = 16)) +
   #scale_y_continuous(expand = c(0.001,0.1),
   #                   limits = c(-0.05,NA)) +
-  xlab('Top 20 germline V alleles in lymph node plasma cells from each infected mouse on day 8') +
+  xlab('Top 10 germline V alleles in lymph node plasma cells from each infected mouse on day 8') +
   ylab('V allele frequency')
 
 freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
@@ -99,7 +100,7 @@ freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
 
 save_plot(paste0(final_figures_dir, 'freq_and_deviation_correlations.pdf'),
           freq_and_deviation_correlations, 
-          base_height = 12, base_width = 16)
+          base_height = 13, base_width = 19)
 
 
 # Increasing titers, clonality, mutations over time
@@ -187,35 +188,6 @@ if('titers_against_NL09' %in% ls()){
 
 
 
-# Supplementary fig with top genes on day 16 LN plasma cells
-
-top_genes_LN_PC_day16_plot <- top_genes_LN_PC_day16_plot + background_grid() +
-  xlab('Top 20 genes in lymph node plasma cells from each infected mouse on day 16')
-
-save_plot(paste0(final_figures_dir,'top_genes_LN_PC_day16_plot.pdf'),
-          top_genes_LN_PC_day16_plot,
-          base_height = 8, base_width = 14)
-
-# Supplementary figs with GC top genes on days 8 and 16, 
-
-
-top_genes_LN_GC_day8_plot$layers[[3]]$aes_params$size <- 2.5
-top_genes_LN_GC_day16_plot$layers[[3]]$aes_params$size <- 3
-top_genes_LN_GC_day16_plot$layers[[3]]$aes_params$angle <- -25
-
-LN_GC_top_genes <- plot_grid(top_genes_LN_GC_day8_plot + background_grid() +
-                               xlab('Top 20 genes in lymph node GC cells from each infected mouse on day 8') +
-                               theme(plot.margin = margin(l = 20, t = 10, b = 10, r = 10)),
-                             top_genes_LN_GC_day16_plot + background_grid() +
-                               xlab('Top 20 genes in lymph node GC cells from each infected mouse on day 16') + 
-                               theme(plot.margin = margin(l = 20, t = 10, b = 10, r = 10)),
-                             nrow = 2, rel_heights = c(2,3), labels = c('A','B'), label_size = 16)
-
-
-save_plot(paste0(final_figures_dir,'LN_GC_top_genes.pdf'),
-          LN_GC_top_genes,
-          base_height = 15, base_width = 16)
-
 
 # Correlation between germline mutability and freq-deviations from naive repertoire
 save_plot(paste0(final_figures_dir,'germline_mutability_fig.pdf'),
@@ -274,14 +246,6 @@ if('fraction_clones_dominated_by_single_tissue_plot' %in% ls()){
             base_width = 16, base_height = 7)
 }
 
-# Top genes in day 24 memory cells
-save_plot(paste0(final_figures_dir,'day24_LN_mem_top_genes.pdf'),
-          top_genes_LN_mem_day24_plot +
-            xlab('Top 20 genes in lymph node memory cells from each infected mouse on day 24'),
-          base_height = 5,
-          base_width = 8)
-
-
 
 # CDR3 analyses
 
@@ -337,6 +301,86 @@ save_plot(
   base_width = 16,
   base_height = 10
 )
+
+# Detailed arrow plots
+
+make_arrow_plots_panel <- function(plot_list){
+  
+  # Get legend from first plot in list
+  stopifnot(names(plot_list) %in% c('primary-8','primary-16','primary-24','secondary-40','secondary-56'))
+  pl_legend <- get_legend(plot_list[[1]] + theme(legend.position = 'bottom'))
+  
+  cell_type <- unique(plot_list[[1]]$data$cell_type)
+  tissue <- unique(plot_list[[1]]$data$tissue)
+  
+  stopifnot(length(cell_type) == 1)
+  stopifnot(length(cell_type) == 1 & tissue == 'LN')
+  
+  cell_type_label <- case_when(
+    cell_type == 'GC' ~ 'germinal center cells',
+    cell_type == 'PC' ~ 'plasma cells',
+    cell_type == 'mem' ~ 'memory cells'
+  )
+  
+  
+  adjusted_plots <- plot_list
+  for(i in 1:length(adjusted_plots)){
+    day <- str_extract(names(plot_list)[i], '[0-9]+')
+    
+    ylabel <- case_when(
+      day == 8 ~ paste0('V allele frequency in lymph node ', cell_type_label),
+      T ~ ''
+    )
+    xlabel <- case_when(
+      day == 24 ~ 'Top 10 germline alleles',
+      T ~ ''
+    )
+    x_axis_expansion <- ifelse(day == 8 & cell_type == 'GC', 0.3, 0.2)
+    
+    
+    adjusted_plots[[i]] <- adjusted_plots[[i]] + 
+      theme(legend.position = 'none',
+            strip.background = element_blank(),
+            strip.text = element_blank()) +
+      xlab(xlabel) +
+      ylab(ylabel) +
+      ggtitle(paste0('Day ', day)) +
+      scale_y_continuous(expand = expansion(mult = 0.2)) +
+      scale_x_continuous(expand = expansion(mult = x_axis_expansion), breaks = 1:10) 
+  
+  }
+  
+  return(
+    plot_grid(plot_grid(plotlist = adjusted_plots, nrow = 1),
+            pl_legend,
+            rel_heights = c(20,1), nrow = 2)
+  )
+ 
+}
+
+
+save_plot(
+  paste0(final_figures_dir,'top_genes_LN_GC.pdf'),
+  make_arrow_plots_panel(top_genes_LN_GC),
+  base_width = 20,
+  base_height = 12
+)
+
+save_plot(
+  paste0(final_figures_dir,'top_genes_LN_PC.pdf'),
+  make_arrow_plots_panel(top_genes_LN_PC),
+  base_width = 20,
+  base_height = 12
+)
+
+save_plot(
+  paste0(final_figures_dir,'top_genes_LN_mem.pdf'),
+  make_arrow_plots_panel(top_genes_LN_mem),
+  base_width = 20,
+  base_height = 12
+)
+
+
 
 # Heatmaps go to the supplement
 

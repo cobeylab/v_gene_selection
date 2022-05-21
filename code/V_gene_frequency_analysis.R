@@ -88,9 +88,10 @@ cumulative_naive_freqs_pl <- cumulative_naive_freqs %>%
 
 plot_naive_exp_correlations <- function(naive_exp_correlations_obs, naive_exp_correlations_neutral, method){
   naive_exp_correlations_obs %>%
-    filter(tissue == 'LN', group_controls_pooled != 'control', method == !!method) %>%
+    filter(tissue == 'LN', method == !!method) %>%
     filter(cell_type %in% c('GC','PC','mem')) %>%
     cell_type_facet_labeller() %>%
+    mutate(day = ifelse(group_controls_pooled == 'control', 0, day)) %>%
     ggplot(aes(x = day, y = naive_exp_corr, color = infection_status, group = day)) +
     #geom_boxplot(data = naive_exp_correlations_neutral %>%
     #               filter(tissue == 'LN', group_controls_pooled != 'control',
@@ -106,12 +107,14 @@ plot_naive_exp_correlations <- function(naive_exp_correlations_obs, naive_exp_co
     xlab('Days after primary infection') +
     ylab('Correlation in V gene frequencies between\nnaive repertoire and influenza-induced populations') +
     geom_hline(yintercept = 0, linetype = 2) +
-    scale_color_manual(values = c('green3','dodgerblue2')) +
+    #scale_color_manual(values = c('green3','dodgerblue2')) +
     scale_size_continuous(name = 'Number of sequences',
                           breaks = c(1000,10000,20000)) +
     guides(color = 'none') +
     background_grid() +
-    scale_x_continuous(breaks = unique(naive_exp_correlations_obs$day))
+    scale_x_continuous(breaks = c(0, sort(unique(naive_exp_correlations_obs$day))),
+                       labels = c('control', sort(unique(naive_exp_correlations_obs$day)))) +
+    scale_color_discrete(name = 'Infection')
 }
 
 
@@ -184,9 +187,10 @@ write_csv(deviations_by_allele, deviations_by_allele_results_path)
 
 # Plots showing deviation from naive freq for major genes
 
-plot_most_common_genes <- function(plot_cell_type, plot_tissue, plot_group){
+plot_most_common_genes <- function(plot_group, gene_freqs, plot_cell_type, plot_tissue, max_rank,
+                                   min_compartment_size){
   gene_freqs %>% 
-    filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, v_gene_rank <= 20) %>%
+    filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, v_gene_rank <= 10) %>%
     filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
     rowwise() %>%
     mutate(label_position = ifelse(vgene_seq_freq > naive_vgene_seq_freq, 1.05*vgene_seq_freq, 1.05*naive_vgene_seq_freq)) %>%
@@ -197,65 +201,44 @@ plot_most_common_genes <- function(plot_cell_type, plot_tissue, plot_group){
                  arrow = arrow(ends = 'last', length = unit(10, "pt"), type = 'closed')) +
     geom_text(aes(label = str_remove(v_gene, 'IGHV'),
                   x = v_gene_rank, y = label_position), angle = 20, size = 3, alpha = 0.8) +
-    facet_wrap('mouse_id', scales = 'free') +
+    facet_wrap('mouse_id', scales = 'free', ncol = 1) +
     xlab(paste0('V gene rank in ', plot_group, ' ', plot_tissue, ' ',
                 switch(plot_cell_type, 'PC' = 'plasma cells', 'GC' = 'germinal center cells', 'mem' = 'memory cells',
                        'nonnaive_IgD+B220+' = 'Non-naive IgD+B220+ cells'), ' (top 20 genes only)')) +
     ylab('V gene frequency') +
-    theme(legend.position = c(0.4,0.25)) + 
-    scale_x_continuous(expand = c(0.15,0)) +
+    theme(legend.position = 'bottom') + 
+    scale_x_continuous(expand = c(0.15,0), breaks = 1:max_rank) +
     scale_color_discrete(name = 'Deviation from naive\nfrequency (bootstrap)', labels = c('negative','non-significant','positive'))
   
 }
 
-top_genes_LN_PC_day8_plot <- plot_most_common_genes('PC','LN','primary-8') +
-  theme(legend.position = c(0.87,0.35)) + background_grid()
-top_genes_LN_PC_day16_plot <- plot_most_common_genes('PC','LN','primary-16') +
-  theme(legend.position = c(0.67,0.25)) + background_grid()
-top_genes_LN_PC_day24_plot <- plot_most_common_genes('PC','LN','primary-24') +
-  theme(legend.position = c(0.67,0.25)) + background_grid()
-top_genes_LN_PC_day40_plot <- plot_most_common_genes('PC','LN','secondary-40') +
-  theme(legend.position = c(0.67,0.25)) + background_grid()
-top_genes_LN_PC_day56_plot <- plot_most_common_genes('PC','LN','secondary-56') +
-  theme(legend.position = c(0.67,0.25)) + background_grid()
+infected_groups <- c('primary-8', 'primary-16', 'primary-24', 'secondary-40', 'secondary-56')
 
+top_genes_LN_GC <- sapply(infected_groups,
+                          FUN = plot_most_common_genes, gene_freqs = gene_freqs,
+                          plot_cell_type = 'GC', plot_tissue = 'LN', max_rank = 10,
+                          min_compartment_size = min_compartment_size,
+                          USE.NAMES = T, simplify = F)
 
-top_genes_LN_GC_day8_plot <- plot_most_common_genes('GC','LN','primary-8') +
-  theme(legend.position = c(0.8,0.3))
+top_genes_LN_PC <- sapply(infected_groups,
+                          FUN = plot_most_common_genes, gene_freqs = gene_freqs,
+                          plot_cell_type = 'PC', plot_tissue = 'LN', max_rank = 10,
+                          min_compartment_size = min_compartment_size,
+                          USE.NAMES = T, simplify = F)
 
-top_genes_LN_GC_day16_plot <- plot_most_common_genes('GC','LN','primary-16') +
-  theme(legend.position = c(0.33,0.2))
+top_genes_LN_mem <- sapply(infected_groups,
+                          FUN = plot_most_common_genes, gene_freqs = gene_freqs,
+                          plot_cell_type = 'mem', plot_tissue = 'LN', max_rank = 10,
+                          min_compartment_size = min_compartment_size,
+                          USE.NAMES = T, simplify = F)
 
-top_genes_LN_GC_day24_plot <- plot_most_common_genes('GC','LN','primary-24') +
-  theme(legend.position = c(0.33,0.2))
-top_genes_LN_GC_day40_plot <- plot_most_common_genes('GC','LN','secondary-40') +
-  theme(legend.position = c(0.33,0.2))
-top_genes_LN_GC_day56_plot <- plot_most_common_genes('GC','LN','secondary-56') +
-  theme(legend.position = c(0.53,0.2))
-
-
-
-top_genes_LN_mem_day8_plot <- plot_most_common_genes('mem','LN','primary-8') +
-  theme(legend.position = c(0.85,0.30))
-
-top_genes_LN_mem_day16_plot <- plot_most_common_genes('mem','LN','primary-16') +
-  theme(legend.position = c(0.85,0.30))
-
-top_genes_LN_mem_day24_plot <- plot_most_common_genes('mem','LN','primary-24') +
-  theme(legend.position = c(0.85,0.30))
-
-top_genes_LN_mem_day40_plot <- plot_most_common_genes('mem','LN','secondary-40') +
-  theme(legend.position = c(0.85,0.30))
-
-top_genes_LN_mem_day56_plot <- plot_most_common_genes('mem','LN','secondary-56') +
-  theme(legend.position = c(0.85,0.30))
-
-
-
+# More detailed plot for day 8 LN PCs (for main text fig.)
+top_20_genes_day8_LN_PC <- plot_most_common_genes(plot_group = 'primary-8', gene_freqs = gene_freqs,
+                                                  plot_cell_type = 'PC', plot_tissue = 'LN', max_rank = 20,
+                                                  min_compartment_size = min_compartment_size)
 
 # ======= MAKE DETAILED PLOTS TRACKING THE FATE OF FOCAL GENES =======
 # (e.g., what do consistently overrepresented genes on day 8 LN PCs do at other time points / cell types)
-
 
 # How genes consistently overrepresented on day 8 LN PCs (14-4, 1-69, 1-82) fare at later time points, etc.
 
@@ -358,86 +341,42 @@ focal_alleles_plot <- plot_focal_genes(gene_freqs = gene_freqs,
 
 
 # ============== CLONE SIZE PLOTS ==========
-
-# Fraction of sequences in the ten most common genes 
-fraction_in_top_10_genes_plot <- gene_freqs %>% 
-  filter(tissue == 'LN', group_controls_pooled != 'control',
-         cell_type %in% c('GC','PC','mem')) %>%
-  filter(v_gene_rank <= 10) %>% 
-  group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue, total_compartment_seqs) %>%
-  summarise(fraction_seqs_in_top_genes = sum(vgene_seq_freq)) %>%
-  ungroup() %>%
-  mutate(day = as.integer(as.character(day))) %>%
-  mutate(cell_type = case_when(
-    cell_type == 'GC' ~ 'Lymph node GC cells',
-    cell_type == 'PC' ~ 'Lymph node plasma cells',
-    cell_type == 'mem' ~ 'Lymph node memory cells'
-  )) %>%
-  mutate(cell_type = factor(cell_type,
-                            levels = c('Lymph node GC cells',
-                                       'Lymph node plasma cells',
-                                       'Lymph node memory cells'))) %>%
-  ggplot(aes(x = day, y = fraction_seqs_in_top_genes, color = infection_status, group = day)) +
-  geom_boxplot(outlier.alpha =  F, show.legend = F) +
-  geom_point(aes(size = total_compartment_seqs), alpha = 0.8) +
-  facet_grid(.~cell_type) +
-  background_grid() +
-  scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
-  #ggtitle() +
-  theme(legend.position = 'top',
-        legend.key.size = unit(50,'pt')) +
-  xlab("Days after primary infection") +
-  ylab("Fraction of sequences in the top 10 genes") +
-  scale_x_continuous(breaks = sort(as.integer(unique(clone_freqs_by_tissue_and_cell_type$day)))) +
-  scale_size_continuous(breaks = c(100,1000,10000,50000), name = ' Number of sequences')
-
-plot(fraction_in_top_10_genes_plot)
-
-
 # Fraction of sequences in the largest 10 clones
 fraction_in_top_10_clones_plot <- clone_freqs_by_tissue_and_cell_type %>% 
-  filter(compartment_tissue == 'LN', group_controls_pooled != 'control') %>%
-  filter(clone_rank_in_compartment <=10) %>% 
+  filter(compartment_tissue == 'LN') %>%
+  filter(clone_rank_in_compartment <= 10) %>% 
   filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
   mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('GC','PC','mem'))) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, compartment_cell_type, compartment_tissue, total_seqs_in_compartment) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, compartment_cell_type, compartment_tissue,
+           total_seqs_in_compartment) %>%
   summarise(seqs_in_top_clones = sum(n_clone_seqs_in_compartment)) %>%
   mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs_in_compartment) %>%
   ungroup() %>%
-  mutate(day = as.integer(as.character(day))) %>%
-  mutate(compartment_cell_type = case_when(
-    compartment_cell_type == 'GC' ~ 'Lymph node GC cells',
-    compartment_cell_type == 'PC' ~ 'Lymph node plasma cells',
-    compartment_cell_type == 'mem' ~ 'Lymph node memory cells'
-  )) %>%
-  mutate(compartment_cell_type = factor(compartment_cell_type,
-                                        levels = c('Lymph node GC cells',
-                                                  'Lymph node plasma cells',
-                                                  'Lymph node memory cells'))) %>%
+  mutate(day = ifelse(group_controls_pooled == 'control', 0, as.integer(as.character(day)))) %>%
+  cell_type_facet_labeller() %>%
   ggplot(aes(x = day, y = fraction_seqs_in_top_clones, color = infection_status, group = day)) +
   geom_boxplot(outlier.alpha =  F, show.legend = F) +
   geom_point(aes(size = total_seqs_in_compartment), alpha = 0.8) +
   facet_grid(.~compartment_cell_type) +
   background_grid() +
-  scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+  #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
   #ggtitle() +
   theme(legend.position = 'top',
         legend.key.size = unit(50,'pt')) +
   xlab("Days after primary infection") +
   ylab("Fraction of sequences in the 10 largest clones") +
-  scale_x_continuous(breaks = sort(as.integer(unique(clone_freqs_by_tissue_and_cell_type$day)))) +
+  scale_x_continuous(breaks = c(0,8,16,24,40,56),
+                     labels = c('control','8','16','24','40','56')) +
   scale_size_continuous(breaks = c(100,1000,10000,50000), name = ' Number of sequences')
 
-plot(fraction_in_top_10_clones_plot)
 
-
-# Ranked clones plot only implemented if using all-sequence frequencies
-# (because clones are annotated with high frequency mutations)
+#Ranked clones plot only implemented if using all-sequence frequencies
+#(because clones are annotated with high frequency mutations)
 # if(frequency_type == 'all_seqs'){
 #   plot_top_clones <- function(plot_cell_type, plot_tissue, plot_group, plot_abs_size = F,
 #                                    annotation = 'v_gene'){
-#     
-#     
+# 
+# 
 #     if(plot_abs_size){
 #       y_axis_var <- 'n_clone_seqs_in_compartment'
 #       y_axis_label <- 'Number of sequences'
@@ -445,7 +384,7 @@ plot(fraction_in_top_10_clones_plot)
 #       y_axis_var <- 'clone_freq_in_compartment'
 #       y_axis_label <- 'Clone frequency'
 #     }
-#     
+# 
 #     if(length(annotation) == 2){
 #       plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
 #         mutate(across(c('v_gene','d_gene','j_gene'),
@@ -457,9 +396,9 @@ plot(fraction_in_top_10_clones_plot)
 #       plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
 #         mutate(across(c('v_gene','d_gene','j_gene'),
 #                       function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
-#         unite('annotation', annotation, sep = ' ; ') 
+#         unite('annotation', annotation, sep = ' ; ')
 #     }
-#     
+# 
 #     pl <- plotting_data %>%
 #       filter(total_seqs_in_compartment >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
 #       filter(compartment_cell_type == plot_cell_type, compartment_tissue == plot_tissue, group_controls_pooled == plot_group,
@@ -475,21 +414,21 @@ plot(fraction_in_top_10_clones_plot)
 #       scale_x_continuous(expand = expansion(mult = c(0.05,0.2 * length(annotation)))) +
 #       scale_color_discrete(name = 'V gene deviation from naive frequency',
 #                            labels = c('negative','non-significant','positive'))
-#     
+# 
 #     if(length(annotation) == 1 & all(annotation == 'v_gene')){
-#       pl <- pl + 
+#       pl <- pl +
 #         geom_point(aes(color = deviation_from_naive)) +
 #         geom_text(aes(x = clone_rank_in_compartment + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
-#                       label = annotation), show.legend = F, size = 3.5) 
+#                       label = annotation), show.legend = F, size = 3.5)
 #     }else{
 #       pl <- pl + geom_point() +
 #         geom_text(aes(x = clone_rank_in_compartment + 0.3, angle = 35, hjust = 0,
 #                       label = annotation), show.legend = F, size = 3.5)
 #     }
-#     
+# 
 #     return(pl)
-#     
-#     
+# 
+# 
 #   }
 # 
 #   top_clones_LN_PC_day8 <- plot_top_clones('PC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
@@ -497,22 +436,22 @@ plot(fraction_in_top_10_clones_plot)
 #   top_clones_LN_PC_day24 <- plot_top_clones('PC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_PC_day40 <- plot_top_clones('PC','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_PC_day56 <- plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   
+# 
 #   top_clones_LN_PC_day56_CDR3_annotated <- plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = F, annotation = c('clone_consensus_cdr3_partis')) + ylim(0,1.1)
-#   
+# 
 #   top_clones_LN_GC_day8 <- plot_top_clones('GC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_GC_day16 <- plot_top_clones('GC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_GC_day24 <- plot_top_clones('GC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_GC_day40 <- plot_top_clones('GC','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_GC_day56 <- plot_top_clones('GC','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   
-#     
+# 
+# 
 #   top_clones_LN_mem_day8 <- plot_top_clones('mem','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_mem_day16 <- plot_top_clones('mem','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_mem_day24 <- plot_top_clones('mem','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_mem_day40 <- plot_top_clones('mem','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
 #   top_clones_LN_mem_day56 <- plot_top_clones('mem','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   
+# 
 # }
 
 
@@ -534,9 +473,11 @@ pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
 pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
   mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
-  filter(day_i == day_j, total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size,
-         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
-  mutate(day_i = as.integer(as.character(day_i))) %>%
+  filter((day_i == day_j | pair_type == 'control'),
+         total_compartment_seqs_i >= min_compartment_size,
+         total_compartment_seqs_j >= min_compartment_size,
+         tissue == 'LN', pair_type %in% c('control','primary','secondary')) %>%
+  mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(as.character(day_i)))) %>%
   cell_type_facet_labeller() %>%
     ggplot(aes(x = day_i, y = cor_coef_freqs, group = day_i)) +
   geom_boxplot(outlier.alpha = 0) +
@@ -545,20 +486,23 @@ pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   ) +
   facet_grid(method ~ cell_type) +
   background_grid() +
-  scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
+  #scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
   xlab('Days after primary infection') +
   ylab('Correlation in V gene frequencies\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
   theme(legend.position = 'top') +
-  scale_x_continuous(breaks = c(8,16,24,40,56)) +
-  geom_hline(yintercept = 0, linetype = 2)
+  scale_x_continuous(breaks = c(0,8,16,24,40,56),
+                     labels = c('control', '8','16','24','40','56')) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  scale_color_discrete(name = 'Infection')
 
 pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
   mutate(cell_type = factor(cell_type, levels = c('GC','PC','mem'))) %>%
-  filter(day_i == day_j, total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size,
-         total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size,
-         tissue == 'LN', pair_type %in% c('primary','secondary')) %>%
-  mutate(day_i = as.integer(as.character(day_i))) %>%
+  filter((day_i == day_j | pair_type == 'control'),
+         total_compartment_seqs_i >= min_compartment_size,
+         total_compartment_seqs_j >= min_compartment_size,
+         tissue == 'LN', pair_type %in% c('control','primary','secondary')) %>%
+  mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(as.character(day_i)))) %>%
   cell_type_facet_labeller() %>%
   ggplot(aes(x = day_i, y = cor_coef_freq_ratios, group = day_i)) +
   geom_boxplot(outlier.alpha = 0) +
@@ -567,12 +511,14 @@ pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   ) +
   facet_grid(method~cell_type) +
   background_grid() +
-  scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
+  #scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
   xlab('Days after primary infection') +
   ylab('Correlation in V gene frequency deviations\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
   theme(legend.position = 'top') +
-  scale_x_continuous(breaks = c(8,16,24,40,56)) +
-  geom_hline(yintercept = 0, linetype = 2) 
+  scale_x_continuous(breaks = c(0,8,16,24,40,56),
+                     labels = c('control', '8','16','24','40','56')) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  scale_color_discrete(name = 'Infection')
 
 
 # ===== Linear models for correlation vs. time in LN plasma cells ======
@@ -648,45 +594,6 @@ correlation_randomization_tests <- bind_rows(compare_obs_vs_random_LMs(data_obs 
 write_csv(correlation_randomization_tests, file = correlation_rdm_test_results)
 
 
-
-#=======  Number of top N genes shared over time =======
-top_genes_threshold <- 10
-
-shared_top_genes_by_freq <- pairwise_gene_freqs %>%
-  group_by(mouse_pair, pair_type, day_i, day_j, tissue, cell_type, total_compartment_seqs_i,
-           total_compartment_seqs_j) %>%
-  mutate(rank_i = rank(-vgene_seq_freq_i, ties.method = 'first'),
-         rank_j = rank(-vgene_seq_freq_j, ties.method = 'first')) %>%
-  filter(rank_i <= top_genes_threshold, rank_j <= top_genes_threshold,
-         total_compartment_seqs_i >= min_compartment_size,
-         total_compartment_seqs_j >= min_compartment_size,
-         tissue == 'LN',
-         pair_type %in% c('control', 'primary', 'secondary'),
-         cell_type %in% c('GC','PC','mem'),
-         day_i == day_j) %>%
-  summarise(genes_in_top_set = n()) %>%
-  ungroup() %>%
-  cell_type_facet_labeller()
-
-shared_top_genes_by_freq_pl <- shared_top_genes_by_freq %>%
-  filter(pair_type != 'control') %>%
-  mutate(day_i = as.integer(as.character(day_i))) %>%
-  ggplot(aes(x = day_i, y = genes_in_top_set, group = day_i)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point(position = position_jitter(width =0.1, height = 0), alpha = 0.8, size = 4,
-             aes(color = pair_type),
-  ) +
-  facet_wrap('cell_type') +
-  background_grid() +
-  scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
-  xlab('Days after primary infection') +
-  ylab(paste0('Number of shared top-',top_genes_threshold,' genes\n(excluding mice with < 100 seqs.)')) +
-  theme(legend.position = 'top') +
-  scale_x_continuous(breaks = c(8,16,24,40,56)) +
-  scale_y_continuous(limits = c(0, NA))
-  
-
-
 ###### Are allele frequencies correlated with mutability?
 
 freq_ratio_mutability_correlations <- get_freq_ratio_mutability_correlations(
@@ -742,58 +649,8 @@ germline_mutability_by_region_pl <- germline_mutability_by_region  %>%
   scale_color_discrete(name = 'V allele') +
   background_grid()
 
-###### HIERARCHICAL CLUSTERING ANALYSIS
 
-# ----- Dendrograms and heatmaps based on correlation in V gene frequencies -------
-# Have to be exported invididually because not easily integrated with ggplot...
-
-pdf(file = paste0(exported_figure_objects_dir, 'freqs_heatmap_LN_PCs_spearman.pdf'), height = 7,
-    width = 7.5)
-get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
-                                      metric = 'freqs',
-                                      cell_type = 'PC',
-                                      tissue = 'LN',
-                                      min_seqs = min_compartment_size,
-                                      cor_method = 'spearman')
-dev.off()
-
-pdf(file = paste0(exported_figure_objects_dir, 'freqs_heatmap_LN_PCs_pearson.pdf'), height = 7,
-    width = 7.5)
-get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
-                                      metric = 'freqs',
-                                      cell_type = 'PC',
-                                      tissue = 'LN',
-                                      min_seqs = min_compartment_size,
-                                      cor_method = 'pearson')
-dev.off()
-
-
-
-# ----- Dendrograms and heatmaps based on correlation in V gene frequency deviations from naive repertoire -------
-
-pdf(file = paste0(exported_figure_objects_dir, 'deviations_heatmap_LN_PCs_spearman.pdf'), height = 7,
-    width = 7.5)
-get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
-                                      metric = 'freq_ratios',
-                                      cell_type = 'PC',
-                                      tissue = 'LN',
-                                      min_seqs = min_compartment_size,
-                                      cor_method = 'spearman')
-dev.off()
-
-pdf(file = paste0(exported_figure_objects_dir, 'deviations_heatmap_LN_PCs_pearson.pdf'), height = 7,
-    width = 7.5)
-get_vgene_freq_correlation_clustering(pairwise_correlations = pairwise_correlations,
-                                      metric = 'freq_ratios',
-                                      cell_type = 'PC',
-                                      tissue = 'LN',
-                                      min_seqs = min_compartment_size,
-                                      cor_method = 'pearson')
-dev.off()
-
-
-
-# Additional null model suggested by Sarah
+# Null model with fixed lineage sizes but randomized V alleles
 
 summary_pwcorr_randomized_lineage_V_alleles <-
   list(freqs = pairwise_correlations_randomized_lineage_V_alleles$freqs %>%
@@ -849,7 +706,6 @@ save(naive_exp_pearson_corr_plot,
      pairwise_naive_correlations_plot,
      pairwise_freq_correlations_plot,
      pairwise_freq_deviations_plot,
-     shared_top_genes_by_freq_pl,
      freq_ratio_mutability_correlations_pl,
      germline_mutability_by_region_pl,
      pw_freq_cors_randomized_lineage_V_alleles,
@@ -857,34 +713,14 @@ save(naive_exp_pearson_corr_plot,
      file = paste0(exported_figure_objects_dir, 'correlation_plots.RData')
      )
 
-save(top_genes_LN_PC_day8_plot,
-     top_genes_LN_PC_day16_plot,
-     top_genes_LN_GC_day8_plot,
-     top_genes_LN_GC_day16_plot,
-     top_genes_LN_mem_day24_plot,
+save(top_genes_LN_GC,
+     top_genes_LN_PC,
+     top_genes_LN_mem,
+     top_20_genes_day8_LN_PC,
      focal_alleles_plot,
      file = paste0(exported_figure_objects_dir, 'top_genes_plots.RData'))
 
-
-# save(top_clones_LN_PC_day8,
-#      top_clones_LN_PC_day16,
-#      top_clones_LN_PC_day24,
-#      top_clones_LN_PC_day40,
-#      top_clones_LN_PC_day56,
-#      top_clones_LN_GC_day8,
-#      top_clones_LN_GC_day16,
-#      top_clones_LN_GC_day24,
-#      top_clones_LN_GC_day40,
-#      top_clones_LN_GC_day56,
-#      top_clones_LN_mem_day8,
-#      top_clones_LN_mem_day16,
-#      top_clones_LN_mem_day24,
-#      top_clones_LN_mem_day40,
-#      top_clones_LN_mem_day56,
-#      file = paste0(exported_figure_objects_dir, 'top_clones_plots.RData'))
-
 save(fraction_in_top_10_clones_plot,
-     fraction_in_top_10_genes_plot,
      file = paste0(exported_figure_objects_dir, 'fraction_in_top_10_clones_plot.RData'))
 
 
