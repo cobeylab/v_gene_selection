@@ -190,7 +190,7 @@ write_csv(deviations_by_allele, deviations_by_allele_results_path)
 plot_most_common_genes <- function(plot_group, gene_freqs, plot_cell_type, plot_tissue, max_rank,
                                    min_compartment_size){
   gene_freqs %>% 
-    filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, v_gene_rank <= 10) %>%
+    filter(cell_type == plot_cell_type, tissue == plot_tissue, group_controls_pooled == plot_group, v_gene_rank <= max_rank) %>%
     filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
     rowwise() %>%
     mutate(label_position = ifelse(vgene_seq_freq > naive_vgene_seq_freq, 1.05*vgene_seq_freq, 1.05*naive_vgene_seq_freq)) %>%
