@@ -10,15 +10,17 @@ mouse_data_file_path = args[2] # e.g. mouse_data_file_path = '../processed_data/
 
 merge_info <- function(yaml_object, mouse_data_file_path){
  
+  # Read mouse sequences
   mouse_raw_data <- as_tibble(read.csv(mouse_data_file_path))
   
   # Get partis information into desired format
   partis_info <- format_partis_info(yaml_object)
-  
   stopifnot(length(unique(partis_info$clone_id_partis)) == length(yaml_object$events))
   
   # Find mouse id 
   mouse_id <- unique(mouse_raw_data$participant_alt_label)
+  
+  # Check the sequence data was from a single mouse.
   stopifnot(length(mouse_id) == 1)
   
   # Remove mouse id from read ids in partis info
@@ -44,7 +46,6 @@ merge_info <- function(yaml_object, mouse_data_file_path){
     mutate(cell_type = as.character(cell_type))
   
   annotated_seqs$cell_type[annotated_seqs$cell_type == 'naïve'] <- 'IgD+B220+'
-  
   
   write.csv(annotated_seqs, paste0('../processed_data/annotated_seq_files/', mouse_id, '_annotated_seqs.csv'),
             row.names = F)

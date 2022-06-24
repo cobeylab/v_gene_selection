@@ -21,6 +21,14 @@ pair_duplicates <- function(clone){
   return(duplicate_seqs)
 }
 
+# Test clone with 2 unique sequences, the first with no duplicates and the second with 2
+test_clone <- list(unique_ids = c('seq1', 'seq2'),
+                   duplicates = list(list(), c('seq3', 'seq4')))
+
+test_pair_duplicates <- pair_duplicates(test_clone)
+stopifnot(test_pair_duplicates$duplicate_seq == c('seq3','seq4') & unique(test_pair_duplicates$representative_seq) == 'seq2')
+
+
 count_mutations_from_naive <- function(seq_vector, naive_seq, translate_seqs, is_partis_aa_alignment = F){
   # Will assume seqs are NT seqs unless is_partis_aa_alignment is TRUE.
   # Will translate if translate_seqs is TRUE and is_partis_aa_alignment is FALSE.
@@ -67,6 +75,20 @@ count_mutations_from_naive <- function(seq_vector, naive_seq, translate_seqs, is
   
   return(n_mutations)
 }
+
+test_nt_seqs <- c('AAACCCGGGTTT', 'AAGCCTGGATTA')
+test_nt_naive_seq <- 'AAACCCGGGTTT'
+test_aa_seq <- 'XXX*PGF'
+test_aa_naive_seq <- 'RGGKPGF'
+
+test1 <- count_mutations_from_naive(seq_vector = test_nt_seqs, naive_seq = test_nt_naive_seq, translate_seqs = F)
+test2 <- count_mutations_from_naive(seq_vector = test_nt_seqs, naive_seq = test_nt_naive_seq, translate_seqs = T)
+test3 <- count_mutations_from_naive(seq_vector = test_aa_seq, naive_seq = test_aa_naive_seq,
+                                    translate_seqs = F, is_partis_aa_alignment = T)
+
+stopifnot(test1 == c(0, 4)) # 4 nt mutations in second test seq.
+stopifnot(test2 == c(0, 1)) # ...only 1 of which is non-synonymous.
+stopifnot(test3 == 0) # Ignore X's and *s if is_partis_aa_alignment is TRUE
 
 
 # Identifies nt and aa mutations (instead of simply counting them, e.g. K123Q)
@@ -136,31 +158,35 @@ identify_vgene_mutations <- function(naive_v_gene_region_seq, v_gene_region_seqs
   
 }
 
+test4 <- identify_vgene_mutations(naive_v_gene_region_seq = test_nt_naive_seq, v_gene_region_seqs = test_nt_seqs)
+stopifnot(test4$aa == c('','F4L'))
+stopifnot(test4$nt == c('', 'A3G;C6T;G9A;T12A'))
 
+# Uses functions above to process partis output
 format_partis_info <- function(yaml_object){
   partis_info <- c()
+  
+  # For each clone ('event' in yaml object)...
   for(i in 1:length(yaml_object$events)){
     print(paste0('Processing clone ', i, ' of ', length(yaml_object$events), ' (', round(100*i/length(yaml_object$events)),'%)'))
     clone <- yaml_object$events[[i]]
     
+    # Check there's a single CDR3 sequence associated with this clone
     stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
     
     # Productive status for each unique sequence in clone:
     productive_partis <- (clone$stops == F)&(clone$in_frames)&(clone$mutated_invariants == F)
     
-    
-    #write.fasta(lapply(as.list(clone$input_seqs), FUN = s2c), 
-    #            names = clone$unique_ids, file.out = '~/Desktop/test.fasta')
-    
+    # Get naive CDR3 sequence
     cdr3_start <- clone$codon_positions$v + 1 # Adds one because partis numbering starts at 0
     cdr3_end <- clone$codon_positions$j + 3 # adds +1 and then +2 to go to end of codon
     naive_cdr3_seq <- str_sub(clone$naive_seq, cdr3_start, cdr3_end)
     naive_cdr3_seq_aa <- c2s(seqinr::translate(s2c(tolower(naive_cdr3_seq))))
     
+    # Get sequences encoded by V gene
     v_gene_bounds <- clone$regional_bounds$v
     naive_v_gene_region_seq <- str_sub(clone$naive_seq, v_gene_bounds[1], v_gene_bounds[2])
     v_gene_region_seqs <- str_sub(clone$input_seqs, v_gene_bounds[1], v_gene_bounds[2])
-    
     
     # Number of mutations in V gene region
     vgene_mutations_nt <- count_mutations_from_naive(seq_vector = v_gene_region_seqs, naive_seq = naive_v_gene_region_seq,
@@ -175,7 +201,7 @@ format_partis_info <- function(yaml_object){
     vgene_mutations_list_nt <- vgene_mutations_list$nt
     vgene_mutations_list_aa <- vgene_mutations_list$aa
     
-    
+    # Count mutations specifically in CDR3
     stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
     stopifnot(unique(nchar(clone$cdr3_seqs)) == nchar(naive_cdr3_seq))
     
@@ -185,17 +211,18 @@ format_partis_info <- function(yaml_object){
     cdr3_mutations_aa <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
                                                     naive_seq = naive_cdr3_seq, translate_seqs = T)
     
+    # Count mutations across the whole sequence
     n_mutations_partis_nt <- clone$n_mutations
     n_mutations_partis_aa <- count_mutations_from_naive(seq_vector = clone$seqs_aa, naive_seq = clone$naive_seq_aa,
                                                         translate_seqs = F, is_partis_aa_alignment = T)
     
-    
+    # Translated CDR3 sequences to be exported
     cdr3_seq_partis <- sapply(clone$cdr3_seqs,
                               FUN = function(seq){
                                 c2s(seqinr::translate(s2c(tolower(seq))))
                               }, USE.NAMES = F)
     
-    # Get sequence info for reference seqs (partis clusters identical seqs. choosing one as the ref)
+    # Compile sequence info for reference seqs (partis clusters identical seqs. choosing one as the ref)
     ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
                            productive_partis = productive_partis,
                            n_mutations_partis_nt = n_mutations_partis_nt, 
@@ -249,11 +276,6 @@ format_partis_info <- function(yaml_object){
              clone_naive_seq_nt_partis = clone$naive_seq,
              clone_naive_seq_aa_partis = clone$naive_seq_aa) %>%
       dplyr::rename(trimmed_read_id = seq)
-    
-    
-    # For consistency with the Boyd lab notation, replace TRUE/FALSE with 't'/'f'
-    #clone_tibble$productive_partis[clone_tibble$productive_partis == T] <- 't'
-    #clone_tibble$productive_partis[clone_tibble$productive_partis == F] <- 'f'
     
     partis_info <- bind_rows(partis_info,
                              clone_tibble)
