@@ -7,6 +7,10 @@ args = commandArgs(trailingOnly = T)
 mouse_yaml_file_path = args[1] # e.g. mouse_yaml_file_path = '../results/partis/8-5_partis.yaml'
 mouse_data_file_path = args[2] # e.g. mouse_data_file_path = '../processed_data/mouse_specific_data_files/8-5.csv'
 
+dir.create('../processed_data/annotated_seq_files/', showWarnings = F)
+dir.create('../processed_data/clone_info_files/', showWarnings = F)
+dir.create('../results/mutations_per_vgene_base/', recursive = T, showWarnings = F)
+dir.create('../results/partis/partis_germline_genes/', showWarnings = F)
 
 merge_info <- function(yaml_object, mouse_data_file_path){
  
