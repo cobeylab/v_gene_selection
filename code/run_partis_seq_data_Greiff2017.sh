@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Create output directory if it doesn't exist
+mkdir -p ../results/partis/seq_data_Greiff2017/
+
 for mouse_dir in ../data/seq_data_Greiff2017/ERR*
 do
 
