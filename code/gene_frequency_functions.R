@@ -130,6 +130,7 @@ clone_purity_test <- get_clone_purity(tibble(mouse_id = 'A', clone_id = c(rep(1,
                                              cell_type = rep(c('IgD+B220+','GC','PC','mem'),2),
                                              prod_seqs = c(1,1,1,1,1,0,0,0)))
 stopifnot(clone_purity_test$clone_purity == c('mixed','pure_IgD+B220+'))
+rm(clone_purity_test)
 
 # Selects sequences sorted as naive based on additional filters (n. mutations, isotype, clone size)
 process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
@@ -181,6 +182,42 @@ process_IgD_B220_test <- process_IgD_B220_seqs(tibble(mouse_id = 'A',
                                                       tissue = 'LN', productive_partis = T),
        max_clone_unique_IgDB220_seqs = 1, max_v_gene_mutations = 2)
 stopifnot(process_IgD_B220_test$cell_type == c('GC', rep('nonnaive_IgD+B220+', 3), 'naive', rep('nonnaive_IgD+B220+', 2)))
+rm(process_IgD_B220_test)
+
+# Computes fraction of seqs in each clone that belong to each cell type or to each tissue
+get_clone_composition <- function(seq_counts, composition_var){
+  
+  stopifnot(composition_var %in% names(seq_counts) & composition_var %in% c("tissue","cell_type"))
+
+  # Handles input tibbles with unique prod seq counts instead of total seq counts.
+  if('unique_prod_seqs' %in% names(seq_counts)){
+    stopifnot('prod_seqs' %in% names(seq_counts) == F)
+    names(seq_counts)[names(seq_counts) == 'unique_prod_seqs'] <- 'prod_seqs'
+    col_prefix <- 'unique_seqs_'
+  }else{
+    col_prefix <- 'prod_seqs_'
+  }
+
+  # Computing clone composition
+  clone_composition <- seq_counts %>%
+    group_by(across(c('mouse_id', 'clone_id', composition_var))) %>%
+    # For each clone, sum across cell types within each class of the composition variable
+    dplyr::summarise(prod_seqs_in_class = sum(prod_seqs)) %>%
+    group_by(mouse_id, clone_id) %>%
+    # Now compute the fraction of sequences in a clone that came from each class
+    mutate(total_clone_prod_seqs = sum(prod_seqs_in_class)) %>%
+    ungroup() %>%
+    pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_prod_seqs')),
+                names_from = any_of(composition_var), values_from = prod_seqs_in_class,
+                values_fill = 0, names_prefix = col_prefix) 
+  
+  if(col_prefix == 'unique_seqs_'){
+    clone_composition <- clone_composition %>%
+      dplyr::rename(total_clone_unique_seqs = total_clone_prod_seqs)
+  }
+  return(clone_composition)
+}
+
 
 # Functions for calculating germline allele frequencies
 calc_naive_freqs <- function(naive_seq_counts, clone_info){
