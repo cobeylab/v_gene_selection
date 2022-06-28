@@ -58,21 +58,12 @@ germline_v_genes <- germline_v_genes %>% select(v_gene, v_gene_seq) %>% unique()
 write_csv(germline_v_genes, '../results/germline_genes.csv')
 
 # ====== Sequences counts for experienced cells, by mouse, cell type, tissue, V gene
-seq_counts <- annotated_seqs %>%
-  filter(productive_partis) %>%
-  group_by(mouse_id, clone_id, tissue, cell_type) %>%
-  summarise(prod_seqs = n()) %>%
-  ungroup()
+seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = F)
 write_csv(seq_counts, '../processed_data/seq_counts.csv')
 
+
 # Same structure, but after grouping sequences from the same mouse, clone, cell type, tissue and isotype that are identical
-unique_seq_counts <- annotated_seqs %>%
-  filter(productive_partis) %>%
-  select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
-  unique() %>%
-  group_by(mouse_id, clone_id, tissue, cell_type) %>%
-  summarise(unique_prod_seqs = n()) %>%
-  ungroup()
+unique_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T)
 write_csv(unique_seq_counts, '../processed_data/unique_seq_counts.csv')
 
 # ========= Annotate clone_info with clone tissue composition and clone cell type composition =======
