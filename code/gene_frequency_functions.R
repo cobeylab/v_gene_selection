@@ -209,12 +209,16 @@ get_clone_composition <- function(seq_counts, composition_var){
     ungroup() %>%
     pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_prod_seqs')),
                 names_from = any_of(composition_var), values_from = prod_seqs_in_class,
-                values_fill = 0, names_prefix = col_prefix) 
+                values_fill = 0, names_prefix = col_prefix) %>%
+    # Add rel. frequencies in addition to numbers of each cell type / tissue
+    mutate(across(matches(col_prefix), function(x){x/total_clone_prod_seqs},
+                  .names = "fraction_{.col}")) 
   
   if(col_prefix == 'unique_seqs_'){
     clone_composition <- clone_composition %>%
       dplyr::rename(total_clone_unique_seqs = total_clone_prod_seqs)
   }
+
   return(clone_composition)
 }
 

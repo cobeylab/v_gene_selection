@@ -78,47 +78,17 @@ stopifnot(all(clone_tissue_composition_prod_seqs$total_clone_prod_seqs == clone_
 clone_info <- left_join(clone_info, clone_tissue_composition_prod_seqs)
 clone_info <- left_join(clone_info, clone_cell_type_composition_prod_seqs %>% select(-total_clone_prod_seqs))
 
-
 # Numbers of *unique* productive sequences 
-
 clone_tissue_composition_unique_seqs <- get_clone_composition(unique_seq_counts, composition_var = 'tissue')
 clone_cell_type_composition_unique_seqs <- get_clone_composition(unique_seq_counts, composition_var = 'cell_type')
-  
+
 stopifnot(all(clone_cell_type_composition_unique_seqs$total_clone_unique_seqs ==
                 clone_tissue_composition_unique_seqs$total_clone_unique_seqs))
 
 clone_info <- left_join(clone_info, clone_tissue_composition_unique_seqs)
 clone_info <- left_join(clone_info, clone_cell_type_composition_unique_seqs %>% select(-total_clone_unique_seqs))
 
-
-# Compute Simpson diversity of tissues and cell types within each clone
-# Both with frequencies relative to all productive sequences and with freqs relative to unique seqs only.
-
-clone_info <- clone_info %>%
-  # Compute fractions in each compartment (tissue or cell type)
-  mutate(across(matches('prod_seqs_'), function(x){x/total_clone_prod_seqs},
-                .names = "fraction_{.col}")) %>%
-  mutate(across(matches('unique_seqs_'), function(x){x/total_clone_unique_seqs},
-                .names = "fraction_{.col}")) %>%
-  mutate(across(matches('fraction_'), function(x){x^2},
-                .names = 'squared_{.col}'))
-
-tissues <- unique(seq_counts$tissue)
-cell_types <- unique(seq_counts$cell_type)
-
-clone_info <- clone_info %>%
-  mutate(
-    simpson_diversity_tissues_prod_seqs = 1 - purrr::reduce(
-      clone_info %>% select(any_of(paste0('squared_fraction_prod_seqs_', tissues))), `+`),
-    simpson_diversity_tissues_unique_seqs = 1 - purrr::reduce(
-      clone_info %>% select(any_of(paste0('squared_fraction_unique_seqs_', tissues))), `+`),
-    simpson_diversity_cell_types_prod_seqs = 1 - purrr::reduce(
-      clone_info %>% select(any_of(paste0('squared_fraction_prod_seqs_', cell_types))), `+`),
-    simpson_diversity_cell_types_unique_seqs = 1 - purrr::reduce(
-      clone_info %>% select(any_of(paste0('squared_fraction_unique_seqs_', cell_types))), `+`)
-    ) %>%
-  select(-matches('squared_fraction'))
-
+# Find frequency of most common tissue or cell type in each clone. 
 clone_info <- clone_info %>%
   rowwise() %>%
   mutate(biggest_tissue_fraction_prod_seqs = max(c(fraction_prod_seqs_BM, fraction_prod_seqs_LN, fraction_prod_seqs_spleen)),
