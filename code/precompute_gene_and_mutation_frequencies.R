@@ -4,14 +4,14 @@ library(tidyr)
 
 source('gene_frequency_functions.R')
 
+high_frequency_mutation_threshold <- 0.5 # Threshold for calling high-frequency mutations.
+
 args <- commandArgs(trailingOnly = T)
 
-frequency_type <- as.character(args[1])
-use_Greiff2017_naive_freqs <- as.logical(args[2])
-collapse_novel_alleles <- as.logical(args[3])
-
-n_null_model_realizations <- 500
-
+# Frequencies based on either "all_seqs" (all productive sequences) or "unique_seqs" (unique productive sequences)
+frequency_type <- as.character(args[1]) 
+use_Greiff2017_naive_freqs <- as.logical(args[2]) # Use alternative dataset to estimate naive freqs?
+collapse_novel_alleles <- as.logical(args[3]) # Ignore novel alleles identified by partis?
 
 if(is.na(use_Greiff2017_naive_freqs)){
   use_Greiff2017_naive_freqs <- F
@@ -20,7 +20,9 @@ if(is.na(collapse_novel_alleles)){
   collapse_novel_alleles <- F
 }
 
+n_null_model_realizations <- 500
 
+# Read sequencec counts by mouse/clone/cell type
 if(frequency_type == 'all_seqs'){
   seq_counts <- read_csv('../processed_data/seq_counts.csv')
   # seq_counts <- read_csv('~/Desktop/v_gene_selection/processed_data/seq_counts.csv')
@@ -30,18 +32,18 @@ if(frequency_type == 'all_seqs'){
   seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
 }
 
+# Path to exported RData object.
 output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '.RData')
 
-
-# Annotated sequences
+# Import annotated sequences
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 # annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv')
 
-# Basic info for each clone (germline genes, CDR length, naive CDR seq)
+# Import basic info for each clone (germline genes, CDR length, naive CDR seq)
 clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 
-  
+# Add mouse information to sequence counts object, then left join clone info
 seq_counts <- get_info_from_mouse_id(seq_counts)
 
 seq_counts <- left_join(seq_counts, clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
@@ -56,16 +58,13 @@ if(collapse_novel_alleles){
 }
 
 
-# ======= Calculate V gene frequencies =========
-
+# =========== CALCULATING V GENE FREQUENCIES ==========
 naive_seq_counts <- seq_counts %>% filter(cell_type == 'naive')
 exp_seq_counts <- seq_counts %>% filter(cell_type != 'naive')
 
 gene_freqs <- calc_gene_freqs(exp_seq_counts = exp_seq_counts,
                               naive_seq_counts = naive_seq_counts,
                               clone_info = clone_info, long_format = F, by_tissue = T)
-
-
 
 naive_freqs <- gene_freqs$naive_freqs
 exp_freqs <- gene_freqs$exp_freqs
@@ -95,7 +94,6 @@ if(use_Greiff2017_naive_freqs){
   output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_Greiff2017_naive_freqs.RData') 
 }
 
-
 # Combine naive and experienced frequencies into a single tibble
 gene_freqs <- format_gene_freqs_wide(exp_freqs = exp_freqs, naive_freqs = naive_freqs)
 
@@ -110,7 +108,6 @@ obs_rhos <- compute_rho(gene_freqs_adj_naive_zeros) %>%
          obs_n_vgene_seqs,obs_rho)
   
 # Generate allele freqs under null model where experienced frequencies are sampled from naive freqs.
-
 neutral_realizations <- sample_experienced_from_naive(exp_seq_counts = exp_seq_counts,
                                                         naive_seq_counts = naive_seq_counts,
                                                         clone_info = clone_info,
@@ -118,6 +115,7 @@ neutral_realizations <- sample_experienced_from_naive(exp_seq_counts = exp_seq_c
                                                         by_tissue = T, 
                                                         n_reps = n_null_model_realizations)
 
+# Compare observed vs neutral experienced-to-naive ratios
 neutral_rhos <- neutral_realizations %>%
   group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, v_gene) %>%
   summarise(mean_sim_rho = mean(obs_rho),
@@ -135,6 +133,7 @@ deviation_from_naive <- left_join(obs_rhos, neutral_rhos) %>%
   # deviation from naive is NA for mice lacking naive sequences in the tissues in naive_from_tissue
   filter(!is.na(deviation_from_naive))
 
+# Add comparison with null model to gene_freqs object.
 gene_freqs <- left_join(gene_freqs, 
                         deviation_from_naive %>%
                           select(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, v_gene, matches('rho'), deviation_from_naive))
@@ -175,50 +174,16 @@ pairwise_correlations_randomized_noncontrol_groups <- get_pairwise_corrs_for_ran
 )
 
 
-# =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH TISSUE / CELL TYPE COMBINATION ==========
+# =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH COMPARTMENT ==========
 
-if(frequency_type == 'unique_seqs'){
-  seq_counts <- seq_counts %>%
-    rename(prod_seqs = unique_prod_seqs)
-}
-
-clone_freqs_by_tissue_and_cell_type <- seq_counts %>%
-  dplyr::rename(n_clone_seqs_in_compartment = prod_seqs) %>%
-  #group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type, clone_id, v_gene) %>%
-  #summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, cell_type) %>%
-  mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
-         clone_freq_in_compartment = n_clone_seqs_in_compartment / total_seqs_in_compartment) %>%
-  mutate(clone_rank_in_compartment = rank(-clone_freq_in_compartment, ties.method = 'first')) %>%
-  ungroup() %>%
-  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
-  dplyr::rename(compartment_tissue = tissue, compartment_cell_type = cell_type)
-
-clone_freqs_by_tissue <- seq_counts %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue, clone_id, v_gene) %>%
-  summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, tissue) %>%
-  mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
-         clone_freq_in_compartment = n_clone_seqs_in_compartment / total_seqs_in_compartment) %>%
-  mutate(clone_rank_in_compartment = rank(-clone_freq_in_compartment, ties.method = 'first')) %>%
-  ungroup() %>%
-  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) %>%
-  dplyr::rename(compartment_tissue = tissue)
-
-# Clone frequencies across the entire mouse
-clone_freqs <- clone_freqs_by_tissue %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, clone_id) %>%
-  summarise(n_clone_seqs_in_compartment = sum(n_clone_seqs_in_compartment)) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled) %>%
-  mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment)) %>%
-  mutate(compartment_tissue = 'all') %>%
-  ungroup()
-
-# Add general clone information to object with clone size distributions
+# Clone frequencies by tissue and cell type combination
+clone_freqs_by_tissue_and_cell_type <- get_clone_freqs(seq_counts, compartment_vars = c('tissue','cell_type')) %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
+  
+# Add general clone information to objects clone freqs objects
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type, clone_info)
 
-
-# Add information on whether the V gene used by each clone has evidence of gene-level selection
+# Add information on V gene used by each clone
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
                                                  deviation_from_naive %>%
                                                    select(mouse_id, day, infection_status, group_controls_pooled,
@@ -239,7 +204,7 @@ if(frequency_type == 'all_seqs'){
   # For each clone, include a list of mutations above a certain frequency threshold
   # (For now, frequency is calculated relative to the number of productive sequences from a clone in a particular cell type and tissue combination)
   mutations_above_threshold <- list_clone_mutations_above_threshold(mutation_freqs_within_clones_by_tissue_and_cell_type,
-                                                                    threshold = 0.5)
+                                                                    threshold = high_frequency_mutation_threshold)
   
   
   clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
@@ -255,14 +220,9 @@ if(frequency_type == 'all_seqs'){
 }
 
 
-
-
-
 # =========== EXPORT RData ==========
 save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_freqs_adj_naive_zeros,
      clone_freqs_by_tissue_and_cell_type, 
-     clone_freqs_by_tissue,
-     clone_freqs,
      neutral_realizations,
      deviation_from_naive,
      pairwise_gene_freqs,

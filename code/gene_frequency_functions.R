@@ -191,7 +191,7 @@ get_clone_composition <- function(seq_counts, composition_var){
 
   # Handles input tibbles with unique prod seq counts instead of total seq counts.
   if('unique_prod_seqs' %in% names(seq_counts)){
-    stopifnot('prod_seqs' %in% names(seq_counts) == F)
+    stopifnot(('prod_seqs' %in% names(seq_counts)) == F)
     names(seq_counts)[names(seq_counts) == 'unique_prod_seqs'] <- 'prod_seqs'
     col_prefix <- 'unique_seqs_'
   }else{
@@ -221,7 +221,6 @@ get_clone_composition <- function(seq_counts, composition_var){
 
   return(clone_composition)
 }
-
 
 # Functions for calculating germline allele frequencies
 calc_naive_freqs <- function(naive_seq_counts, clone_info){
@@ -432,7 +431,6 @@ format_gene_freqs_wide <- function(exp_freqs, naive_freqs){
     mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
            group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 }
-
 
 
 # Rho: ratio of experienced to naive frequency
@@ -877,12 +875,39 @@ get_null_mutation_distribution_given_length_distribution <- function(annotated_s
   
 }
 
-get_clone_size_distribution <- function(seq_counts){
-  seq_counts %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, clone_id) %>%
-  dplyr::summarise(clone_prod_seqs = sum(uniq_prod_seqs)) %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type) %>%
-  mutate(clone_freq = clone_prod_seqs / sum(clone_prod_seqs)) 
+# Computes frequency of each clone within each compartment
+# (tissue, cell type, tissue/cell type combination, or whole mouse)
+get_clone_freqs <- function(seq_counts, compartment_vars){
+  
+  # Handles input with unique instead of total productive seq counts
+  if('unique_prod_seqs' %in% names(seq_counts)){
+    stopifnot(('prod_seqs' %in% names(seq_counts)) == F)
+    seq_counts <- seq_counts %>% rename(prod_seqs = unique_prod_seqs)
+  }
+  
+  grouping_vars <- c('mouse_id','day','infection_status', 'group', 'group_controls_pooled')
+
+  # compartment_vars is null if computing clone frequencies across entire mouse.
+  if(!is.null(compartment_vars)){
+    stopifnot(compartment_vars %in% c('tissue','cell_type'))
+    grouping_vars <- c(grouping_vars, compartment_vars)
+  }
+  
+  clone_freqs <- seq_counts %>%
+    group_by(across(any_of(c(grouping_vars, 'clone_id')))) %>%
+    # Sum clone sequences after grouping by compartment vars to get n clone seqs in compartment
+    summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
+    # Now compute total seqs in compartment across clones, use as denominator
+    group_by(across(any_of(grouping_vars))) %>%
+    mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
+           clone_freq_in_compartment = n_clone_seqs_in_compartment / total_seqs_in_compartment) %>%
+    mutate(clone_rank_in_compartment = rank(-clone_freq_in_compartment, ties.method = 'first')) %>%
+    ungroup() %>%
+    arrange(mouse_id, clone_id)
+  
+  names(clone_freqs)[names(clone_freqs) %in% compartment_vars] <- paste0('compartment_', compartment_vars)
+  return(clone_freqs)
+
 }
 
 estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
