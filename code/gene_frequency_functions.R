@@ -200,9 +200,10 @@ get_clone_composition <- function(seq_counts, composition_var){
 
   # Computing clone composition
   clone_composition <- seq_counts %>%
-    group_by(across(c('mouse_id', 'clone_id', composition_var))) %>%
+    group_by(across(c('mouse_id', 'clone_id', all_of(composition_var)))) %>%
     # For each clone, sum across cell types within each class of the composition variable
     dplyr::summarise(prod_seqs_in_class = sum(prod_seqs)) %>%
+    ungroup() %>%
     group_by(mouse_id, clone_id) %>%
     # Now compute the fraction of sequences in a clone that came from each class
     mutate(total_clone_prod_seqs = sum(prod_seqs_in_class)) %>%
@@ -897,6 +898,7 @@ get_clone_freqs <- function(seq_counts, compartment_vars){
     group_by(across(any_of(c(grouping_vars, 'clone_id')))) %>%
     # Sum clone sequences after grouping by compartment vars to get n clone seqs in compartment
     summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
+    ungroup() %>%
     # Now compute total seqs in compartment across clones, use as denominator
     group_by(across(any_of(grouping_vars))) %>%
     mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
