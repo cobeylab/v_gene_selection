@@ -1,4 +1,3 @@
-library(tidyverse)
 library(yaml)
 library(stringr)
 library(readr)

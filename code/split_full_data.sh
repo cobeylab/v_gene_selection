@@ -2,6 +2,8 @@
 # Splits full data table into mouse specific files
 full_data_path=../data/sequence_data/m293_mouse_flu_bigtable_isotype
 
+mkdir -p ../processed_data/mouse_specific_data_files/
+
 # Comma separated string of unique mouse ids
 #ids=$(grep -o '\s[0-9]*-[0-9]*\s' $full_data_path | sort | uniq | tr -d '\t' | tr '\n' ',')
 #ids=${ids::-1}

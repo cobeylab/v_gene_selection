@@ -75,6 +75,31 @@ assign_infection_status <- function(day, mouse_id_number){
   return(infection_status)
 }
 
+# Counts productive sequences by mouse, clone, tissue, cell type. 
+get_productive_seq_counts <- function(annotated_seqs, unique_only){
+  
+  counts <- annotated_seqs %>%
+    filter(productive_partis) 
+  
+  # If computing counts of unique sequences only:
+  if(unique_only){
+    counts <- counts %>%
+      select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
+      unique() %>%
+      group_by(mouse_id, clone_id, tissue, cell_type) %>%
+      dplyr::summarise(unique_prod_seqs = n()) %>%
+      ungroup()
+  # Counts of all productive sequences
+  }else{
+    counts <- counts %>%
+      group_by(mouse_id, clone_id, tissue, cell_type) %>%
+      summarise(prod_seqs = n()) %>%
+      ungroup()
+  }
+  
+  return(counts)
+  
+}
 
 get_clone_purity <- function(seq_counts){
   
@@ -101,6 +126,12 @@ get_clone_purity <- function(seq_counts){
   return(clone_purity)
 } 
 
+clone_purity_test <- get_clone_purity(tibble(mouse_id = 'A', clone_id = c(rep(1,4),rep(2,4)),
+                                             cell_type = rep(c('IgD+B220+','GC','PC','mem'),2),
+                                             prod_seqs = c(1,1,1,1,1,0,0,0)))
+stopifnot(clone_purity_test$clone_purity == c('mixed','pure_IgD+B220+'))
+rm(clone_purity_test)
+
 # Selects sequences sorted as naive based on additional filters (n. mutations, isotype, clone size)
 process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
                                   max_v_gene_mutations){
@@ -114,19 +145,12 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
   # Sequences sorted as DUMP-IgD+B220+ that do not meet all the other criteria are labeled 'nonnaive_IgD+B220+'
   
-  unique_productive_seq_counts <- annotated_seqs %>%
-    filter(productive_partis) %>%
-    select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
-    unique() %>%
-    group_by(mouse_id, clone_id, tissue, cell_type) %>%
-    dplyr::summarise(unique_prod_seqs = n()) %>%
-    ungroup()
-  
+  unique_productive_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T)
+    
   clone_purity <- get_clone_purity(unique_productive_seq_counts) %>%
     dplyr::rename(unique_productive_IgDB220_seqs_in_clone = IgD_B220_seqs_in_clone,
                   unique_productive_nonIgDB220_seqs_in_clone = non_IgD_B220_seqs_in_clone)
   annotated_seqs <- left_join(annotated_seqs, clone_purity)
-  
   
   igd_b220_seqs <- annotated_seqs %>% 
     filter(cell_type == 'IgD+B220+')
@@ -149,6 +173,57 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
 }
 
+process_IgD_B220_test <- process_IgD_B220_seqs(tibble(mouse_id = 'A',
+                                                      clone_id = c(1,1,1,1,2,3,4), 
+                                                      partis_uniq_ref_seq = c(1,1,1,2,3,4,5),
+                                                      cell_type = c('GC',rep('IgD+B220+',6)),
+                                                      isotype = c(rep('IGM',6), 'IGG'),
+                                                      vgene_mutations_partis_nt = c(0,0,0,0,0,3,0),
+                                                      tissue = 'LN', productive_partis = T),
+       max_clone_unique_IgDB220_seqs = 1, max_v_gene_mutations = 2)
+stopifnot(process_IgD_B220_test$cell_type == c('GC', rep('nonnaive_IgD+B220+', 3), 'naive', rep('nonnaive_IgD+B220+', 2)))
+rm(process_IgD_B220_test)
+
+# Computes fraction of seqs in each clone that belong to each cell type or to each tissue
+get_clone_composition <- function(seq_counts, composition_var){
+  
+  stopifnot(composition_var %in% names(seq_counts) & composition_var %in% c("tissue","cell_type"))
+
+  # Handles input tibbles with unique prod seq counts instead of total seq counts.
+  if('unique_prod_seqs' %in% names(seq_counts)){
+    stopifnot(('prod_seqs' %in% names(seq_counts)) == F)
+    names(seq_counts)[names(seq_counts) == 'unique_prod_seqs'] <- 'prod_seqs'
+    col_prefix <- 'unique_seqs_'
+  }else{
+    col_prefix <- 'prod_seqs_'
+  }
+
+  # Computing clone composition
+  clone_composition <- seq_counts %>%
+    group_by(across(c('mouse_id', 'clone_id', all_of(composition_var)))) %>%
+    # For each clone, sum across cell types within each class of the composition variable
+    dplyr::summarise(prod_seqs_in_class = sum(prod_seqs)) %>%
+    ungroup() %>%
+    group_by(mouse_id, clone_id) %>%
+    # Now compute the fraction of sequences in a clone that came from each class
+    mutate(total_clone_prod_seqs = sum(prod_seqs_in_class)) %>%
+    ungroup() %>%
+    pivot_wider(id_cols = any_of(c('mouse_id','clone_id','total_clone_prod_seqs')),
+                names_from = any_of(composition_var), values_from = prod_seqs_in_class,
+                values_fill = 0, names_prefix = col_prefix) %>%
+    # Add rel. frequencies in addition to numbers of each cell type / tissue
+    mutate(across(matches(col_prefix), function(x){x/total_clone_prod_seqs},
+                  .names = "fraction_{.col}")) 
+  
+  if(col_prefix == 'unique_seqs_'){
+    clone_composition <- clone_composition %>%
+      dplyr::rename(total_clone_unique_seqs = total_clone_prod_seqs)
+  }
+
+  return(clone_composition)
+}
+
+# Functions for calculating germline allele frequencies
 calc_naive_freqs <- function(naive_seq_counts, clone_info){
   
   #clone_info used to get tibble with all genes present in each mouse (including ones potentially not observed in naive rep.)
@@ -357,7 +432,6 @@ format_gene_freqs_wide <- function(exp_freqs, naive_freqs){
     mutate(tissue = factor(tissue, levels = c('LN','spleen','BM')),
            group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 }
-
 
 
 # Rho: ratio of experienced to naive frequency
@@ -802,12 +876,40 @@ get_null_mutation_distribution_given_length_distribution <- function(annotated_s
   
 }
 
-get_clone_size_distribution <- function(seq_counts){
-  seq_counts %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, clone_id) %>%
-  dplyr::summarise(clone_prod_seqs = sum(uniq_prod_seqs)) %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type) %>%
-  mutate(clone_freq = clone_prod_seqs / sum(clone_prod_seqs)) 
+# Computes frequency of each clone within each compartment
+# (tissue, cell type, tissue/cell type combination, or whole mouse)
+get_clone_freqs <- function(seq_counts, compartment_vars){
+  
+  # Handles input with unique instead of total productive seq counts
+  if('unique_prod_seqs' %in% names(seq_counts)){
+    stopifnot(('prod_seqs' %in% names(seq_counts)) == F)
+    seq_counts <- seq_counts %>% rename(prod_seqs = unique_prod_seqs)
+  }
+  
+  grouping_vars <- c('mouse_id','day','infection_status', 'group', 'group_controls_pooled')
+
+  # compartment_vars is null if computing clone frequencies across entire mouse.
+  if(!is.null(compartment_vars)){
+    stopifnot(compartment_vars %in% c('tissue','cell_type'))
+    grouping_vars <- c(grouping_vars, compartment_vars)
+  }
+  
+  clone_freqs <- seq_counts %>%
+    group_by(across(any_of(c(grouping_vars, 'clone_id')))) %>%
+    # Sum clone sequences after grouping by compartment vars to get n clone seqs in compartment
+    summarise(n_clone_seqs_in_compartment = sum(prod_seqs)) %>%
+    ungroup() %>%
+    # Now compute total seqs in compartment across clones, use as denominator
+    group_by(across(any_of(grouping_vars))) %>%
+    mutate(total_seqs_in_compartment = sum(n_clone_seqs_in_compartment),
+           clone_freq_in_compartment = n_clone_seqs_in_compartment / total_seqs_in_compartment) %>%
+    mutate(clone_rank_in_compartment = rank(-clone_freq_in_compartment, ties.method = 'first')) %>%
+    ungroup() %>%
+    arrange(mouse_id, clone_id)
+  
+  names(clone_freqs)[names(clone_freqs) %in% compartment_vars] <- paste0('compartment_', compartment_vars)
+  return(clone_freqs)
+
 }
 
 estimate_mut_probs_per_vgene_position <- function(annotated_seqs){

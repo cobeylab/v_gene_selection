@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Create output directory if it doesn't exist
+mkdir -p ../results/partis/seq_data_Greiff2017/
+
 for mouse_dir in ../data/seq_data_Greiff2017/ERR*
 do
 
@@ -15,15 +19,14 @@ do
 #SBATCH --mem-per-cpu=4000
 #SBATCH --time=200:00:00
 
-# For these datasets, partis is crashing if I don't load the mafft module separately
+# Loading mafft
 module load mafft/7.310 
 
+# Defining input and output files
 input_file=${mouse_dir}/${dataset_name}_processed_reads.fasta
 output_file=../results/partis/seq_data_Greiff2017/${dataset_name}_20k.yaml" > $sbatch_file
 
-
 # Running partis, randomly picking a subset of the sequences
-
 echo '/project2/cobey/partis/bin/partis partition --n-procs 16 --species mouse --n-random-queries 20000 --infname $input_file --outfname $output_file --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa
 #' >> $sbatch_file
 
@@ -38,4 +41,3 @@ rm $sbatch_file
     
 done
 
-#

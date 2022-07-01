@@ -1,10 +1,14 @@
 #!/bin/bash
+# For each mouse in the Greiff et al. (2017) data...
 for mouse_dir in ../data/seq_data_Greiff2017/ERR*
 do
 
     dataset_name=$(basename $mouse_dir)
     sbatch_file=process_${dataset_name}.sbatch
     
+
+# Generate sbatch file for this mouse
+
     echo "#!/bin/bash
 #SBATCH --job-name=process_${dataset_name}
 #SBATCH --output=out_err_files/process_${dataset_name}.out
