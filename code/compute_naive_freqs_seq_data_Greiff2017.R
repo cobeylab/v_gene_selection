@@ -36,7 +36,6 @@ naive_freqs_Greiff2017 <- annotated_seqs_Greiff2017 %>%
 
 # Read pre-computed naive frequencies from our data
 load('../results/precomputed_gene_freqs_all_seqs.RData')
-#load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
 
 naive_freqs_this_study <- naive_freqs %>%
   dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs,
@@ -46,7 +45,7 @@ naive_freqs_this_study <- naive_freqs %>%
 
 # ================= How do their V gene frequencies correlate with those from our experiments? =================
 
-
+# Generates mouse pairs from the Greiff et al. 2017 dataset
 get_Greiff2017_mouse_pairs <- function(naive_freqs_Greiff2017){
   unique_pairs <- naive_freqs_Greiff2017 %>% select(mouse_id) %>% unique() %>%
     dplyr::rename(mouse_id_i = mouse_id) %>%
@@ -110,10 +109,12 @@ get_Greiff2017_mouse_pairs <- function(naive_freqs_Greiff2017){
   
 }
 
+# Generates pairs with one mouse from each study.
 get_cross_dataset_mouse_pairs <- function(naive_freqs_Greiff2017, naive_freqs_this_study){
   base_function <- function(mouse_id_Greiff2017){
     
-    total_Greiff2017_mouse_naive_seqs <- unique(naive_freqs_Greiff2017 %>% filter(mouse_id == mouse_id_Greiff2017) %>% pull(total_compartment_seqs))
+    total_Greiff2017_mouse_naive_seqs <- unique(naive_freqs_Greiff2017 %>% filter(mouse_id == mouse_id_Greiff2017)
+                                                %>% pull(total_compartment_seqs))
     stopifnot(length(total_Greiff2017_mouse_naive_seqs) == 1)
     
     cross_dataset_pair <- left_join(naive_freqs_this_study %>% 
