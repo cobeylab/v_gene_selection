@@ -227,6 +227,7 @@ if(frequency_type == 'all_seqs'){
 
 # =========== EXPORT RData ==========
 save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_freqs_adj_naive_zeros,
+     clone_freqs_by_tissue,
      clone_freqs_by_tissue_and_cell_type, 
      neutral_realizations,
      deviation_from_naive,

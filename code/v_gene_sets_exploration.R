@@ -1,6 +1,4 @@
-# Exploration of V genes identified by partis
-# - How many V genes each mouse uses
-# - How many undescribed alleles were found in each mouse
+# Exploration of germline V alleles identified by partis
 library(dplyr)
 library(readr)
 library(ggplot2)
@@ -15,8 +13,8 @@ clone_info <- read_csv('../processed_data/clone_info.csv')
 # clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 
 # Load pre-computed gene frequencies
-load('../results/precomputed_gene_freqs.RData')
-# [load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
+load('../results/precomputed_gene_freqs_all_seqs.RData')
+# [load('~/Desktop/precomputed_gene_freqs_all_seqs.RData')
 
 min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
 
