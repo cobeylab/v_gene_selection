@@ -483,6 +483,8 @@ get_unique_pairs <- function(gene_freqs, within_groups_only){
   }
   
   unique_pairs <- unique_pairs %>%
+    select(pair) %>%
+    unique() %>%
     pull(pair)
   
   return(unique_pairs)
