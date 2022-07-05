@@ -175,13 +175,18 @@ pairwise_correlations_randomized_noncontrol_groups <- get_pairwise_corrs_for_ran
 
 
 # =========== CLONE FREQUENCIES RELATIVE TO THE TOTAL IN EACH COMPARTMENT ==========
+# Clone frequencies by tissue 
+clone_freqs_by_tissue <- get_clone_freqs(seq_counts, compartment_vars = c('tissue')) %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
 
 # Clone frequencies by tissue and cell type combination
 clone_freqs_by_tissue_and_cell_type <- get_clone_freqs(seq_counts, compartment_vars = c('tissue','cell_type')) %>%
   mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels)) 
   
 # Add general clone information to objects clone freqs objects
+clone_freqs_by_tissue <- left_join(clone_freqs_by_tissue, clone_info)
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type, clone_info)
+
 
 # Add information on V gene used by each clone
 clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_type,
