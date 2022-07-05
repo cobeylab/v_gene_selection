@@ -3,9 +3,11 @@ V gene usage in mice infected with flu.
 
 1. Pre-processing and annotation of sequence data.
 2. Pre-calculation of germline allele frequencies, lineage sizes, mutation frequencies, and randomization-based null distributions.
-3. Other steps [TODO]
+3. Empirical analyses
+4. Running simulations
+5. Analyzing simulation results
 
-Because parts of steps 1 and 2 are computationally expensive and assume access to a computing cluster, we provide the output of those steps data in this Dryad repository so users can choose to skip them and start from subsequent steps.
+Because parts of steps 1 and 2 are computationally expensive and assume access to a computing cluster, we provide the output of those steps data in this Dryad repository so users can choose to skip them and start from subsequent steps. Similarly, we provide the output of simulations so users can replicate step 5 without having to run the computationally intensive step 4.
 
 ## 1. Pre-processing and annotation of sequence data ##
 
@@ -37,3 +39,6 @@ Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 5. `Rscript precompute_gene_and_mutation_frequencies.R unique_seqs FALSE TRUE`: sensitivity analysis for collapsing novel alleles.
 
 Because of bootstrapping and replicated randomizations, `precompute_gene_and_mutation_frequencies.R` takes several hours to run. It could be modified to run the randomizations in parallel, but we did not find it necessary because it only needs to be run once for each case (main analysis or sensitivity analysis). Each run of `precompute_gene_and_mutation_frequencies.R` produces an `.RData` object that can be used by downstream scripts.
+
+## 3. Empirical analyses
+
