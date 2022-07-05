@@ -41,15 +41,20 @@ Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 Because of bootstrapping and replicated randomizations, `precompute_gene_and_mutation_frequencies.R` takes several hours to run. It could be modified to run the randomizations in parallel, but we did not find it necessary because it only needs to be run once for each case (main analysis or sensitivity analysis). Each run of `precompute_gene_and_mutation_frequencies.R` produces an `.RData` object that can be used by downstream scripts.
 
 ## 3. Empirical analyses
+Different scripts execute different parts of the analysis, exporting plots as `.RData` objects to be subsequently combined by `make_MS_plots.R`.
+
+*Sorted cells and ELISA titers*
+3.1 Run `Rscript sorted_cells_and_ELISA_titers.R` 
+
 
  *Mutability of germline alleles*
  
- 3.1. `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository.
- 3.2. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
+ 3.2. `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository.
+ 3.3. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
 
 *Analysis of germline allele frequencies*
  `allele_frequency_analysis.R` follows the same argument structure outlined in step 2. Run:
  
- 3.3. `Rscript allele_frequency_analysis.R all_seqs FALSE FALSE:` allele frequency analyses presented in the main text.
+ 3.4. `Rscript allele_frequency_analysis.R all_seqs FALSE FALSE:` allele frequency analyses presented in the main text.
  [TODO]
 
