@@ -18,35 +18,7 @@ load('../results/precomputed_gene_freqs_all_seqs.RData')
 
 min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
 
-# ==========================================================================================
-# How many genes do mice use?
-# ==========================================================================================
-gene_freqs <- bind_rows(exp_freqs,
-                        naive_freqs %>%
-                          dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs,
-                                        vgene_seq_freq = naive_vgene_seq_freq,
-                                        total_compartment_seqs = total_mouse_naive_seqs) %>%
-                          mutate(tissue = 'all', cell_type = 'naive'))
-  
-
-exp_freqs_across_all_tissues <- exp_freqs %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, cell_type, v_gene) %>%
-  dplyr::summarise(across(c('n_vgene_seqs','total_compartment_seqs'), sum)) %>%
-  mutate(vgene_seq_freq = n_vgene_seqs / total_compartment_seqs) %>%
-  mutate(tissue = 'all') %>%
-  ungroup()
-
-gene_freqs <- bind_rows(gene_freqs,
-                        exp_freqs_across_all_tissues)
- 
-
-obs_n_genes <- gene_freqs %>% filter(n_vgene_seqs > 0) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue,
-           total_compartment_seqs) %>%
-  summarise(n_genes = length(unique(v_gene))) %>% ungroup() 
-
-
-  
+# Function for computing Chao 1 estimate of number of alleles
 # Chao1 estimates
 compute_chao1 <- function(gene_freqs){
   
@@ -54,10 +26,6 @@ compute_chao1 <- function(gene_freqs){
     select(mouse_id, day, infection_status, v_gene, cell_type, matches('tissue'), n_vgene_seqs) %>%
     pivot_wider(names_from = v_gene, values_from =  n_vgene_seqs, values_fill = 0) %>%
     arrange(mouse_id)
-  
-  if(('tissue' %in% names(gene_counts) == F)){
-    gene_counts <- gene_counts %>% mutate(tissue = 'all')
-  }
   
   cell_types <- unique(gene_counts$cell_type)
   tissues <- unique(gene_counts$tissue)
@@ -85,12 +53,42 @@ compute_chao1 <- function(gene_freqs){
   
   
   chao1_ests <- mapply(FUN = base_function, cell_type = ctype_tissue_combinations$cell_type,
-              tissue = ctype_tissue_combinations$tissue,
-         MoreArgs = list(gene_counts = gene_counts), SIMPLIFY = F)
+                       tissue = ctype_tissue_combinations$tissue,
+                       MoreArgs = list(gene_counts = gene_counts), SIMPLIFY = F)
   chao1_ests <- bind_rows(chao1_ests)
   
   return(chao1_ests)
 }
+
+# ==========================================================================================
+# How many alleles do mice use?
+# ==========================================================================================
+# Put gene freqs back in long format
+gene_freqs <- bind_rows(exp_freqs,
+                        naive_freqs %>%
+                          dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs,
+                                        vgene_seq_freq = naive_vgene_seq_freq,
+                                        total_compartment_seqs = total_mouse_naive_seqs) %>%
+                          mutate(tissue = 'all', cell_type = 'naive'))
+  
+# Compute allele freqs across all experienced cells across all tissues
+exp_freqs_across_all_tissues <- exp_freqs %>%
+  group_by(mouse_id, day, infection_status, group, group_controls_pooled, cell_type, v_gene) %>%
+  dplyr::summarise(across(c('n_vgene_seqs','total_compartment_seqs'), sum)) %>%
+  mutate(vgene_seq_freq = n_vgene_seqs / total_compartment_seqs) %>%
+  mutate(tissue = 'all') %>%
+  ungroup()
+
+gene_freqs <- bind_rows(gene_freqs,
+                        exp_freqs_across_all_tissues)
+ 
+# For each tissue / cell type combination in each mouse, count number of alleles with freq. > 0
+obs_n_genes <- gene_freqs %>% filter(n_vgene_seqs > 0) %>%
+  group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue,
+           total_compartment_seqs) %>%
+  summarise(n_genes = length(unique(v_gene))) %>% ungroup() 
+
+# Add Chao 1 estimates
 chao1_estimates <- compute_chao1(gene_freqs)
 
 obs_n_genes <- left_join(obs_n_genes,
@@ -99,10 +97,11 @@ obs_n_genes <- left_join(obs_n_genes,
          tissue = factor(tissue, levels = c('all','LN','spleen','BM')),
          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
+# Export csv files
 write_csv(obs_n_genes, '../results/n_v_genes_by_mouse.csv')
 
 
-# PLOTS TO BE EXPORTED
+# PLOTS:
 
 # Number of genes shared by pairs of mice
 n_shared_genes <- pairwise_gene_freqs %>%
