@@ -2,7 +2,6 @@ library(readr)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
-library(ggdendro)
 library(cowplot)
 library(scales)
 library(viridis)
@@ -13,7 +12,6 @@ source('gene_frequency_functions.R')
 source('plot_options.R')
 
 args <- commandArgs(trailingOnly = T)
-
 
 frequency_type <- args[1] # frequency_type <- 'all_seqs'
 use_Greiff2017_naive_freqs <- as.logical(args[2]) # use_Greiff2017_naive_freqs <- F
