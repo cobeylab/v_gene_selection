@@ -55,8 +55,10 @@ if(collapsed_novel_alleles){
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
 load(paste0(results_directory, precomputed_freqs_file))
 
+# Create necessary directories
+#dir.create(figure_directory, showWarnings = F, recursive = T)
 exported_figure_objects_dir <- paste0(figure_directory,'exported_ggplot_objects/')
-dir.create(exported_figure_objects_dir, showWarnings = F)
+dir.create(exported_figure_objects_dir, showWarnings = F, recursive = T)
 
 # For some analyses, exclude mice with fewer than min_compartment_size reads
 min_compartment_size = 100
