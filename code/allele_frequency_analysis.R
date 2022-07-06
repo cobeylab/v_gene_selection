@@ -256,8 +256,6 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
     base_gene_freq_data <- cell_type_facet_labeller(base_gene_freq_data )
     base_gene_freq_data <- set_controls_as_day_0(base_gene_freq_data)
     
-    
-    
     clone_ranks_data <- clone_freqs_by_tissue_and_cell_type %>%
       filter(compartment_tissue == !!tissue,
              compartment_cell_type %in% c('GC','mem','PC')) %>%
@@ -337,123 +335,6 @@ focal_alleles_plot <- plot_focal_genes(gene_freqs = gene_freqs,
                                              clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
                                              focal_genes = c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01'),
                                              min_compartment_size = min_compartment_size)
-
-
-
-# ============== CLONE SIZE PLOTS ==========
-# Fraction of sequences in the largest 10 clones
-fraction_in_top_10_clones_plot <- clone_freqs_by_tissue_and_cell_type %>% 
-  filter(compartment_tissue == 'LN') %>%
-  filter(clone_rank_in_compartment <= 10) %>% 
-  filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
-  mutate(compartment_cell_type = factor(compartment_cell_type, levels = c('GC','PC','mem'))) %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, compartment_cell_type, compartment_tissue,
-           total_seqs_in_compartment) %>%
-  summarise(seqs_in_top_clones = sum(n_clone_seqs_in_compartment)) %>%
-  mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs_in_compartment) %>%
-  ungroup() %>%
-  mutate(day = ifelse(group_controls_pooled == 'control', 0, as.integer(as.character(day)))) %>%
-  cell_type_facet_labeller() %>%
-  ggplot(aes(x = day, y = fraction_seqs_in_top_clones, color = infection_status, group = day)) +
-  geom_boxplot(outlier.alpha =  F, show.legend = F) +
-  geom_point(aes(size = total_seqs_in_compartment), alpha = 0.8) +
-  facet_grid(.~compartment_cell_type) +
-  background_grid() +
-  #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
-  #ggtitle() +
-  theme(legend.position = 'top',
-        legend.key.size = unit(50,'pt')) +
-  xlab("Days after primary infection") +
-  ylab("Fraction of sequences in the 10 largest clones") +
-  scale_x_continuous(breaks = c(0,8,16,24,40,56),
-                     labels = c('control','8','16','24','40','56')) +
-  scale_size_continuous(breaks = c(100,1000,10000,50000), name = ' Number of sequences')
-
-
-#Ranked clones plot only implemented if using all-sequence frequencies
-#(because clones are annotated with high frequency mutations)
-# if(frequency_type == 'all_seqs'){
-#   plot_top_clones <- function(plot_cell_type, plot_tissue, plot_group, plot_abs_size = F,
-#                                    annotation = 'v_gene'){
-# 
-# 
-#     if(plot_abs_size){
-#       y_axis_var <- 'n_clone_seqs_in_compartment'
-#       y_axis_label <- 'Number of sequences'
-#     }else{
-#       y_axis_var <- 'clone_freq_in_compartment'
-#       y_axis_label <- 'Clone frequency'
-#     }
-# 
-#     if(length(annotation) == 2){
-#       plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
-#         mutate(across(c('v_gene','d_gene','j_gene'),
-#                       function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
-#         unite('annotation', annotation, sep = ' (') %>%
-#         mutate(annotation = paste0(annotation,')')) %>%
-#         mutate(annotation = str_remove(annotation, ' \\(\\)'))
-#     }else{
-#       plotting_data <- clone_freqs_by_tissue_and_cell_type %>%
-#         mutate(across(c('v_gene','d_gene','j_gene'),
-#                       function(x){str_remove(str_remove(x,'IGH'), '\\*[0-9]+')})) %>%
-#         unite('annotation', annotation, sep = ' ; ')
-#     }
-# 
-#     pl <- plotting_data %>%
-#       filter(total_seqs_in_compartment >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
-#       filter(compartment_cell_type == plot_cell_type, compartment_tissue == plot_tissue, group_controls_pooled == plot_group,
-#              clone_rank_in_compartment <= 20) %>%
-#       ungroup() %>%
-#       ggplot(aes_string(x = 'clone_rank_in_compartment', y = y_axis_var, group = 'mouse_id')) +
-#       geom_line() +
-#       facet_wrap('mouse_id', scales = 'free') +
-#       xlab('Clone rank (top 20 clones only)') +
-#       ylab(y_axis_label) +
-#       theme(legend.position = c(0.8,0.2)) +
-#       scale_y_continuous(expand = expansion(mult = c(0.05, 0.3 * length(annotation)))) +
-#       scale_x_continuous(expand = expansion(mult = c(0.05,0.2 * length(annotation)))) +
-#       scale_color_discrete(name = 'V gene deviation from naive frequency',
-#                            labels = c('negative','non-significant','positive'))
-# 
-#     if(length(annotation) == 1 & all(annotation == 'v_gene')){
-#       pl <- pl +
-#         geom_point(aes(color = deviation_from_naive)) +
-#         geom_text(aes(x = clone_rank_in_compartment + 0.3, color = deviation_from_naive, angle = 30, hjust = 0,
-#                       label = annotation), show.legend = F, size = 3.5)
-#     }else{
-#       pl <- pl + geom_point() +
-#         geom_text(aes(x = clone_rank_in_compartment + 0.3, angle = 35, hjust = 0,
-#                       label = annotation), show.legend = F, size = 3.5)
-#     }
-# 
-#     return(pl)
-# 
-# 
-#   }
-# 
-#   top_clones_LN_PC_day8 <- plot_top_clones('PC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_PC_day16 <- plot_top_clones('PC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_PC_day24 <- plot_top_clones('PC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_PC_day40 <- plot_top_clones('PC','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_PC_day56 <- plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-# 
-#   top_clones_LN_PC_day56_CDR3_annotated <- plot_top_clones('PC','LN', 'secondary-56', plot_abs_size = F, annotation = c('clone_consensus_cdr3_partis')) + ylim(0,1.1)
-# 
-#   top_clones_LN_GC_day8 <- plot_top_clones('GC','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_GC_day16 <- plot_top_clones('GC','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_GC_day24 <- plot_top_clones('GC','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_GC_day40 <- plot_top_clones('GC','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_GC_day56 <- plot_top_clones('GC','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-# 
-# 
-#   top_clones_LN_mem_day8 <- plot_top_clones('mem','LN', 'primary-8', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_mem_day16 <- plot_top_clones('mem','LN', 'primary-16', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_mem_day24 <- plot_top_clones('mem','LN', 'primary-24', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_mem_day40 <- plot_top_clones('mem','LN', 'secondary-40', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-#   top_clones_LN_mem_day56 <- plot_top_clones('mem','LN', 'secondary-56', plot_abs_size = T, annotation = c('v_gene', 'mutations_above_threshold'))
-# 
-# }
-
 
 # ------------ PAIRWISE CORRELATIONS BETWEEN MICE ----------------
 
