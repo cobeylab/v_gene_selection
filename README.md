@@ -44,13 +44,17 @@ Because of bootstrapping and replicated randomizations, `precompute_gene_and_mut
 Different scripts execute different parts of the analysis, exporting plots as `.RData` objects to be subsequently combined by `make_MS_plots.R`.
 
 *Sorted cells and ELISA titers*
+
 3.1 Run `Rscript sorted_cells_and_ELISA_titers.R` 
 
+*Number of V alleles in each mouse, and number of alleles shared between mice*
+
+3.2 Run `Rscript v_gene_sets_exploration.R`
 
  *Mutability of germline alleles*
  
- 3.2. `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository.
- 3.3. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
+ 3.3. `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository.
+ 3.4. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
 
 *Analysis of germline allele frequencies*
  `allele_frequency_analysis.R` follows the same argument structure outlined in step 2. Run:
