@@ -33,9 +33,13 @@ Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 `precompute_gene_and_mutation_frequencies.R` runs the bulk of the computations used by subsequent empirical analyses. It has 3 positional arguments. The first is either `all_seqs` (to compute frequencies based on all productive sequences) or `unique_seqs` (to compute frequencies using only unique productive sequences). The second (`TRUE` or `FALSE`) determines whether naive frequencies are to be estimated from the alternative dataset by Greiff et al. 2017, and the third (`TRUE` or `FALSE`) determines whether novel alleles identified by partis are to be counted together with their inferred parent alleles. To perform the analyses, run:
 
 2.1. `Rscript precompute_gene_and_mutation_frequencies.R all_seqs FALSE FALSE`: pre-computations for core analyses presented in the main text.
+
 2.2. `Rscript precompute_gene_and_mutation_frequencies.R unique_seqs FALSE FALSE`: sensitivity analysis for using unique sequences only.
+
 2.3. `Rscript compute_naive_freqs_seq_data_Greiff2017.R`: computes naive frequencies based on the alternative naive B cell dataset (requires the output of 1).
+
 2.4. `Rscript precompute_gene_and_mutation_frequencies.R all_seqs TRUE FALSE`: sensitivity analysis for using naive alleles frequencies from the  independent naive B cell dataset. (requires the output of 3).
+
 2.5. `Rscript precompute_gene_and_mutation_frequencies.R unique_seqs FALSE TRUE`: sensitivity analysis for collapsing novel alleles.
 
 Because of bootstrapping and replicated randomizations, `precompute_gene_and_mutation_frequencies.R` takes several hours to run. It could be modified to run the randomizations in parallel, but we did not find it necessary because it only needs to be run once for each case (main analysis or sensitivity analysis). Each run of `precompute_gene_and_mutation_frequencies.R` produces an `.RData` object that can be used by downstream scripts.
@@ -45,18 +49,23 @@ Different scripts execute different parts of the analysis, exporting plots as `.
 
 *Sorted cells and ELISA titers*
 
-3.1 Run `Rscript sorted_cells_and_ELISA_titers.R` 
+3.1. Run `Rscript sorted_cells_and_ELISA_titers.R` 
 
 *Number of V alleles in each mouse, and number of alleles shared between mice*
 
-3.2 Run `Rscript v_gene_sets_exploration.R`
+3.2. Run `Rscript v_gene_sets_exploration.R`
 
  *Mutability of germline alleles*
  
  3.3. `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository.
  3.4. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
+ 
+*Analysis of high-frequency mutations*
+
+3.5. Run `Rscript SHM_analysis.R`
 
 *Analysis of germline allele frequencies*
+
  `allele_frequency_analysis.R` follows the same argument structure outlined in step 2. Run:
  
  3.4. `Rscript allele_frequency_analysis.R all_seqs FALSE FALSE:` allele frequency analyses presented in the main text.
