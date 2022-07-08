@@ -14,13 +14,10 @@ min_clone_size = 10
 min_compartment_size = 100
 
 clone_info <- read_csv('../processed_data/clone_info.csv')
-#clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 clone_info <- get_info_from_mouse_id(clone_info) %>%
   mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
 load('../results/precomputed_gene_freqs_all_seqs.RData')
-#load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
-
 
 clone_freqs_by_tissue_and_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
   filter(total_seqs_in_compartment >= min_compartment_size)
@@ -50,7 +47,6 @@ fraction_clones_with_high_freq_muts_LN_plot <- fraction_clones_with_1plus_high_f
   theme(legend.position = 'top') +
   xlab('Days after primary infection') +
   ylab('Fraction of clones with at least 10 sequences\nthat have mutations at or above 50% frequency') +
-  #scale_color_manual(values = c('green3','dodgerblue2')) +
   scale_size_continuous(name = 'Number of clones') +
   scale_y_continuous(limits = c(0,NA)) +
   facet_grid(.~compartment_cell_type)  +
@@ -114,7 +110,6 @@ mean_n_mutations_LN_plot <- mean_n_mutations_above_threshold_by_compartment %>%
   theme(legend.position = 'top') +
   xlab('Days after primary infection') +
   ylab('Average number of mutations at or\nabove 50% frequency in clones with at least 10 seqs.') +
-  #scale_color_manual(values = c('green3','dodgerblue2')) +
   scale_y_continuous(limits = c(-0.05,NA)) +
   facet_grid(.~compartment_cell_type) +
   scale_size_continuous(name = 'Number of clones') +

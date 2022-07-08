@@ -34,9 +34,6 @@ translate_aa_to_biochem_class <- function(seqs){
 }
 
 
-
-# These analyses are based on all productive sequences (as opposed to unique sequences only)
-
 # ====== Some functions ======
 compute_seq_similarity <- function(str1, str2){
   similarity <- mapply(x = str1, y = str2, 
@@ -49,9 +46,9 @@ compute_seq_similarity <- function(str1, str2){
 }
 
 # As a test, we should get all ones if passing a character vector of identical sequences
-all(compute_seq_similarity(c('AAAA','AAAA','AAAA','AAAA'), c('AAAA','AAAA','AAAA','AAAA')) == 1)
+stopifnot(all(compute_seq_similarity(c('AAAA','AAAA','AAAA','AAAA'), c('AAAA','AAAA','AAAA','AAAA')) == 1))
 # And all 0s if passing entirely different sequences
-all(compute_seq_similarity(c('AAAA','BBBB','CCCC','DDDD'), c('XXXX','ZZZZ','YYYY','OOOO')) == 0)
+stopifnot(all(compute_seq_similarity(c('AAAA','BBBB','CCCC','DDDD'), c('XXXX','ZZZZ','YYYY','OOOO')) == 0))
 
 
 # For each pair of individuals, take a sample of CDR3 sequences from mouse i and pair it with a sample of sequences from mouse j
@@ -96,14 +93,12 @@ sample_sequence_pairs <- function(pairwise_gene_freqs, annotated_seqs, sample_si
       seqs_mouse_j$tissue <- 'all tissues'
     }
     
-    
     # Take a sample of sequences from mouse i for each tissue / cell type combination
     sample_mouse_i <- seqs_mouse_i %>%
       group_by(mouse_id, tissue, cell_type) %>%
       slice_sample(n = sample_size) %>%
       arrange(tissue, cell_type, cdr3_length) %>%
       ungroup()
-    
     
     sample_distribution_grouping_vars <- c('mouse_id', 'tissue', 'cell_type', 'cdr3_length')
     if(match_v_allele){
@@ -186,6 +181,7 @@ compute_similarity_matched_samples <- function(matched_samples){
                                          'Lymph node plasma cells', 'Lymph node memory cells')))
 }
 
+# Plots CDR3 sequence and biochemical similarity
 plot_cdr3_similarity <- function(matched_samples_similarity){
   
   long_format_tibble <- matched_samples_similarity %>%
@@ -220,47 +216,14 @@ plot_cdr3_similarity <- function(matched_samples_similarity){
   return(pl)
 }
 
-
-# Get CDR3 sequences for each clone, organize pairs as vectors of sequences, runs vectorized compute_seq_similarity function
-# compare_CDR3s_for_all_clone_pairs <- function(cdr3_seqs, mouse_ids){
-#   stopifnot(length(unique(nchar(cdr3_seqs))) == 1)
-#   
-#   seq_vector <- paste(mouse_ids, cdr3_seqs, sep = ';')
-#   
-#   if(length(seq_vector) > 1){
-#     
-#     paired_seqs <- as_tibble(t(combn(seq_vector, 2))) %>%
-#       separate(V1, into = c('mouse_i', 'seq_i'), sep = ';') %>%
-#       separate(V2, into = c('mouse_j', 'seq_j'), sep = ';') %>%
-#       mutate(pair_type = case_when(
-#         mouse_i == mouse_j ~ 'within mice',
-#         mouse_i != mouse_j ~ 'between mice')
-#       )
-#     
-#     similarity <- compute_seq_similarity(str1 = paired_seqs$seq_i, str2 = paired_seqs$seq_j)
-#     pair_type <- paired_seqs$pair_type
-#   }else{
-#     similarity <- NA
-#     pair_type <- NA
-#   }
-#   
-#   return(tibble(pair_type = pair_type, similarity = similarity))
-#   
-# }
-
-
 # ====== Analyses =======
 
-
 clone_info <- read_csv('../processed_data/clone_info.csv')
-# clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
 
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') %>%
   mutate(seq_id = as.character(seq_id),
          clone_id = as.character(clone_id))
  
-# annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv') %>% mutate(seq_id = as.character(seq_id), clone_id = as.character(clone_id))
-
 annotated_seqs <- annotated_seqs %>%
   filter(productive_partis)
 
@@ -270,11 +233,10 @@ annotated_seqs <- get_info_from_mouse_id(annotated_seqs) %>%
 
 annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene) %>% mutate(clone_id = as.character(clone_id)))
 
+# These analyses are based on all productive sequences (as opposed to unique sequences only)
 load('../results/precomputed_gene_freqs_all_seqs.RData')
-#load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
 
 # Focus on LN B cells and naive B cells from all tissues
-
 CDR3_seqs_naive <- annotated_seqs %>%
   filter(group_controls_pooled != 'control',
          cell_type == 'naive') %>%
@@ -315,8 +277,6 @@ CDR3_seqs <- bind_rows(CDR3_seqs_naive,
 # ======= CDR3 LENGTH ==========
 
 # Plot CDR3 length distributions for each mouse for each cell type in the LN (compared with all-tissue naive)
-
-
 CDR3_length_distribution_pl <- CDR3_seqs %>%
   ggplot(aes(x = group_controls_pooled, y = cdr3_length, group = mouse_id, color = group_controls_pooled)) +
   geom_boxplot() +
@@ -332,12 +292,12 @@ CDR3_length_distribution_pl <- CDR3_seqs %>%
 # ======== CDR3 SIMILARITY =======
 
 # Sample length-matched CDR3 sequences from different mice, compute similarity, compare with length-matched CDR3 sequences from naive cells
-
+sample_size = 500
 length_matched_sample_NAIVE <- sample_sequence_pairs(pairwise_gene_freqs = pairwise_gene_freqs, annotated_seqs = annotated_seqs,
-                                           sample_size = 500, selected_tissues = 'all', selected_cell_types = 'naive', match_v_allele = F)
+                                           sample_size = sample_size, selected_tissues = 'all', selected_cell_types = 'naive', match_v_allele = F)
 
 length_matched_sample_LNEXP <- sample_sequence_pairs(pairwise_gene_freqs = pairwise_gene_freqs, annotated_seqs = annotated_seqs,
-                                                     sample_size = 500, selected_tissues = 'LN', selected_cell_types = c('GC','PC','mem'), match_v_allele = F)
+                                                     sample_size = sample_size, selected_tissues = 'LN', selected_cell_types = c('GC','PC','mem'), match_v_allele = F)
 
 length_matched_CDR3_sample <-  bind_rows(length_matched_sample_NAIVE %>% select(-tissue),
                                     length_matched_sample_LNEXP %>% select(-tissue))  %>%
@@ -354,10 +314,10 @@ length_matched_CDR3_similarity_plot <- plot_cdr3_similarity(length_matched_CDR3_
 # compare with length- and allele-matched CDR3 sequences from naive cells
 
 length_and_allele_matched_sample_NAIVE <- sample_sequence_pairs(pairwise_gene_freqs = pairwise_gene_freqs, annotated_seqs = annotated_seqs,
-                                                     sample_size = 500, selected_tissues = 'all', selected_cell_types = 'naive', match_v_allele = T)
+                                                     sample_size = sample_size, selected_tissues = 'all', selected_cell_types = 'naive', match_v_allele = T)
 
 length_and_allele_matched_sample_LNEXP <- sample_sequence_pairs(pairwise_gene_freqs = pairwise_gene_freqs, annotated_seqs = annotated_seqs,
-                                                     sample_size = 500, selected_tissues = 'LN', selected_cell_types = c('GC','PC','mem'),
+                                                     sample_size = sample_size, selected_tissues = 'LN', selected_cell_types = c('GC','PC','mem'),
                                                      match_v_allele = T)
 length_and_allele_matched_sample <- bind_rows(length_and_allele_matched_sample_NAIVE %>% select(-tissue),
                                               length_and_allele_matched_sample_LNEXP %>% select(-tissue))  %>%
@@ -367,8 +327,7 @@ length_and_allele_matched_sample <- bind_rows(length_and_allele_matched_sample_N
 length_and_allele_matched_CDR3_similarity <-
   compute_similarity_matched_samples(matched_samples = length_and_allele_matched_sample)
   
-  
-  
+
 # Looks like length- and allele-matched CDR3 sequences become much more similar on day 56 LN plasma cells:
 length_and_allele_matched_CDR3_similarity_plot <- plot_cdr3_similarity(length_and_allele_matched_CDR3_similarity)  +
   ylab('Similarity of length- and allele-matched\nCDR3 sequences from different mice')
@@ -438,8 +397,6 @@ combined_freq_of_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
   scale_size_continuous(name = 'Number of sequences') +
   background_grid()
   
-  
-
 allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>% 
   filter(total_compartment_seqs >= min_compartment_size, group_controls_pooled == 'secondary-56',
          tissue == 'LN', cell_type == 'Lymph node plasma cells') %>%
