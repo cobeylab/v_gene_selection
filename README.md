@@ -14,7 +14,9 @@ Because parts of steps 1 and 2 are computationally expensive and assume access t
 [After setting up directory structure...]
 
 1.1. Run `split_full_data.sh` to break the file containing the main BCR sequence dataset ([NAME_OF_FILE]) into a separate csv file for each mouse.
+
 1.2. Run `run_partis.sh` to run [partis](https://github.com/psathyrella/partis) v0.15.0 for all mice from the specified time point (passed as an argument: 8, 16, 24, 40 or 56). This script generates a sbatch file for each mouse and uses it to submit a job to a SLURM-based cluster (precise sbatch configurations need to be modified by the user).
+
 1.3. Run `process_partis_output.sh` to process the yaml files produced by partis by running one SLURM job per mouse. Alternatively, the user can run the associated R script, `process_partis_output.R`, with the paths to the yaml and csv files for a single mouse as arguments (in this order). For each mouse, this processing produces the following files
 
 - `[mouse_id]_annotated_seqs.csv`: sequence-level annotations (one sequence per row).
@@ -23,7 +25,9 @@ Because parts of steps 1 and 2 are computationally expensive and assume access t
 - `[v/d/j]_genes_[mouse_id].fasta`: fasta file with the sequences of germline alleles detected in each mouse.
 
 1.4. Run `combine_files_across_mice.R` to combine those files across mice to produce a single file of each type, while also exporting counts of sequences per mouse/cell type/tissue/clone.
+
 1.5. Run `process_Greiff2017_reads.sh` to process paired-end reads from an independent naive B cell data set from [Greiff et al.(2017)](https://www.sciencedirect.com/science/article/pii/S221112471730565X) using [pRESTO](https://presto.readthedocs.io/en/stable/) v0.6.2.
+
 1.6. Run  `run_partis_seq_data_Greiff2017.sh` to run partis on the processed reads from this second dataset and process the resulting yaml files.
 
 Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
@@ -58,6 +62,7 @@ Different scripts execute different parts of the analysis, exporting plots as `.
  *Mutability of germline alleles*
  
  3.3. `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository.
+ 
  3.4. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
  
 *Analysis of high-frequency mutations*
@@ -70,4 +75,10 @@ Different scripts execute different parts of the analysis, exporting plots as `.
  
  3.4. `Rscript allele_frequency_analysis.R all_seqs FALSE FALSE:` allele frequency analyses presented in the main text.
  [TODO]
+ 
+*CDR 3 analysis*
+
+3.X Run `Rscript CDR3_analysis.R`.
+
+## Simulations
 
