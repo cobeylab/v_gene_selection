@@ -484,11 +484,8 @@ CDR3_lengths_by_allele_day8 <-
               ggtitle('Day 8 memory cells') + xlab(''),
             nrow = 1
             )
-# 
-# save_plot('../figures/all_seqs_freqs/CDR3_lengths_by_allele_day8.pdf',
-#           CDR3_lengths_by_allele_day8,
-#           base_height = 10, base_width = 18)
-
+figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
+dir.create(figure_output_dir, recursive = T, showWarnings = F)
 
 save(CDR3_length_distribution_pl,
      length_matched_CDR3_similarity_plot,
@@ -497,4 +494,4 @@ save(CDR3_length_distribution_pl,
      high_similarity_length_and_allele_matched_seqs_day56_LN_PCs,
      combined_freq_of_day56_LN_PC_convergent_CDRs,
      allele_usage_day56_LN_PC_convergent_CDRs,
-     file = '../figures/all_seqs_freqs/exported_ggplot_objects/CDR3_plots.RData')
+     file = paste0(figure_output_dir, 'CDR3_plots.RData'))

@@ -154,5 +154,9 @@ total_genes_and_genes_in_LN_pops <-
   ylab('Number of V genes (Chao1 estimate)')
 
 # Put these plots in the folder with figures based on analysis of all sequences (main analysis; as opposed to unique seqs only)
+
+figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
+dir.create(figure_output_dir, recursive = T, showWarnings = F)
+
 save(total_genes_and_genes_in_LN_pops, n_shared_genes,
-     file = '../figures/all_seqs_freqs/exported_ggplot_objects/n_genes.RData')
+     file = paste0(figure_output_dir,'n_genes.RData'))

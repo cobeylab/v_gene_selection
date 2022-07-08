@@ -8,6 +8,9 @@ library(stringr)
 source('gene_frequency_functions.R')
 theme_set(theme_cowplot())
 
+figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
+dir.create(figure_output_dir, recursive = T, showWarnings = F)
+
 # ======= Number of sorted cells =======
 # Read data
 n_sorted_cells <- read_csv('../data/n_sorted_cells.csv') %>%
@@ -55,7 +58,7 @@ n_sorted_cells_plot <- n_sorted_cells %>%
 
 # Export 
 save(n_sorted_cells_plot,
-     file = '../figures/all_seqs_freqs/exported_ggplot_objects/n_cells_sorted.RData')
+     file = paste0(figure_output_dir,'n_cells_sorted.RData'))
 
 # ======= ELISA TITERS =======
 
@@ -86,6 +89,6 @@ titers_against_NL09 <- titers %>%
 
 # Export
 save(titers_against_NL09,
-     file = '../figures/all_seqs_freqs/exported_ggplot_objects/titers.RData')
+     file = paste0(figure_output_dir,'titers.RData'))
 
 

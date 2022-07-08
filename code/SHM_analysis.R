@@ -209,6 +209,10 @@ clone_rank_vs_high_freq_muts_LN_GCs_plot <- clone_freqs_by_tissue_and_cell_type 
   ylab('Number of amino acid mutations\nat or above 50% frequency') +
   ggtitle('(Y axis truncated at 20 mutations to improve visualization)')
 
+
+figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
+dir.create(figure_output_dir, recursive = T, showWarnings = F)
+
 # Export plots
 save(fraction_clones_with_high_freq_muts_LN_plot,
      fraction_clones_with_high_freq_muts_all_tissues_plot,
@@ -217,4 +221,4 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
      clone_rank_vs_high_freq_muts_LN_PCs_plot,
      clone_rank_vs_high_freq_muts_LN_GCs_plot,
      shared_mutations_in_LN_clones_pl,
-     file = '../figures/all_seqs_freqs/exported_ggplot_objects/high_frequency_mutations.RData')
+     file = paste0(figure_output_dir, 'high_frequency_mutations.RData'))
