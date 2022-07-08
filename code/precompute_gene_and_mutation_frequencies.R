@@ -233,7 +233,6 @@ save(naive_seq_counts, exp_seq_counts, gene_freqs, naive_freqs, exp_freqs, gene_
      deviation_from_naive,
      pairwise_gene_freqs,
      pairwise_correlations,
-     #neutral_pairwise_correlations,
      pairwise_correlations_randomized_noncontrol_groups,
      pairwise_correlations_randomized_lineage_V_alleles,
      mutation_freqs_within_clones,
