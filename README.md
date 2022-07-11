@@ -30,6 +30,8 @@ Because parts of steps 1 and 2 are computationally expensive and assume access t
 
 1.6. Run  `run_partis_seq_data_Greiff2017.sh` to run partis on the processed reads from this second dataset and process the resulting yaml files.
 
+1.7 Run `estimate_error_rate.sh` to estimate the sequencing/amplification error rate based on mutated bases in the constant region.
+
 Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 
 ## 2. Pre-calculation of germline allele frequencies, lineage sizes, mutation frequencies, and randomization-based null distributions. ##
