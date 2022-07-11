@@ -12,7 +12,7 @@ source('plot_options.R')
 
 min_compartment_size = 100
 
-# Following Hershberg & Schlomchik 2006, Hershberg & Saini 2015, after Chothia et al. 1998 
+# Defining amino acid classes following Hershberg & Schlomchik 2006, Hershberg & Saini 2015, after Chothia et al. 1998 
 amino_acid_classes <- tibble(
   amino_acid = c('F','L','I','M','V','C','W',
                  'Q','R','N','K','D','E',
@@ -25,6 +25,8 @@ amino_acid_classes <- tibble(
                           class == 'hydrophilic' ~ 'L',
                           class == 'neutral' ~'N'))
 
+# ====== Some functions ======
+
 # Converts an amino acid sequence into a string with the biochem class code of each aa (as above)
 # (so we can quickly compute biochemical similarity using the function for calculating sequence similarity)
 translate_aa_to_biochem_class <- function(seqs){
@@ -32,9 +34,11 @@ translate_aa_to_biochem_class <- function(seqs){
          new = paste(amino_acid_classes$code, collapse = ''),
          seqs)
 }
+# Quick test
+stopifnot(translate_aa_to_biochem_class('FLQRSP') == 'HHLLNN')
 
 
-# ====== Some functions ======
+# Computes similarity of two sequences
 compute_seq_similarity <- function(str1, str2){
   similarity <- mapply(x = str1, y = str2, 
                        FUN = function(x,y){
@@ -49,6 +53,7 @@ compute_seq_similarity <- function(str1, str2){
 stopifnot(all(compute_seq_similarity(c('AAAA','AAAA','AAAA','AAAA'), c('AAAA','AAAA','AAAA','AAAA')) == 1))
 # And all 0s if passing entirely different sequences
 stopifnot(all(compute_seq_similarity(c('AAAA','BBBB','CCCC','DDDD'), c('XXXX','ZZZZ','YYYY','OOOO')) == 0))
+stopifnot(compute_seq_similarity(c('AACC'),c('AADD')) == 0.5) #0.5 for 50% identical sequences
 
 
 # For each pair of individuals, take a sample of CDR3 sequences from mouse i and pair it with a sample of sequences from mouse j
@@ -422,68 +427,8 @@ allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
   ylab('Fraction of sequences')  +
   scale_x_continuous(breaks = 1:10)
 
+# Export plots 
 
-
-  
-# Some other stuff
-
-# CDR3 length distributions by allele
-CDR3_length_distributions_by_allele_NAIVE <- CDR3_seqs_naive %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, v_gene, cell_type, total_compartment_seqs) %>%
-  summarise(naive_median_cdr3_length = median(cdr3_length),
-            naive_cdr3_lowerq = quantile(cdr3_length, 0.25),
-            naive_cdr3_upperq = quantile(cdr3_length, 0.75),
-            n_naive_seqs = n()) %>%
-  ungroup() %>%
-  dplyr::rename(total_mouse_naive_seq = total_compartment_seqs) %>%
-  select(-cell_type)
-
-CDR3_length_distributions_by_allele_LN_EXPERIENCED <- CDR3_seqs_LN_experienced %>%
-  group_by(mouse_id, day, infection_status, group_controls_pooled, v_gene, cell_type, total_compartment_seqs) %>%
-  summarise(median_cdr3_length = median(cdr3_length),
-            cdr3_lowerq = quantile(cdr3_length, 0.25),
-            cdr3_upperq = quantile(cdr3_length, 0.75),
-            n_seqs = n()) %>%
-  ungroup()
-
-CDR3_length_distributions_by_allele <- left_join(CDR3_length_distributions_by_allele_LN_EXPERIENCED,
-                                                 CDR3_length_distributions_by_allele_NAIVE) %>%
-  mutate(v_gene = factor(v_gene, levels = sort(as.character(unique(v_gene)))))
-
-plot_CDR3_lengths_by_allele <- function(CDR3_length_distributions_by_allele, cell_type,
-                                        group_controls_pooled){
-  
-  CDR3_length_distributions_by_allele %>%
-    filter(total_compartment_seqs >= min_compartment_size,
-           total_mouse_naive_seq >= min_compartment_size) %>%
-    filter(group_controls_pooled == !!group_controls_pooled, cell_type == !!cell_type) %>%
-    filter((cdr3_lowerq > naive_cdr3_upperq) | (cdr3_upperq < naive_cdr3_lowerq)) %>%
-    ggplot(aes(x = v_gene)) +
-    geom_linerange(aes(ymin = cdr3_lowerq, ymax = cdr3_upperq)) +
-    geom_linerange(aes(ymin = naive_cdr3_lowerq, ymax = naive_cdr3_upperq),
-                   color = 'blue') +
-    geom_point(aes(y = median_cdr3_length)) +
-    geom_point(aes(y = naive_median_cdr3_length), color = 'blue') +
-    #geom_label(aes(y = 18, label = v_gene, angle = 90), size = 2) +
-    facet_wrap('mouse_id', ncol = 1) +
-    background_grid() +
-    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 10),
-          plot.title = element_text(hjust = 0.5, size = 14)) +
-    xlab('V alleles with distinct CDR3 length\ndistributions relative to the naive repertoire') +
-    ylab('CDR3 length') +
-    ylim(5, 20)
-  
-}
-
-CDR3_lengths_by_allele_day8 <- 
-  plot_grid(plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'PC','primary-8') + xlab('') +
-              ggtitle('Day 8 plasma cells'),
-            plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'GC','primary-8') + ylab('') +
-              ggtitle('Day 8 GC cells'),
-            plot_CDR3_lengths_by_allele(CDR3_length_distributions_by_allele, 'mem','primary-8') + ylab('') +
-              ggtitle('Day 8 memory cells') + xlab(''),
-            nrow = 1
-            )
 figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
 dir.create(figure_output_dir, recursive = T, showWarnings = F)
 

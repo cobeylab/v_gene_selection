@@ -11,6 +11,7 @@ frequency_type <- 'all_seqs'
 
 # When looking at clone's tissue or cell type composition, consider only clones with at least this many seqs.
 min_clone_size = 10
+min_compartment_size = 100 # When looking at fraction seqs in top 10 clones, disregard compartments with fewer seqs than this.
 
 results_directory <- '../results/'
 
@@ -99,7 +100,7 @@ fraction_clones_dominated_by_single_cell_type_plot <- clone_info %>%
 
 # For each cell type in the lymph node, fraction of sequences in the largest 10 clones
 fraction_in_top_10_clones_plot <- clone_freqs_by_tissue_and_cell_type %>% 
-  filter(compartment_tissue == 'LN') %>%
+  filter(compartment_tissue == 'LN', total_seqs_in_compartment >= min_compartment_size) %>%
   # Select top 10 clones
   filter(clone_rank_in_compartment <= 10) %>% 
   filter(compartment_cell_type %in% c('GC','PC','mem')) %>%
