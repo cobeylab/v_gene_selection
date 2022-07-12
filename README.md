@@ -103,3 +103,10 @@ Run `simulation_scenarios.R` to create input files for the different scenarios. 
 
 where `individual_id` is an integer specifying a single individual represented in `allele_info.csv` and GC number is an arbitrary integer id for the germinal center being simulated.
 
+4.3 *Combine simulated GCs*
+`combine_simulated_GCs.sh [scenario directory]` combines output files in the `raw_simulation_files` subdirectory for a given scenario.  
+
+## 5. Analyzing simulations
+
+
+
