@@ -30,7 +30,7 @@ Because parts of steps 1 and 2 are computationally expensive and assume access t
 
 1.6. Run  `run_partis_seq_data_Greiff2017.sh` to run partis on the processed reads from this second dataset and process the resulting yaml files.
 
-1.7 Run `estimate_error_rate.sh` to estimate the sequencing/amplification error rate based on mutated bases in the constant region.
+1.7 Run `estimate_error_rate.sh` to estimate the sequencing/amplification error rate based on mutated bases in the constant region, using a SLURM-based cluster (with user-specific configurations) to run `estimate_error_rate.py` for multiple mouse-specific `.csv` files.
 
 Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 
@@ -79,15 +79,15 @@ Run `CDR3_analysis.R`.
 
 3.7 *Make figures*
 
-Run `make_MS_figures.R` with one of the following paths as an argument:
+From the `code` directory, run `make_MS_figures.R` with one of the following paths as an argument:
 
-`figures/all_seqs_freqs`: main analysis presented in the main text.
+`../figures/all_seqs_freqs`: main analysis presented in the main text.
 
-`figures/unique_seqs_freqs`: sensitivity analysis for using unique sequences only.
+`../figures/unique_seqs_freqs`: sensitivity analysis for using unique sequences only.
 
-`figures/all_seqs_freqs_Greiff2017_naive_freqs`: analysis based on alternative naive sequence data.
+`../figures/all_seqs_freqs_Greiff2017_naive_freqs`: analysis based on alternative naive sequence data.
 
-`figures/all_seqs_freqs_collapsed_novel_alleles`: sensitivity analysis for collapsing novel alleles.
+`../figures/all_seqs_freqs_collapsed_novel_alleles`: sensitivity analysis for collapsing novel alleles.
  
 ## 4. Running simulations
 
@@ -109,7 +109,10 @@ where `individual_id` is an integer specifying a single individual represented i
 ## 5. Analyzing simulations
 
 5.1 *Summarize simulation results* 
-Run `Rscript summarize_simulations [scenario directory]`.
+
+Run `Rscript summarize_simulations [scenario directory]` to produce an `.RData` object with summary statistics for the chosen scenario.
 
 5.2 *Plot simulation results*
+
+Run `plot_simulations.R` to make figures for all scenarios combined (exported to `figures/simulations/`).
 
