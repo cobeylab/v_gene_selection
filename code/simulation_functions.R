@@ -475,13 +475,16 @@ quick_plotting_function <- function(GC_tibble, allele_info){
     theme(legend.position = 'top')
 }
 
+
+test_allele_info <- assign_allele_properties(allele_info = test_allele_info, s = 0, sigma_r = 1, gamma = 1)
+
 # Some visual tests:
 # If mu_max is < delta, clones should consistently die out
 # (this will stop simulations before tmax)
-  # quick_plotting_function(
-  #  simulate_GC_dynamics(K = 500, I_total = 100, t_imm = 10, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
-  #                       allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5))),
-  #  allele_info = test_allele_info)
+   # quick_plotting_function(
+   #   GC_tibble = simulate_GC_dynamics(K = 500, I_total = 100, t_imm = 10, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
+   #                        allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5))),
+   #   allele_info = test_allele_info)
 
 # Otherwise the total GC population size should remain around K
  # simulate_GC_dynamics(K = 300, I_total = 100, t_imm = 6, mu_max = 2, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
