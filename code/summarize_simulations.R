@@ -2,7 +2,7 @@ library(dplyr)
 library(tidyr)
 library(readr)
 library(stringr)
-source('simulations_gillespie.R')
+source('simulation_functions.R')
 
 # Directory containing simulation results and allele_info.csv file with allele properties
 args <- commandArgs(trailingOnly = T) 

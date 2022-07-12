@@ -7,6 +7,8 @@ V gene usage in mice infected with flu.
 4. Running simulations
 5. Analyzing simulation results
 
+[WILL JUST SAY WE PROVIDE ALL INTERMEDIATE FILES]
+
 Because parts of steps 1 and 2 are computationally expensive and assume access to a computing cluster, we provide the output of those steps data in this Dryad repository so users can choose to skip them and start from subsequent steps. Similarly, we provide the output of simulations so users can replicate step 5 without having to run the computationally intensive step 4 (MUST ALSO PROVIDE GERMLINE ALLELE IGBLAST TSV WITH FR/CDR3 partitions).
 
 ## 1. Pre-processing and annotation of sequence data ##
@@ -30,7 +32,7 @@ Because parts of steps 1 and 2 are computationally expensive and assume access t
 
 1.6. Run  `run_partis_seq_data_Greiff2017.sh` to run partis on the processed reads from this second dataset and process the resulting yaml files.
 
-1.7 Run `estimate_error_rate.sh` to estimate the sequencing/amplification error rate based on mutated bases in the constant region.
+1.7 Run `estimate_error_rate.sh` to estimate the sequencing/amplification error rate based on mutated bases in the constant region, using a SLURM-based cluster (with user-specific configurations) to run `estimate_error_rate.py` for multiple mouse-specific `.csv` files.
 
 Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 
@@ -79,15 +81,40 @@ Run `CDR3_analysis.R`.
 
 3.7 *Make figures*
 
-Run `make_MS_figures.R` with one of the following paths as an argument:
+From the `code` directory, run `make_MS_figures.R` with one of the following paths as an argument:
 
-`figures/all_seqs_freqs`: main analysis presented in the main text.
+`../figures/all_seqs_freqs`: main analysis presented in the main text.
 
-`figures/unique_seqs_freqs`: sensitivity analysis for using unique sequences only.
+`../figures/unique_seqs_freqs`: sensitivity analysis for using unique sequences only.
 
-`figures/all_seqs_freqs_Greiff2017_naive_freqs`: analysis based on alternative naive sequence data.
+`../figures/all_seqs_freqs_Greiff2017_naive_freqs`: analysis based on alternative naive sequence data.
 
-`figures/all_seqs_freqs_collapsed_novel_alleles`: sensitivity analysis for collapsing novel alleles.
+`../figures/all_seqs_freqs_collapsed_novel_alleles`: sensitivity analysis for collapsing novel alleles.
  
-## Simulations
+## 4. Running simulations
+
+4.1 *Create input files specifying different scenarios*
+
+Run `simulation_scenarios.R` to create input files for the different scenarios. Input files and results are stored in the directory corresponding to each scenario in `results/simulations/`. For each scenario, there are two types of input files: First, `allele_info.csv` specificies alleles' affinity distributions, mutabilities and naive frequencies. Second `model_parameters.csv` specificies model parameters (different parameter combinations are kept in different directories within `raw_simulation_files/`).
+
+4.2 *Run simulations*
+
+`run_simulations.sh [scenario_directory] [n. individuals] [n. GCs]` runs simulations for multiple germinal centers, individuals and parameter combinations, assuming a (user-specific) SLURM cluster configuration. A single germinal center in a single individual is simulated for a single parameter combination by running `run_simulations.R` with positional arguments:
+
+`Rscript run_simulations.R [path to allele_info.csv] [path to model_paramters.csv] [individual id] [GC_number]`
+
+where `individual_id` is an integer specifying a single individual represented in `allele_info.csv` and GC number is an arbitrary integer id for the germinal center being simulated.
+
+4.3 *Combine simulated GCs*
+`combine_simulated_GCs.sh [scenario directory]` combines output files in the `raw_simulation_files` subdirectory for a given scenario.
+
+## 5. Analyzing simulations
+
+5.1 *Summarize simulation results* 
+
+Run `Rscript summarize_simulations [scenario directory]` to produce an `.RData` object with summary statistics for the chosen scenario.
+
+5.2 *Plot simulation results*
+
+Run `plot_simulations.R` to make figures for all scenarios combined (exported to `figures/simulations/`).
 

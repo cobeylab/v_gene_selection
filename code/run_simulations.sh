@@ -39,7 +39,7 @@ do
     
         # SLURM_ARRAY_TASK_ID will be an integer specifying a GC
     
-        echo Rscript simulation_run.R $path_to_allele_info $param_dir $ind '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
+        echo Rscript run_simulations.R $path_to_allele_info $param_dir $ind '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
     
         # ----------------------------- Run job array ----------------------------------------
     
