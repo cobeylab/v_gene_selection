@@ -89,5 +89,17 @@ Run `make_MS_figures.R` with one of the following paths as an argument:
 
 `figures/all_seqs_freqs_collapsed_novel_alleles`: sensitivity analysis for collapsing novel alleles.
  
-## Simulations
+## 4. Running simulations
+
+4.1 *Create input files specifying different scenarios*
+
+Run `simulation_scenarios.R` to create input files for the different scenarios. Input files and results are stored in the directory corresponding to each scenario in `results/simulations/`. For each scenario, there are two types of input files: First, `allele_info.csv` specificies alleles' affinity distributions, mutabilities and naive frequencies. Second `model_parameters.csv` specificies model parameters (different parameter combinations are kept in different directories within `raw_simulation_files/`).
+
+4.2 *Run simulations*
+
+`run_simulations.sh [scenario_directory] [n. individuals] [n. GCs]` runs simulations for multiple germinal centers, individuals and parameter combinations, assuming a (user-specific) SLURM cluster configuration. A single germinal center in a single individual is simulated for a single parameter combination by running `run_simulations.R` with positional arguments:
+
+`Rscript run_simulations.R [path to allele_info.csv] [path to model_paramters.csv] [individual id] [GC_number]`
+
+where `individual_id` is an integer specifying a single individual represented in `allele_info.csv` and GC number is an arbitrary integer id for the germinal center being simulated.
 
