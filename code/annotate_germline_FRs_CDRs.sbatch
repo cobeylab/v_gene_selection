@@ -10,8 +10,6 @@
 
 
 # Create fasta file with germline seqs (from csv) to pass to IgBlast 
-
-
 tail -n+2 ../results/germline_genes.csv | sed 's/^/>/' | tr ',' '\n' > ../results/germline_genes.fasta
 
 

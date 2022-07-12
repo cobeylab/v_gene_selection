@@ -483,6 +483,8 @@ get_unique_pairs <- function(gene_freqs, within_groups_only){
   }
   
   unique_pairs <- unique_pairs %>%
+    select(pair) %>%
+    unique() %>%
     pull(pair)
   
   return(unique_pairs)
@@ -1027,6 +1029,110 @@ list_clone_mutations_above_threshold <- function(mutation_freqs_within_clones, t
            mutations_above_threshold, n_seqs_in_denominator)
     
   return(mutations_above_threshold)
+}
+
+# Simple function to count mutations from character vector output by list_clone_mutations_above_threshold
+# (adds this count as a column to the input tibble)
+count_mutations_above_threshold <- function(tibble_with_mutations_list_vector){
+  stopifnot('mutations_above_threshold' %in% names(tibble_with_mutations_list_vector))
+  tibble_with_mutations_list_vector %>% 
+    # If mutations_above_threshold is not '', there's at least one mutation. Plus 1 for each ';' in mutations_above_threshold
+    mutate(n_mutations_above_threshold = (mutations_above_threshold != '') + str_count(mutations_above_threshold,';'))
+}
+
+# From a tibble of clone frequencies annotated with n. mutations above threshold, count what fraction of clones has at least target_n_mutations above threshold
+get_fraction_of_clones_with_mutations_above_threshold <- function(clone_freqs, target_n_mutations, min_clone_size){
+  # If input tibble is by compartment, use total number of clones in the compartment (with at least min_clone_size) as denominator
+  compartment_vars <- c('compartment_tissue','compartment_cell_type')
+  
+  grouping_vars <- c('mouse_id', 'day', 'infection_status', 'group','group_controls_pooled',
+                     compartment_vars[compartment_vars %in% names(clone_freqs)])
+
+  return(
+    clone_freqs %>%
+      filter(n_clone_seqs_in_compartment >= min_clone_size) %>%
+      group_by(across(grouping_vars)) %>%
+      summarise(n_clones_denominator = n(),
+                n_clones_meeting_target_mutations = sum(n_mutations_above_threshold >= target_n_mutations)) %>%
+      ungroup() %>%
+      mutate(fraction_clones_with_at_least_n_mutations = n_clones_meeting_target_mutations / n_clones_denominator)
+  )
+}
+
+# From a tibble of clone freqs. annotated with a character vector listing mutations above threshold, count mutations shared by clone pairs
+# (pairs of clones in the same compartment and with the same v allele, but from either the same mouse or different mice from the same group)
+count_mutations_shared_by_clone_pairs <- function(clone_freqs){
+  
+  compartment_vars <- c('compartment_tissue','compartment_cell_type')
+  
+  # NOT grouping by mouse id, so we compare clones with same V allele in different mice. (but from the same cell type/tissue)
+  grouping_vars <- c('day', 'infection_status', 'group_controls_pooled', 'v_gene',
+                     compartment_vars[compartment_vars %in% names(clone_freqs)])
+  
+  
+  # Internal vectorized function. Compares every element of mutations list column against the others
+  comparison_function <- function(mutations_list){
+    if(length(mutations_list) > 1){
+      paired_lists <- t(combn(mutations_list, 2))
+      colnames(paired_lists) <- c('mutations_list_clone_i', 'mutations_list_clone_j')
+      paired_lists <- as_tibble(paired_lists)
+      
+      
+      compare_mutation_lists <- function(mutations_list_i, mutations_list_j){
+        split_list_i <- str_split(mutations_list_i,';')
+        split_list_j <- str_split(mutations_list_j,';')
+        
+        output <- mapply(list_i = split_list_i, list_j = split_list_j,
+                         FUN = function(list_i, list_j){
+                           shared_mutations = list_i[list_i %in% list_j]
+                           
+                           return(length(shared_mutations[!is.na(shared_mutations) & shared_mutations != '']))
+                         }
+        )
+        return(output)
+      }
+      
+      shared_mutations = paired_lists %>% mutate(shared_mutations = compare_mutation_lists(mutations_list_i = mutations_list_clone_i,
+                                                                                           mutations_list_j = mutations_list_clone_j)) 
+    }else{
+      shared_mutations <- tibble(mutations_list_clone_i = c(), mutations_list_clone_j = c(), shared_mutations = c())
+    }  
+    return(shared_mutations)
+  }
+  # Quick tests for internal function
+  stopifnot(comparison_function(c('A123B;C456D','A123B;C456E'))%>% pull(shared_mutations) == 1)
+  stopifnot(comparison_function(c('A123B;C456D','A123B;C456D'))%>% pull(shared_mutations) == 2)
+  stopifnot(comparison_function(c('A123B;C456D',''))%>% pull(shared_mutations) == 0)
+  stopifnot(comparison_function(c('',''))%>% pull(shared_mutations) == 0)
+  stopifnot(comparison_function(c(NA,NA))%>% pull(shared_mutations) == 0)
+  
+  # Apply internal function after grouping 
+  return(
+    clone_freqs %>%
+      group_by(across(grouping_vars)) %>%
+      dplyr::summarise(comparison_function(mutations_list = mutations_above_threshold)) %>%
+      ungroup()
+  )
+}
+
+# Using the output of count_mutations_shared_by_clone_pairs, calculates the fraction of clones (same V allele, compartment, group; same or different mice)
+get_fraction_clones_with_shared_mutations <- function(shared_mutations){
+  
+  compartment_vars <- c('compartment_tissue','compartment_cell_type')
+  
+  # NOT grouping by mouse id, so we compare clones with same V allele in different mice. (but from the same cell type/tissue)
+  grouping_vars <- c('day', 'infection_status', 'group_controls_pooled',
+                     compartment_vars[compartment_vars %in% names(shared_mutations)])
+  
+  shared_mutations %>%
+    mutate(any_mutations_shared = shared_mutations > 0) %>%
+    group_by(across(c(grouping_vars,'any_mutations_shared'))) %>%
+    count() %>%
+    ungroup() %>%
+    group_by(across(grouping_vars)) %>%
+    mutate(total_n_clone_pairs = sum(n),
+           probability = n/total_n_clone_pairs) %>%
+    filter(any_mutations_shared == T)
 }
 
 # Clustering based on correlation coefficient of V gene frequencies as an inverse measure of distance.

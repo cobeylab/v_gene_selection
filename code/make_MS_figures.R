@@ -8,12 +8,9 @@ theme_set(theme_cowplot())
 source('plot_options.R')
 
 args <- commandArgs(trailingOnly = T)
+figures_dir <- args[1]
 
-
-exported_objecs_dir <- args[1] # exported_objecs_dir <- '../figures/all_seqs_freqs/exported_ggplot_objects/'
-
-final_figures_dir <- paste0(dirname(exported_objecs_dir),'/')
-
+exported_objecs_dir <- paste0(figures_dir, '/exported_ggplot_objects/')
 
 ggplot_object_files <- list.files(exported_objecs_dir, pattern = 'RData',
                                   full.names = T)
@@ -44,7 +41,7 @@ if('total_genes_and_genes_in_LN_pops' %in% ls()){
                           labels = c('C'), label_size = 16)
   
   gene_sets_and_naive_freqs <- plot_grid(top_2_rows, bottom_row, nrow = 2, rel_heights = c(1.7,1)) 
-  save_plot(paste0(final_figures_dir, 'gene_sets_and_naive_freqs.pdf'),
+  save_plot(paste0(figures_dir, 'gene_sets_and_naive_freqs.pdf'),
             gene_sets_and_naive_freqs, 
             base_height = 13, base_width = 15)
   
@@ -98,7 +95,7 @@ freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
                                              label_size = 16)
 
 
-save_plot(paste0(final_figures_dir, 'freq_and_deviation_correlations.pdf'),
+save_plot(paste0(figures_dir, 'freq_and_deviation_correlations.pdf'),
           freq_and_deviation_correlations, 
           base_height = 13, base_width = 19)
 
@@ -149,7 +146,7 @@ if('titers_against_NL09' %in% ls()){
   
   evidence_of_clonal_evolution <- plot_grid(left_panel, right_panels, nrow =1, rel_widths = c(1.2,2))
   
-  save_plot(paste0(final_figures_dir, 'evidence_of_clonal_evolution.pdf'),
+  save_plot(paste0(figures_dir, 'evidence_of_clonal_evolution.pdf'),
             evidence_of_clonal_evolution,
             base_height = 12, base_width = 16)
   
@@ -173,13 +170,13 @@ if('titers_against_NL09' %in% ls()){
                                                                    nrow = 2, align = 'v', rel_heights = c(1,1.1)),
                                                          nrow = 2, rel_heights = c(0.1,2))
   
-  save_plot(paste0(final_figures_dir, 'evidence_of_clonal_evolution_all_tissues.pdf'),
+  save_plot(paste0(figures_dir, 'evidence_of_clonal_evolution_all_tissues.pdf'),
             evidence_of_clonal_evolution_all_tissues,
             base_height = 14, base_width = 13)           
   
   
   # Supplementary fig with numbers of sorted cells
-  save_plot(paste0(final_figures_dir,'n_sorted_cells.pdf'),
+  save_plot(paste0(figures_dir,'n_sorted_cells.pdf'),
             n_sorted_cells_plot,
             base_width = 12, base_height = 8 )
   
@@ -190,7 +187,7 @@ if('titers_against_NL09' %in% ls()){
 
 
 # Correlation between germline mutability and freq-deviations from naive repertoire
-save_plot(paste0(final_figures_dir,'germline_mutability_fig.pdf'),
+save_plot(paste0(figures_dir,'germline_mutability_fig.pdf'),
           plot_grid(germline_mutability_by_region_pl +
                       theme(axis.text.x = element_text(angle = -45)) +
                       ylab('\nNumber of alleles'),
@@ -212,7 +209,7 @@ if('clone_rank_vs_high_freq_muts_LN_GCs_plot' %in% ls()){
                                               theme(title = element_text(size = 10)) ,
                                             nrow=2)
   
-  save_plot(paste0(final_figures_dir,'clone_rank_vs_high_freq_muts.pdf'),
+  save_plot(paste0(figures_dir,'clone_rank_vs_high_freq_muts.pdf'),
             clone_rank_vs_high_freq_muts,
             base_width = 10, base_height = 12)
   
@@ -221,7 +218,7 @@ if('clone_rank_vs_high_freq_muts_LN_GCs_plot' %in% ls()){
 
 # Shared mutations:
 if('shared_mutations_in_LN_clones_pl' %in% ls()){
-  save_plot(paste0(final_figures_dir,'shared_mutations_in_LN_clones.pdf'),
+  save_plot(paste0(figures_dir,'shared_mutations_in_LN_clones.pdf'),
             shared_mutations_in_LN_clones_pl + background_grid() +
               ylab('Probability that two lineages (10+ seqs.) sharing the same\nV allele have high-frequency mutations in common'),
             base_width = 15, base_height = 7)
@@ -241,7 +238,7 @@ if('fraction_clones_dominated_by_single_tissue_plot' %in% ls()){
                                               theme(legend.position = 'none')),
                                   nrow = 2, rel_heights = c(0.1,1))
   
-  save_plot(paste0(final_figures_dir,'clonal_compostion.pdf'),
+  save_plot(paste0(figures_dir,'clonal_compostion.pdf'),
             clonal_composition,
             base_width = 16, base_height = 7)
 }
@@ -260,7 +257,7 @@ if('length_matched_CDR3_similarity_plot' %in% ls()){
                                  theme(plot.title = element_text(hjust = 0.5, size = 14)) + background_grid(),
                                nrow = 2
   )
-  save_plot(paste0(final_figures_dir,'cdr3_similarity.pdf'),
+  save_plot(paste0(figures_dir,'cdr3_similarity.pdf'),
             cdr3_similarity,
             base_width = 15, base_height = 13)
   
@@ -274,7 +271,7 @@ if('length_matched_CDR3_similarity_plot' %in% ls()){
                                     nrow = 1, rel_widths = c(5,10),
                                     labels = c("A",""))
   
-  save_plot(paste0(final_figures_dir,'convergent_cdr3_seqs.pdf'),
+  save_plot(paste0(figures_dir,'convergent_cdr3_seqs.pdf'),
             convergent_cdr3_seqs,
             base_width = 16, base_height = 11)
   
@@ -285,7 +282,7 @@ if('length_matched_CDR3_similarity_plot' %in% ls()){
 
 # Null model with fixed lineage abundances but randomized lineage V alleles
 save_plot(
-  paste0(final_figures_dir,'pw_cors_randomized_lineage_V_alleles.pdf'),
+  paste0(figures_dir,'pw_cors_randomized_lineage_V_alleles.pdf'),
   plot_grid(top_row_legend,
             pw_freq_cors_randomized_lineage_V_alleles,
             pw_freq_deviations_randomized_lineage_V_alleles,
@@ -296,7 +293,7 @@ save_plot(
 
 # Plot with focal alleles (those consistently overrepresented early in the plasma cell response)
 save_plot(
-  paste0(final_figures_dir,'focal_alleles_plot.pdf'),
+  paste0(figures_dir,'focal_alleles_plot.pdf'),
   focal_alleles_plot$LN$freq_ratios,
   base_width = 16,
   base_height = 10
@@ -360,21 +357,21 @@ make_arrow_plots_panel <- function(plot_list){
 
 
 save_plot(
-  paste0(final_figures_dir,'top_genes_LN_GC.pdf'),
+  paste0(figures_dir,'top_genes_LN_GC.pdf'),
   make_arrow_plots_panel(top_genes_LN_GC),
   base_width = 20,
   base_height = 12
 )
 
 save_plot(
-  paste0(final_figures_dir,'top_genes_LN_PC.pdf'),
+  paste0(figures_dir,'top_genes_LN_PC.pdf'),
   make_arrow_plots_panel(top_genes_LN_PC),
   base_width = 20,
   base_height = 12
 )
 
 save_plot(
-  paste0(final_figures_dir,'top_genes_LN_mem.pdf'),
+  paste0(figures_dir,'top_genes_LN_mem.pdf'),
   make_arrow_plots_panel(top_genes_LN_mem),
   base_width = 20,
   base_height = 12
@@ -407,7 +404,7 @@ save_plot(
 
 #heatmaps_figure <- plot_grid(top_row, bottom_row, nrow = 2, label_x = c(0.5,0.5))
 
-#save_plot(paste0(final_figures_dir, 'heatmaps_figure.pdf'),
+#save_plot(paste0(figures_dir, 'heatmaps_figure.pdf'),
 #          heatmaps_figure, 
 #          base_height = 16, base_width = 20)
 

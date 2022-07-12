@@ -1,10 +1,11 @@
 #!/bin/bash
 
-
 # List of all mouse csv files, identified by mouse id
 ids=$(ls ../processed_data/mouse_specific_data_files/*-*.csv | grep -o "[0-9]*\-[0-9]*" | tr '\n' ',' )
 ids=${ids::-1}
 
+# Create output directory
+mkdir -p ../results/error_rate/
 
 # Iterate across all mice
 for mouse_id in $(echo $ids | sed "s/,/ /g")
