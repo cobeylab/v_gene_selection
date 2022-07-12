@@ -7,6 +7,8 @@ V gene usage in mice infected with flu.
 4. Running simulations
 5. Analyzing simulation results
 
+[WILL JUST SAY WE PROVIDE ALL INTERMEDIATE FILES]
+
 Because parts of steps 1 and 2 are computationally expensive and assume access to a computing cluster, we provide the output of those steps data in this Dryad repository so users can choose to skip them and start from subsequent steps. Similarly, we provide the output of simulations so users can replicate step 5 without having to run the computationally intensive step 4 (MUST ALSO PROVIDE GERMLINE ALLELE IGBLAST TSV WITH FR/CDR3 partitions).
 
 ## 1. Pre-processing and annotation of sequence data ##
@@ -104,7 +106,7 @@ Run `simulation_scenarios.R` to create input files for the different scenarios. 
 where `individual_id` is an integer specifying a single individual represented in `allele_info.csv` and GC number is an arbitrary integer id for the germinal center being simulated.
 
 4.3 *Combine simulated GCs*
-`combine_simulated_GCs.sh [scenario directory]` combines output files in the `raw_simulation_files` subdirectory for a given scenario. We provide the resulting `combined_simulations.csv` and  
+`combine_simulated_GCs.sh [scenario directory]` combines output files in the `raw_simulation_files` subdirectory for a given scenario.
 
 ## 5. Analyzing simulations
 
