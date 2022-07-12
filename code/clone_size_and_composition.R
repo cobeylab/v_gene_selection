@@ -72,7 +72,7 @@ fraction_clones_dominated_by_single_tissue_plot <- clone_info %>%
   ylim(0,1.05) + 
   ylab('Fraction of clones with 90%\nor more sequences in a single tissue') + 
   background_grid() +
-  scale_color_discrete(name = 'Infection') +
+  groups_color_scale(name = 'Infection') +
   scale_size_continuous(name = paste0('Number of clones\n(', min_clone_size, '+ seqs.)')) +
   theme(legend.position = 'top')
 
@@ -94,7 +94,7 @@ fraction_clones_dominated_by_single_cell_type_plot <- clone_info %>%
   ylim(0,1.05) + 
   ylab('Fraction of clones with 90%\nor more sequences from a single cell type') + 
   background_grid() +
-  scale_color_discrete(name = 'Infection') +
+  groups_color_scale(name = 'Infection') +
   scale_size_continuous(name = paste0('Number of clones\n(', min_clone_size, '+ seqs.)')) +
   theme(legend.position = 'top')
 
@@ -112,21 +112,19 @@ fraction_in_top_10_clones_plot <- clone_freqs_by_tissue_and_cell_type %>%
   # Divide by total number of sequences in each compartment
   mutate(fraction_seqs_in_top_clones = seqs_in_top_clones / total_seqs_in_compartment) %>%
   ungroup() %>%
-  mutate(day = ifelse(group_controls_pooled == 'control', 0, as.integer(as.character(day)))) %>%
+  set_controls_as_day_0() %>%
   cell_type_facet_labeller() %>%
   ggplot(aes(x = day, y = fraction_seqs_in_top_clones, color = infection_status, group = day)) +
   geom_boxplot(outlier.alpha =  F, show.legend = F) +
   geom_point(aes(size = total_seqs_in_compartment), alpha = 0.8) +
   facet_grid(.~compartment_cell_type) +
   background_grid() +
-  #scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
-  #ggtitle() +
-  theme(legend.position = 'top',
-        legend.key.size = unit(50,'pt')) +
+  guides(color = 'none') +
+  groups_color_scale(name = 'Infection') +
+  theme(legend.position = 'top') +
   xlab("Days after primary infection") +
   ylab("Fraction of sequences in the 10 largest clones") +
-  scale_x_continuous(breaks = c(0,8,16,24,40,56),
-                     labels = c('control','8','16','24','40','56')) +
+  label_controls_as_day_0 +
   scale_size_continuous(breaks = c(100,1000,10000,50000), name = ' Number of sequences')
 
 save(fraction_in_top_10_clones_plot,

@@ -113,7 +113,7 @@ n_shared_genes <- pairwise_gene_freqs %>%
   geom_point(position = position_jitter(width = 0.1), alpha = 0.5) +
   xlab('Type of pair') +
   ylab('Number of genes shared by mouse pair') +
-  #ylim(40,90) +
+  pair_types_color_scale(name = '') +
   background_grid() +
   theme(legend.position = 'none')
 
@@ -147,7 +147,8 @@ total_genes_and_genes_in_LN_pops <-
   facet_grid(.~cell_type) +
   theme(legend.position = 'top',
         axis.text.x = axis_text_x) +
-  scale_color_discrete(name = 'Infection') +
+  groups_color_scale(name = 'Infection') +
+  guides(color = 'none') +
   scale_size(name = 'Number of sequences') +
   background_grid() +
   xlab('Group') +

@@ -50,6 +50,7 @@ fraction_clones_with_high_freq_muts_LN_plot <- fraction_clones_with_1plus_high_f
   scale_size_continuous(name = 'Number of clones') +
   scale_y_continuous(limits = c(0,NA)) +
   facet_grid(.~compartment_cell_type)  +
+  groups_color_scale(name = '')
   guides(color = 'none') +
   label_controls_as_day_0
 
@@ -82,7 +83,7 @@ fraction_clones_with_high_freq_muts_all_tissues_plot <- fraction_clones_with_1pl
                                    vjust = 0.5)) +
   xlab('Group') +
   ylab('Fraction of clones with at least 10 sequences\nthat have mutations at or above 50% frequency') +
-  scale_color_discrete(name = 'Infection') +
+  groups_color_scale(name = 'Infection') +
   scale_size_continuous(name = 'Number of clones') +
   scale_y_continuous(limits = c(0,NA)) +
   facet_grid(compartment_tissue~compartment_cell_type)
@@ -113,6 +114,7 @@ mean_n_mutations_LN_plot <- mean_n_mutations_above_threshold_by_compartment %>%
   scale_y_continuous(limits = c(-0.05,NA)) +
   facet_grid(.~compartment_cell_type) +
   scale_size_continuous(name = 'Number of clones') +
+  groups_color_scale(name = '') + 
   guides(color = 'none') +
   label_controls_as_day_0
 
@@ -145,7 +147,7 @@ mean_n_mutations_all_tissues_plot <- mean_n_mutations_above_threshold_by_compart
                                    vjust = 0.5)) +
   xlab('Group') +
   ylab('Average number of mutations at or\nabove 50% frequency in clones with at least 10 seqs.') +
-  scale_color_discrete(name = 'Infection status') +
+  groups_color_scale(name = 'Infection') +
   scale_y_continuous(limits = c(-0.05,NA)) +
   facet_grid(compartment_tissue~compartment_cell_type) +
   scale_size_continuous(name = 'Number of clones')
@@ -173,7 +175,7 @@ shared_mutations_in_LN_clones_pl <- fraction_LN_clones_sharing_mutations %>%
   ylim(0,1) +
   theme(legend.position = 'top') +
   label_controls_as_day_0 +
-  scale_fill_manual(values = c('green3','dodgerblue2'), name = 'Infection')
+  scale_fill_manual(values = c('#d95f02','black','#7570b3'), name = 'Infection')
 
 
 # Do the most abundant clones in lymph node populations tend to have more mutations at or above 50% frequency?
@@ -188,7 +190,7 @@ clone_rank_vs_high_freq_muts_LN_PCs_plot <- clone_freqs_by_tissue_and_cell_type 
   theme(legend.position = 'none') +
   geom_smooth(se = T, color = 'black', method = 'loess') +
   ylim(-0.05,20) +
-  scale_color_manual(values = c('green3','dodgerblue2')) +
+  scale_color_manual(values = c('#d95f02','#7570b3')) +
   xlab('Clone rank in lymph node plasma cells') +
   ylab('Number of amino acid mutations\nat or above 50% frequency') +
   ggtitle('(Y axis truncated at 20 mutations to improve visualization)')
@@ -204,7 +206,7 @@ clone_rank_vs_high_freq_muts_LN_GCs_plot <- clone_freqs_by_tissue_and_cell_type 
   theme(legend.position = 'none') +
   geom_smooth(se = T, color = 'black', method = 'loess') +
   ylim(-0.05,20) +
-  scale_color_manual(values = c('green3','dodgerblue2')) +
+  scale_color_manual(values = c('#d95f02','#7570b3')) +
   xlab('Clone rank in lymph node germinal center cells') +
   ylab('Number of amino acid mutations\nat or above 50% frequency') +
   ggtitle('(Y axis truncated at 20 mutations to improve visualization)')

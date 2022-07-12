@@ -22,11 +22,8 @@ min_compartment_size = 100
 # ===== LOAD PRE-COMPUTED OBJECTS AND DEFINE OUTPUT DIRECTORIES =====
 
 results_directory <- '../results/'
-#results_directory <- '~/Desktop/v_gene_selection/results/'
 
 processed_data_directory <- '../processed_data/'
-#processed_data_directory <- '~/Desktop/v_gene_selection/processed_data/'
-
 
 precomputed_freqs_file <- paste0('precomputed_gene_freqs_', frequency_type, '.RData')
 
