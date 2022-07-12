@@ -7,7 +7,7 @@ theme_set(theme_cowplot())
 
 args <- commandArgs(trailingOnly = T)
 
-source('simulations_gillespie.R')
+source('simulation_functions.R')
 
 # File specifying alleles' affinity distributions and naive frequencies
 allele_info_file_path <- args[1] # allele_info_file_path = '../results/simulations/scenario_1/allele_info.csv'

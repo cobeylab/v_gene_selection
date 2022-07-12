@@ -12,22 +12,19 @@ selected_allele_naive_freq_interval <- c(0.02, 0.03) # Only alleles with a mean 
 
 min_naive_seqs <- 1000 # Only use mice with at least 1000 naive seqs as a base for simulations
 
-# Scenarios are specified by alleles' affinity distributions and allele frequencies and 
-# by germinal center parameters (see simulation_functions.R)
-# Each class of allele has a mean alpha and a mean beta parameter.
-# Specific alphas and betas for each allele are obtained by adding a normally distributed error around 0 to their class mean values
-# Affinities for B cells using each allele are then distributed according to those specific alphas and betas.
-
-
 # To use realistic naive frequencies, import precomputed gene frequencies object
 
 load('../results/precomputed_gene_freqs_all_seqs.RData')
-#load('~/Desktop/v_gene_selection/results/precomputed_gene_freqs_all_seqs.RData')
-obs_naive_freqs <- naive_freqs %>%
+
+
+# Remove mice with fewer than min_naive_seqs
+obs_naive_freqs <- naive_freqs %>% 
   filter(total_mouse_naive_seqs >= min_naive_seqs)
 
+# Adjust naive zeros.
 obs_naive_freqs <- adjust_zero_naive_freqs(obs_naive_freqs)
 
+# ===== Functions for creating scenario input files =====
 
 generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_high_mutability_alleles,
                                  selected_allele_eligibility_threshold, selected_allele_naive_freq_interval){
@@ -109,7 +106,7 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
                             fix_initial_affinities){
   
   # Create base directory for the scenario.
-  dir.create(scenario_directory, showWarnings = F)
+  dir.create(scenario_directory, showWarnings = F, recursive = T)
   raw_simulations_dir <- paste0(scenario_directory, 'raw_simulation_files/')
   dir.create(raw_simulations_dir, showWarnings = F)
   
