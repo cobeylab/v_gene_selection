@@ -82,11 +82,12 @@ Run `CDR3_analysis.R`.
 Run `make_MS_figures.R` with one of the following paths as an argument:
 
 `figures/all_seqs_freqs`: main analysis presented in the main text.
-`figures/unique_seqs_freqs`: sensitivity analysis for using unique sequences only
-`figures/all_seqs_freqs_Greiff2017_naive_freqs`: analysis based on alternative naive sequence data
+
+`figures/unique_seqs_freqs`: sensitivity analysis for using unique sequences only.
+
+`figures/all_seqs_freqs_Greiff2017_naive_freqs`: analysis based on alternative naive sequence data.
+
 `figures/all_seqs_freqs_collapsed_novel_alleles`: sensitivity analysis for collapsing novel alleles.
  
-
-
 ## Simulations
 
