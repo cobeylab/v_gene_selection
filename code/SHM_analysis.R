@@ -175,7 +175,7 @@ shared_mutations_in_LN_clones_pl <- fraction_LN_clones_sharing_mutations %>%
   ylim(0,1) +
   theme(legend.position = 'top') +
   label_controls_as_day_0 +
-  scale_fill_manual(values = c('#d95f02','black','#7570b3'), name = 'Infection')
+  scale_fill_manual(values = c('#d95f02','#7570b3'), name = 'Infection')
 
 
 # Do the most abundant clones in lymph node populations tend to have more mutations at or above 50% frequency?

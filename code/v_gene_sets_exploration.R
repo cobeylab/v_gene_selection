@@ -148,7 +148,6 @@ total_genes_and_genes_in_LN_pops <-
   theme(legend.position = 'top',
         axis.text.x = axis_text_x) +
   groups_color_scale(name = 'Infection') +
-  guides(color = 'none') +
   scale_size(name = 'Number of sequences') +
   background_grid() +
   xlab('Group') +
