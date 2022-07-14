@@ -22,11 +22,8 @@ min_compartment_size = 100
 # ===== LOAD PRE-COMPUTED OBJECTS AND DEFINE OUTPUT DIRECTORIES =====
 
 results_directory <- '../results/'
-#results_directory <- '~/Desktop/v_gene_selection/results/'
 
 processed_data_directory <- '../processed_data/'
-#processed_data_directory <- '~/Desktop/v_gene_selection/processed_data/'
-
 
 precomputed_freqs_file <- paste0('precomputed_gene_freqs_', frequency_type, '.RData')
 
@@ -80,13 +77,13 @@ plot_naive_exp_correlations <- function(naive_exp_correlations, method){
     xlab('Days after primary infection') +
     ylab('Correlation in V gene frequencies between\nnaive repertoire and influenza-induced populations') +
     geom_hline(yintercept = 0, linetype = 2) +
-    #scale_color_manual(values = c('green3','dodgerblue2')) +
     scale_size_continuous(name = 'Number of sequences',
                           breaks = c(1000,10000,20000)) +
     guides(color = 'none') +
     background_grid() +
-    label_controls_as_day_0 +
-    scale_color_discrete(name = 'Infection')
+    groups_color_scale(name = 'Infection') +
+    label_controls_as_day_0
+    #scale_color_discrete(name = 'Infection')
 }
 
 plot_most_common_genes <- function(plot_group, gene_freqs, plot_cell_type, plot_tissue, max_rank,
@@ -110,7 +107,8 @@ plot_most_common_genes <- function(plot_group, gene_freqs, plot_cell_type, plot_
     ylab('V gene frequency') +
     theme(legend.position = 'bottom') + 
     scale_x_continuous(expand = c(0.15,0), breaks = 1:max_rank) +
-    scale_color_discrete(name = 'Deviation from naive\nfrequency (bootstrap)', labels = c('negative','non-significant','positive'))
+    #scale_color_discrete(name = 'Deviation from naive\nfrequency (bootstrap)', labels = c('negative','non-significant','positive'))
+    deviations_color_scale(name = 'Deviation from naive\nfrequency (bootstrap)')
   
 }
 
@@ -155,7 +153,7 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
       theme(legend.position = 'top',
             panel.border = element_rect(color = 'black')) +
       scale_y_log10() +
-      scale_color_discrete(name = 'Deviation from naive repertoire (bootstrap)') +
+      deviations_color_scale(name =  'Deviation from naive repertoire (bootstrap)') +
       xlab("Days after primary infection") +
       ylab("Ratio of experienced-to-naive frequencies \n (log10 + 1e-4)") +
       label_controls_as_day_0 + 
@@ -169,7 +167,7 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
       theme(legend.position = 'top',
             panel.border = element_rect(color = 'black')) +
       scale_y_log10() +
-      scale_color_discrete(name = 'Deviation from naive repertoire (bootstrap)') +
+      deviations_color_scale(name =  'Deviation from naive repertoire (bootstrap)') +
       xlab("Days after primary infection") +
       label_controls_as_day_0 + 
       ylab("Germline allele frequency \n (log10 + 1e-4)") +
@@ -183,7 +181,7 @@ plot_focal_genes <- function(gene_freqs, clone_freqs_by_tissue_and_cell_type,
       theme(legend.position = 'top',
             panel.border = element_rect(color = 'black')) +
       scale_y_log10() +
-      scale_color_discrete(name = 'Deviation from naive repertoire (bootstrap)') +
+      deviations_color_scale(name =  'Deviation from naive repertoire (bootstrap)') +
       xlab("Days after primary infection") +
       ylab("Rank of biggest clone") +
       label_controls_as_day_0 +
@@ -291,7 +289,8 @@ pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
   xlab('Type of pair') +
   ylab('Correlation in naive V gene frequencies\nbetween mouse pairs (excluding mice with < 100 sequences)') +
   theme(legend.position = 'none') +
-  background_grid() 
+  background_grid() +
+  pair_types_color_scale(name = '')
 
 pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
@@ -308,14 +307,13 @@ pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   ) +
   facet_grid(method ~ cell_type) +
   background_grid() +
-  #scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
   xlab('Days after primary infection') +
   ylab('Correlation in V gene frequencies\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
   theme(legend.position = 'top') +
   scale_x_continuous(breaks = c(0,8,16,24,40,56),
                      labels = c('control', '8','16','24','40','56')) +
   geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Infection')
+  groups_color_scale(name = 'Infection')
 
 pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
@@ -341,7 +339,7 @@ pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   scale_x_continuous(breaks = c(0,8,16,24,40,56),
                      labels = c('control', '8','16','24','40','56')) +
   geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Infection')
+  groups_color_scale(name = 'Infection') 
 
 # ======= FREQS AND FREQ. DEVIATIONS VS. MUTABILITY =======
 
@@ -352,7 +350,7 @@ freq_ratio_mutability_correlations <- get_freq_ratio_mutability_correlations(
   method = 'pearson') 
 
 freq_ratio_mutability_correlations_pl <- freq_ratio_mutability_correlations %>%
-  filter(cell_type %in% c('GC','PC', 'mem'), tissue == 'LN', group_controls_pooled != 'control') %>%
+  filter(cell_type %in% c('GC','PC', 'mem'), tissue == 'LN') %>%
   filter(mutability_metric %in% c('average_RS5NF_mutability_cdr', 'average_RS5NF_mutability_fwr')) %>%
   mutate(mutability_metric = case_when(
     mutability_metric == 'average_RS5NF_mutability_cdr' ~ 'CDRs',
@@ -366,12 +364,12 @@ freq_ratio_mutability_correlations_pl <- freq_ratio_mutability_correlations %>%
   facet_grid(mutability_metric~cell_type) +
   geom_hline(yintercept = 0, linetype = 2) +
   theme(legend.position = 'top') + 
-  scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
   scale_size_continuous(name = 'Number of sequences', breaks = c(1000,10000,50000)) +
   label_controls_as_day_0 +
   xlab('Days after primary infection') + 
   ylab('Correlation between average RS5NF mutability\nand experienced-to-naive frequency ratio') +
-  background_grid()
+  background_grid() +
+  groups_color_scale(name = 'Infection')
 
 germline_mutability_by_region <- germline_mutability_by_region %>%
   mutate(region = case_when(
@@ -394,7 +392,7 @@ germline_mutability_by_region_pl <- germline_mutability_by_region  %>%
   theme(legend.position = 'top') +
   xlab('Average RS5NF mutability') +
   ylab('Number of alleles') +
-  scale_color_discrete(name = 'V allele') +
+  scale_color_brewer(name = 'V allele', type = 'qual') +
   background_grid()
 
 
@@ -426,7 +424,8 @@ pw_freq_cors_randomized_lineage_V_alleles <- pairwise_freq_correlations_plot +
                            method == 'pearson') %>%
                     cell_type_facet_labeller() %>%
                     mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(day_i))),
-                  color = 'red',
+                  color = '#FF3333',
+                  shape = 15,
                   aes(ymin = cor_coef_lower,
                       ymax = cor_coef_upper),
                   size = 1.2
@@ -439,7 +438,8 @@ pw_freq_deviations_randomized_lineage_V_alleles <- pairwise_freq_deviations_plot
                            method == 'pearson') %>%
                     cell_type_facet_labeller() %>%
                     mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(day_i))),
-                  color = 'red',
+                  color = '#FF3333',
+                  shape = 15,
                   aes(ymin = cor_coef_lower,
                       ymax = cor_coef_upper),
                   size = 1.2

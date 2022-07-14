@@ -217,7 +217,7 @@ plot_cdr3_similarity <- function(matched_samples_similarity){
     xlab('Days after primary infection') +
     ylab('Similarity of length-matched\nCDR3 sequences from different mice') +
     scale_x_continuous(breaks = unique(n_comparisons_labels$day)) +
-    scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection')
+    scale_color_manual(values = c('#d95f02','#7570b3'), name = 'Infection')
   return(pl)
 }
 
@@ -398,9 +398,10 @@ combined_freq_of_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
   theme(legend.position = 'none',
         axis.text.x = element_text(size = 10)) +
   scale_x_continuous(breaks = as.integer(unique(CDR3_seqs$day))) +
-  scale_color_manual(values = c('green3','dodgerblue2'), name = 'Infection') +
+  scale_color_manual(values = c('#d95f02','#7570b3'), name = 'Infection') +
   scale_size_continuous(name = 'Number of sequences') +
   background_grid()
+
   
 allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>% 
   filter(total_compartment_seqs >= min_compartment_size, group_controls_pooled == 'secondary-56',

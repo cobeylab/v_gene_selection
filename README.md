@@ -63,6 +63,10 @@ Run `sorted_cells_and_ELISA_titers.R`
 
 Run `v_gene_sets_exploration.R`
 
+3.3. *Size and composition of B cell lineages (clones)*
+
+Run `clone_size_and_composition.R`
+
 3.3.*Mutability of germline alleles*
  
  `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.

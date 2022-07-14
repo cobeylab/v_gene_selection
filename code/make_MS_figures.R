@@ -86,7 +86,7 @@ bottom_row <- top_20_genes_day8_LN_PC +
         axis.title = element_text(size = 16)) +
   #scale_y_continuous(expand = c(0.001,0.1),
   #                   limits = c(-0.05,NA)) +
-  xlab('Top 10 germline V alleles in lymph node plasma cells from each infected mouse on day 8') +
+  xlab('Top 20 germline V alleles in lymph node plasma cells from each infected mouse on day 8') +
   ylab('V allele frequency')
 
 freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
@@ -106,7 +106,6 @@ if('titers_against_NL09' %in% ls()){
   left_panel <- plot_grid(NULL,
                           titers_against_NL09 +
                             theme(legend.position = 'top') +
-                            scale_color_discrete(name = 'Infection') +
                             scale_x_discrete(labels = function(x){str_replace(x,'-','\n')}),
                           NULL,
                           nrow = 3,

@@ -6,6 +6,7 @@ library(cowplot)
 library(scales)
 library(stringr)
 source('gene_frequency_functions.R')
+source('plot_options.R')
 theme_set(theme_cowplot())
 
 figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
@@ -54,7 +55,7 @@ n_sorted_cells_plot <- n_sorted_cells %>%
   theme(legend.position = 'top',
         axis.text.x = element_text(size = 8, angle = 40,
                                    vjust = 0.5)) +
-  scale_color_discrete(name = 'Infection')
+  groups_color_scale(name = 'Infection')
 
 # Export 
 save(n_sorted_cells_plot,
@@ -85,7 +86,8 @@ titers_against_NL09 <- titers %>%
   background_grid() +
   geom_hline(yintercept = -100, linetype =2) +
   ylab('IgG ELISA titer against the infecting strain') +
-  xlab('Group')
+  xlab('Group') +
+  groups_color_scale(name = 'Infection')
 
 # Export
 save(titers_against_NL09,

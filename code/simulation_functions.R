@@ -57,14 +57,12 @@ recruit_naive_clone <- function(allele_info){
     
     recruitment_pool <- left_join(tibble(allele = recruitment_pool),
                                   allele_info %>% select(allele, mean_affinity, sd_affinity, relative_mutability))
-    
-
+  
     recruitment_pool <- recruitment_pool %>%
       rowwise() %>%
       #Else it's sampled from a Truncated normal distribution
       mutate(affinity = max(0,rtruncnorm(n = 1, a = 0, b = Inf, mean = mean_affinity, sd = sd_affinity))) %>%
       ungroup() 
-    
     
     # Sample one arriving clone from the recruitment pool based on each cell's normalized affinity    
     recruitment_pool <- recruitment_pool %>%
@@ -80,7 +78,6 @@ recruit_naive_clone <- function(allele_info){
       filter(cell_number == recruited_cell_number) %>%
       select(allele, affinity, relative_mutability)
     
-  
   return(immigrant_tibble)
 }
 
@@ -179,36 +176,39 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
         if(next_event == 'division'){
           # Probability of cell being sampled to divide is proportional to its affinity
           dividing_cell <- sample(1:nrow(GC_t), size = 1, prob = GC_t$affinity, replace = F)
+          stopifnot(length(dividing_cell) == 1)
           # (replace = F is irrelevant, but just to be safe in case we start mutating more than 1 cell at same time)
           
           # Creates new row for the daughter cell, which mutates with some probability
-          GC_next_t <- bind_rows(GC_t,
-                                 GC_t %>%
-                                   slice(dividing_cell) %>%
-                                   mutate(cell_mutates = rbinom(n = 1, size = 1, prob = mutation_rate * relative_mutability),
-                                          affinity = affinity + rnorm(1, mean = 0, sd = mutation_sd * cell_mutates)) %>%
-                                   # If mutation takes affinity below zero, set it to zero.
-                                   mutate(affinity = ifelse(affinity < 0, 0, affinity)) %>%
-                                   select(-cell_mutates)) %>%
+          daughter_cell <- GC_t[dividing_cell,]
+          
+          cell_mutates <- rbinom(n = 1, size = 1, prob = mutation_rate*daughter_cell$relative_mutability)
+          if(cell_mutates == T){
+            # If mutation takes affinity below zero, set it to very small positive value.
+            new_affinity <- max(1e-10, daughter_cell$affinity + rnorm(1, mean = 0, sd = mutation_sd))
+            daughter_cell$affinity <- new_affinity
+          }
+           
+          GC_next_t <- bind_rows(GC_t, daughter_cell) %>% 
             mutate(t = time)
           
         }else{
           stopifnot(next_event == 'death')
+          
           # All cells have the same probability of dying
-          dying_cell <- sample(1:nrow(GC_t), size = 1, replace = F) 
           # (replace = F is irrelevant, but just to be safe in case we start more than 1 cells to die at same time)
-          GC_next_t <- GC_t %>%
-            slice(-dying_cell) %>%
+          dying_cell <- sample(1:nrow(GC_t), size = 1, replace = F) 
+          stopifnot(length(dying_cell) == 1)
+          
+          GC_next_t <- GC_t[-dying_cell,] %>%
             mutate(t = time)
         }
       }
+      
       # Redefine current state
       GC_t <- GC_next_t
-      
     }
-    
   }
-  
   return(GC_tibble)
 }
 

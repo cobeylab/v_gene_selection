@@ -4,7 +4,7 @@ library(dplyr)
 library(RColorBrewer)
 
 point_jitter_width <- 0.2
-point_alpha <- 0.5
+point_alpha <- 0.8
 axis_text_x <- element_text(size = 10, angle = 40, vjust = 0.5) # Not currently used
 
 
@@ -77,3 +77,14 @@ set_controls_as_day_0 <- function(data_tibble){
 }
 
 label_controls_as_day_0 <- scale_x_continuous(breaks = c(0,8,16,24,40,56), labels = c('control', '8','16','24','40','56'))
+
+groups_color_scale <- function(name){scale_color_brewer(type = 'qual', name = name, palette = 2, direction = 1)}
+
+deviations_color_scale <- function(name){scale_color_brewer(name = name,
+                                                            type = 'qual', direction = -1, palette = 1,
+                                                            labels = c('negative','non-significant','positive'))
+}
+
+pair_types_color_scale <- function(name){
+  scale_color_manual(name = name,
+                     values = c('#1b9e77','black','#d95f02','black','#7570b3','black'))}

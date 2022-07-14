@@ -3,12 +3,14 @@ library(tidyr)
 library(readr)
 library(ggplot2)
 library(cowplot)
-library(viridis)
+library(RColorBrewer)
 library(truncnorm)
 library(stringr)
 theme_set(theme_cowplot())
 
 # ======================== PLOTTING FUNCTIONS  ========================
+
+dir.create('../figures/simulations/', showWarnings = F)
 
 # Base plotting function
 base_plotting_function <- function(summary_tibble, y_var, color_var, facet_vars = NULL){
@@ -68,7 +70,8 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
                                                      filter(across(any_of('I_total'), function(x){x == main_fig_I_total})) %>%
                                                      filter(across(any_of('gamma'), function(x){x == main_fig_gamma})),
                                                    y_var = 'fraction_biggest_clone', color_var = 'mutation_rate', facet_vars = NULL) +
-    xlab('') + theme(legend.position = 'none') + ylim(0,1)
+    xlab('') + theme(legend.position = 'none') + ylim(0,1) +
+    mutations_color_scale
   
   freq_corr <-  base_plotting_function(summary_tibble = summary_list$summary_pairwise_correlations %>%
                                          filter(across(any_of('s'), function(x){x == main_fig_s})) %>%
@@ -78,7 +81,8 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
                                          filter(method == 'pearson'),
                                        y_var = 'freq_correlation', color_var = 'mutation_rate', facet_vars = NULL)  +
     xlab('') + theme(legend.position = 'none') + ylim(-0.2,1) +
-    geom_hline(yintercept = 0, linetype = 2)
+    geom_hline(yintercept = 0, linetype = 2) +
+    mutations_color_scale
   
   freq_ratio_corr <- base_plotting_function(summary_tibble = summary_list$summary_pairwise_correlations %>%
                                               filter(across(any_of('s'), function(x){x == main_fig_s})) %>%
@@ -89,10 +93,15 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
                                             y_var = 'freq_ratio_correlation', color_var = 'mutation_rate', facet_vars = NULL)  +
     xlab('Time (days)') + theme(legend.position = 'none') +
     ylim(-0.2,1) +
-    geom_hline(yintercept = 0, linetype = 2)
+    geom_hline(yintercept = 0, linetype = 2) +
+    mutations_color_scale
   
   return(list(fraction_biggest_clone = fraction_biggest_clone, freq_corr = freq_corr, freq_ratio_corr = freq_ratio_corr))
 }
+
+mutations_color_scale <- scale_color_manual(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)',
+                                            values = brewer.pal(n = 9, "BuPu")[c(3,6,9)])
+
 
 
 # ======================== MAKING PLOTS ========================
@@ -125,7 +134,7 @@ main_fig_gamma <- 6
 color_legend <- get_legend(base_plotting_function(summary_tibble = neutral_scenario_summary$summary_GC_stats %>%
                                                     filter(beta == main_fig_beta, I_total == main_fig_I_total),
                                                   y_var = 'fraction_biggest_clone', color_var = 'mutation_rate', facet_vars = NULL) +
-                             scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)'))
+                             mutations_color_scale)
   
 
 correlations_fig_neutral <- generate_freq_cor_panels(summary_list = neutral_scenario_summary, main_fig_s = main_fig_s, main_fig_beta = main_fig_beta,
@@ -240,7 +249,7 @@ neutral_scenario_supp_fig <- base_plotting_function(summary_tibble = neutral_sce
                                                       filter(method == 'pearson'), y_var = 'freq_correlation',
                                                     color_var = 'mutation_rate', facet_vars = c('I_total', 'beta')) +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('Pairwise correlation in allele frequencies')
 
 save_plot('../figures/simulations/neutral_scenario_supp_fig.pdf',
@@ -251,7 +260,7 @@ high_affinity_scenario_supp_fig <- base_plotting_function(summary_tibble = high_
                                                             filter(method == 'pearson'), y_var = 'freq_ratio_correlation',
                                                           color_var = 'mutation_rate', facet_vars = c('s', 'beta')) +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('Pairwise correlation in experienced-to-naive frequency ratios')
 
 save_plot('../figures/simulations/high_affinity_scenario_supp_fig.pdf',
@@ -262,7 +271,7 @@ high_mutation_scenario_supp_fig <-  base_plotting_function(summary_tibble = high
                                                              filter(method == 'pearson'), y_var = 'freq_ratio_correlation',
                                                            color_var = 'mutation_rate', facet_vars = c('gamma', 'beta')) +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('Pairwise correlation in experienced-to-naive frequency ratios')
 
 save_plot('../figures/simulations/high_mutation_scenario_supp_fig.pdf',
@@ -298,7 +307,7 @@ spearman_freq_ratio_corr_neutral <- base_plotting_function(neutral_scenario_summ
                                                            y_var = 'freq_ratio_correlation', 
                                                            color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('Pairwise spearman correlation\nin experienced-to-naive ratios') +
   theme(legend.position = c(0.1,0.8),
         plot.title = element_text(hjust = 0.5, size = 12),
@@ -312,7 +321,7 @@ spearman_freq_ratio_corr_high_affinity <- base_plotting_function(high_affinity_s
                                                            y_var = 'freq_ratio_correlation', 
                                                            color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('') +
   theme(legend.position = 'none',
         plot.title = element_text(hjust = 0.5, size = 12),
@@ -325,7 +334,7 @@ spearman_freq_ratio_corr_neutral_uniform_freqs <- base_plotting_function(neutral
                        y_var = 'freq_ratio_correlation', 
                        color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('') +
   theme(legend.position = 'none')  +
   ggtitle('Alleles have identical affinity distributions,\n mutation rates and naive frequencies') +
@@ -349,7 +358,7 @@ spearman_freq_corr_neutral <- base_plotting_function(neutral_scenario_summary$su
                                                            y_var = 'freq_correlation', 
                                                            color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('Pairwise spearman correlation\nin allele frequencies') +
   theme(legend.position = c(0.1,0.8),
         plot.title = element_text(hjust = 0.5, size = 12),
@@ -363,7 +372,7 @@ spearman_freq_corr_high_affinity <- base_plotting_function(high_affinity_scenari
                                                                  y_var = 'freq_correlation', 
                                                                  color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('') +
   theme(legend.position = 'none',
         plot.title = element_text(hjust = 0.5, size = 12),
@@ -376,7 +385,7 @@ spearman_freq_corr_neutral_uniform_freqs <- base_plotting_function(neutral_unifo
                                                                          y_var = 'freq_correlation', 
                                                                          color_var = 'mutation_rate') +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  scale_color_discrete(name = 'Mutation rate (affinity-changing\nmutations per B cell per division)') +
+  mutations_color_scale +
   ylab('') +
   theme(legend.position = 'none')  +
   ggtitle('Alleles have identical affinity distributions,\n mutation rates and naive frequencies') +

@@ -6,7 +6,7 @@ source('simulation_functions.R')
 
 # Directory containing simulation results and allele_info.csv file with allele properties
 args <- commandArgs(trailingOnly = T) 
-results_directory <- args[1] # results_directory <- '../results/simulations/scenario_1/'
+results_directory <- args[1] # e.g. results_directory <- '../results/simulations/neutral_scenario/'
 
 # Read allele info, model parameters and combined simulations file
 allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
@@ -89,9 +89,6 @@ if("high_mut" %in% unique(allele_info$allele_type_mutability)){
 }else{
   combined_freq_of_high_mut_alleles_in_GCs <- NULL
 }
-
-
-
 
 
 # Export .RData file with a list contaning summaries of current scenario:
