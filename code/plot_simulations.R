@@ -360,25 +360,12 @@ spearman_freq_corr_neutral <- base_plotting_function(neutral_scenario_summary$su
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
   mutations_color_scale +
   ylab('Pairwise spearman correlation\nin allele frequencies') +
-  theme(legend.position = c(0.1,0.8),
+  theme(legend.position = c(0.5,0.85),
         plot.title = element_text(hjust = 0.5, size = 12),
         legend.text = element_text(size = 10),
         legend.title = element_text(size = 10)) +
   ggtitle('Alleles have identical affinity distributions\nand mutation rates but different naive frequencies')
 
-
-spearman_freq_corr_high_affinity <- base_plotting_function(high_affinity_scenario_summary$summary_pairwise_correlations %>%
-                                                                   filter(method == 'spearman', beta == main_fig_beta, s == main_fig_s),
-                                                                 y_var = 'freq_correlation', 
-                                                                 color_var = 'mutation_rate') +
-  ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  mutations_color_scale +
-  ylab('') +
-  theme(legend.position = 'none',
-        plot.title = element_text(hjust = 0.5, size = 12),
-        legend.text = element_text(size = 10),
-        legend.title = element_text(size = 10)) +
-  ggtitle('Alleles have different affinity distributions\nand different naive frequencies')
 
 spearman_freq_corr_neutral_uniform_freqs <- base_plotting_function(neutral_uniform_freqs_scenario_summary$summary_pairwise_correlations %>%
                                                                            filter(method == 'spearman', beta == main_fig_beta, I_total == main_fig_I_total),
@@ -392,13 +379,12 @@ spearman_freq_corr_neutral_uniform_freqs <- base_plotting_function(neutral_unifo
   theme(plot.title = element_text(hjust = 0.5, size = 12))
 
 freq_spearman_correlations <- plot_grid(spearman_freq_corr_neutral,
-                                              spearman_freq_corr_high_affinity,
                                               spearman_freq_corr_neutral_uniform_freqs,
                                               nrow = 1)
 
 save_plot('../figures/simulations/freq_spearman_correlations.pdf',
           freq_spearman_correlations,
-          base_width = 15, base_height = 5)
+          base_width = 12, base_height = 5)
 
   
 
