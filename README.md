@@ -1,4 +1,7 @@
 # v_gene_selection
+
+R Packages: readr, plyr, dplyr, tidyr, ggplot2, cowplot, purr, stringr, Biostrings, seqinr, RColorBrewer, yaml, msa, truncnorm, scales, vegan, shazam,
+
 V gene usage in mice infected with flu. 
 
 1. Pre-processing and annotation of sequence data.
