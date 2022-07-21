@@ -7,9 +7,7 @@ V gene usage in mice infected with flu.
 4. Running simulations
 5. Analyzing simulation results
 
-[WILL JUST SAY WE PROVIDE ALL INTERMEDIATE FILES]
-
-Because parts of steps 1 and 2 are computationally expensive and assume access to a computing cluster, we provide the output of those steps data in this Dryad repository so users can choose to skip them and start from subsequent steps. Similarly, we provide the output of simulations so users can replicate step 5 without having to run the computationally intensive step 4 (MUST ALSO PROVIDE GERMLINE ALLELE IGBLAST TSV WITH FR/CDR3 partitions).
+Because parts several steps are computationally expensive and assume access to a computing cluster, we provide intermetiade files in this Dryad repository so users can choose to reproduce the analyses starting from different points. 
 
 ## 1. Pre-processing and annotation of sequence data ##
 
