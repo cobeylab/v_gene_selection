@@ -1,14 +1,10 @@
 library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(cowplot)
-theme_set(theme_cowplot())
 library(scales)
-library(viridis)
 
 source('gene_frequency_functions.R')
 source('plot_options.R')
+
+theme_set(theme_cowplot())
 
 min_compartment_size = 100
 

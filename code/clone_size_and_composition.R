@@ -1,10 +1,7 @@
-library(tidyverse)
-library(dplyr)
 library(readr)
-library(ggplot2)
-library(cowplot)
-theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
+
+theme_set(theme_cowplot())
 
 # This analysis is based on counts of all productive sequences (as opposed to unique sequences only)
 frequency_type <- 'all_seqs'

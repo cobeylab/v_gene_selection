@@ -1,15 +1,8 @@
 library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(cowplot)
-library(scales)
-library(viridis)
-
-theme_set(theme_cowplot())
-
 source('gene_frequency_functions.R') 
 source('plot_options.R')
+
+theme_set(theme_cowplot())
 
 args <- commandArgs(trailingOnly = T)
 frequency_type <- args[1] # frequency_type <- 'all_seqs'

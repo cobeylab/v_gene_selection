@@ -1,12 +1,7 @@
-library(dplyr)
-library(readr)
-library(tidyr)
-library(ggplot2)
-library(cowplot)
-library(scales)
-library(stringr)
 source('gene_frequency_functions.R')
 source('plot_options.R')
+library(readr)
+library(scales)
 theme_set(theme_cowplot())
 
 figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'

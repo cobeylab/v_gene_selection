@@ -1,8 +1,5 @@
-library(dplyr)
 library(purrr)
-library(tidyr)
 library(readr)
-library(stringr)
 library(Biostrings)
 library(seqinr)
 source('gene_frequency_functions.R')

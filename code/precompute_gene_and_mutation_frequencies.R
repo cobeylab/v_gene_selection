@@ -1,7 +1,4 @@
 library(readr)
-library(dplyr)
-library(tidyr)
-
 source('gene_frequency_functions.R')
 
 high_frequency_mutation_threshold <- 0.5 # Threshold for calling high-frequency mutations.

@@ -2,11 +2,6 @@ library(tidyr)
 library(dplyr)
 library(cowplot)
 library(stringr)
-library(viridis)
-library(reshape2)
-#library(heatmaply)
-library(gplots)
-
 source('plot_options.R')
 
 estimated_seq_error_rate <- 0.0018
@@ -1135,107 +1130,6 @@ get_fraction_clones_with_shared_mutations <- function(shared_mutations){
     filter(any_mutations_shared == T)
 }
 
-# Clustering based on correlation coefficient of V gene frequencies as an inverse measure of distance.
-get_vgene_freq_correlation_clustering <- function(pairwise_correlations, cell_type, tissue, metric,
-                                                  min_seqs, cor_method){
-  
-  
-  cell_type_full_name <- case_when(
-    cell_type == 'PC' ~ 'plasma cells',
-    cell_type == 'GC' ~ 'germinal center cells',
-    cell_type == 'mem' ~ 'memory cells'
-  )
-  
- 
-  
-  
-  if(metric == 'freqs'){
-    data_subset <- pairwise_correlations$freqs %>%
-      rename(cor_coef = cor_coef_freqs)
-    plot_title <- paste0(str_to_title(cor_method), ' correlation\nin ', str_sub(cell_type_full_name,1,-2), ' V allele frequencies')
-  }else{
-    stopifnot(metric == 'freq_ratios')
-    data_subset <- pairwise_correlations$freq_ratios %>%
-      rename(cor_coef = cor_coef_freq_ratios)
-    plot_title <- paste0(str_to_title(cor_method), ' correlation in frequency deviations\nbetween ',
-           cell_type_full_name,
-           ' and the naive repertoire')
-    }
-  
-  data_subset <- data_subset %>%
-    filter(total_compartment_seqs_i >= min_seqs, total_compartment_seqs_j >= min_seqs) %>%
-    filter(cell_type == !!cell_type, !str_detect(pair_type, 'control'),
-           method == cor_method) 
-  
-  if(!is.null(tissue)){
-    data_subset <- data_subset %>%
-      filter(tissue == !!tissue)
-  }
-  
-  data_subset <- data_subset %>%
-    select(mouse_id_i, mouse_id_j, cor_coef)
-  
-  # Add a diagonal to the correlation matrix (each mouse has correlation 1 with itself)
-  data_subset <- bind_rows(data_subset, 
-                           tibble(mouse_id_i = unique(c(data_subset$mouse_id_i, data_subset$mouse_id_j))) %>%
-                             mutate(mouse_id_j = mouse_id_i, cor_coef = 1)) %>%
-    arrange(mouse_id_i, mouse_id_j)
-  
-  wide_format_correlations <- data_subset %>%
-    pivot_wider(names_from = mouse_id_j, values_from = cor_coef)
-  
-  correlation_matrix <- as.matrix(wide_format_correlations[colnames(wide_format_correlations) != 'mouse_id_i'])
-  rownames(correlation_matrix) <- wide_format_correlations$mouse_id_i
-  
-  # Fill lower triangle
-  for(i in 1:nrow(correlation_matrix)){
-    for(j in 1:ncol(correlation_matrix)){
-      if(j < i){
-        correlation_matrix[i,j] <- correlation_matrix[j,i]
-      }
-    }
-  }
-  
-  # Convert correlations into distances.
-  dist_matrix <- as.dist(1 - correlation_matrix)
-  cluster <- hclust(dist_matrix, method = 'complete')
-  dendrogram <- as.dendrogram(cluster)
-  
-  # Within topological constraints of dendrogram, tries to order mice with day 8 on top, then day 16, 
-  #etc.
-  leaf_weights <- 1/as.integer(str_extract(cluster$labels, '[0-9]+'))
-  dendrogram <- reorder(dendrogram,
-                        wts = leaf_weights)
-  
-  annotation <- get_info_from_mouse_id(
-    tibble(mouse_id = cluster$labels)
-  )
-  
-  margin_colors <- left_join(annotation, group_controls_pooled_palette)$group_color
-  
-  rwb <- colorRampPalette(colors = c("blueviolet", "white", "darkorange2"))
-  heatmap.2(correlation_matrix,
-            trace = 'none',
-            #col = rev(brewer.pal(11, name = 'RdBu')),
-            col = rwb(100),
-            Rowv = dendrogram,
-            Colv = rev(dendrogram),
-            RowSideColors = margin_colors,
-            ColSideColors = margin_colors,
-            key.xlab = paste0(str_to_title(cor_method), ' correlation'),
-            key.ylab = '',
-            denscol = 'black',
-            key.title = '',
-            main = plot_title,
-            xlab = 'Individual mice',
-            ylab = 'Individual mice')
-
-
-  
-  #return()
-  
-  
-}
 
 get_freq_ratio_mutability_correlations <- function(gene_freqs, germline_mutability_by_region_type,
                                                    min_compartment_size, method){

@@ -1,12 +1,7 @@
-library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(cowplot)
-theme_set(theme_cowplot())
-
 source('gene_frequency_functions.R')
 source('plot_options.R')
+library(readr)
+theme_set(theme_cowplot())
 
 # When looking at mutation frequencies within clones, restrict analysis to clones with at least this many seqs in the relevant compartment.
 min_clone_size = 10

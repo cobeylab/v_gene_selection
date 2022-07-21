@@ -4,7 +4,6 @@ library(readr)
 library(ggplot2)
 library(cowplot)
 library(RColorBrewer)
-library(truncnorm)
 library(stringr)
 theme_set(theme_cowplot())
 
@@ -209,41 +208,6 @@ save_plot('../figures/simulations/combined_freq_high_affinity_alleles.pdf',
           combined_freq_of_high_avg_alleles_in_GC_pl,
           base_width = 8, base_height = 10)
 
-# Panel showing shape of distributions
-# (redundant with conceptual figure...)
-
-#sigma_r <- unique(model_parameters$sigma_r) 
-#stopifnot(length(sigma_r) == 1)
-
-# bind_rows(tibble(x = seq(0,10,0.01), type = 'High-mutability V alleles') %>%
-#             mutate(density = dtruncnorm(x, a = 0, b = Inf, mean = 1, sd = sigma_r)),
-#           tibble(x = seq(0,10,0.01), type = 'High-affinity V alleles') %>%
-#             mutate(density = dtruncnorm(x, a = 0, b = Inf, mean = 1 + main_fig_s, sd = sigma_r)),
-#           tibble(x = seq(0,10,0.01), type = 'Most V alleles') %>%
-#             mutate(density = dtruncnorm(x, a = 0, b = Inf, mean = 1, sd = sigma_r))) %>%
-#   mutate(type = factor(type, levels = c('Most V alleles', 'High-mutability V alleles', 'High-affinity V alleles'))) %>%
-#   ggplot(aes(x = x, y = density)) +
-#   geom_line(aes(group = type, color = type, linetype = type), size = 2) +
-#   theme(legend.position = 'top') +
-#   xlab('Affinity') +
-#   ylab('Density') +
-#   scale_color_viridis(name = '', discrete = T, direction = -1) +
-#   #scale_color_brewer(name = '', type = 'qual', palette = 2, direction = -1) +
-#   scale_linetype_manual(guide = NULL, values = c(1,2,1)) +
-#   geom_line(data = tibble(x = c(1, 1 + main_fig_s),
-#                           density = dtruncnorm(x = 1, a = 0, b = Inf, mean = 1, sd = sigma_r)),
-#             size = 0.5, arrow = arrow(ends = 'both', angle = 15, length = unit(10, 'pt'))) +
-#   geom_line(data = tibble(x = c(1 + main_fig_s),
-#                           density = c(dtruncnorm(x = 1 + main_fig_s, a = 0, b = Inf, mean = 1 + main_fig_s, sd = sigma_r),
-#                                       dtruncnorm(x = 1, a = 0, b = Inf, mean = 1, sd = sigma_r))),
-#             linetype = 2) +
-#   geom_text(data = tibble(x = (2 + main_fig_s)/2,
-#                           density = 1.03 * dtruncnorm(x = 1, a = 0, b = Inf, mean = 1, sd = sigma_r),
-#                           label = 's'),
-#             aes(label = label), size = 6) +
-#   theme(legend.position = c(0.6, 0.9))
-
-
 # Supplementary figures
 neutral_scenario_supp_fig <- base_plotting_function(summary_tibble = neutral_scenario_summary$summary_pairwise_correlations %>%
                                                       filter(method == 'pearson'), y_var = 'freq_correlation',
@@ -316,19 +280,6 @@ spearman_freq_ratio_corr_neutral <- base_plotting_function(neutral_scenario_summ
   ggtitle('Alleles have identical affinity distributions\nand mutation rates but different naive frequencies')
 
 
-spearman_freq_ratio_corr_high_affinity <- base_plotting_function(high_affinity_scenario_summary$summary_pairwise_correlations %>%
-                                                             filter(method == 'spearman', beta == main_fig_beta, s == main_fig_s),
-                                                           y_var = 'freq_ratio_correlation', 
-                                                           color_var = 'mutation_rate') +
-  ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
-  mutations_color_scale +
-  ylab('') +
-  theme(legend.position = 'none',
-        plot.title = element_text(hjust = 0.5, size = 12),
-        legend.text = element_text(size = 10),
-        legend.title = element_text(size = 10)) +
-  ggtitle('Alleles have different affinity distributions\nand different naive frequencies')
-
 spearman_freq_ratio_corr_neutral_uniform_freqs <- base_plotting_function(neutral_uniform_freqs_scenario_summary$summary_pairwise_correlations %>%
                          filter(method == 'spearman', beta == main_fig_beta, I_total == main_fig_I_total),
                        y_var = 'freq_ratio_correlation', 
@@ -341,13 +292,12 @@ spearman_freq_ratio_corr_neutral_uniform_freqs <- base_plotting_function(neutral
   theme(plot.title = element_text(hjust = 0.5, size = 12))
 
 freq_ratio_spearman_correlations <- plot_grid(spearman_freq_ratio_corr_neutral,
-                                              spearman_freq_ratio_corr_high_affinity,
                                               spearman_freq_ratio_corr_neutral_uniform_freqs,
                                               nrow = 1)
 
 save_plot('../figures/simulations/freq_ratio_spearman_correlations.pdf',
           freq_ratio_spearman_correlations,
-          base_width = 15, base_height = 5)
+          base_width = 12, base_height = 5)
 
 # Spearman correlation in simulations fig., but now with allele freqs
 # (Duplicated code; revise)

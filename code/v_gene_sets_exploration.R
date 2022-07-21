@@ -1,13 +1,9 @@
 # Exploration of germline V alleles identified by partis
-library(dplyr)
-library(readr)
-library(ggplot2)
-library(cowplot)
-library(vegan)
-theme_set(theme_cowplot())
 source('gene_frequency_functions.R')
 source('plot_options.R')
-#library(ggh4x)
+library(readr)
+library(vegan)
+theme_set(theme_cowplot())
 
 clone_info <- read_csv('../processed_data/clone_info.csv')
 

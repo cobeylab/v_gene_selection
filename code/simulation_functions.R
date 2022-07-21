@@ -1,8 +1,5 @@
 # Functions for simulating the recruitment, competition and evolution of B cell lineages in GCs
 # While keeping track of V allele usage and clone's identities
-# (Alternative using Gillespie algorithm)
-# See simulation_scenarios.R for
-
 library(dplyr)
 library(tidyr)
 library(readr)

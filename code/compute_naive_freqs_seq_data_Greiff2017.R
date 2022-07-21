@@ -1,10 +1,5 @@
-library(tidyverse)
-library(ggplot2)
-library(cowplot)
-theme_set(theme_cowplot())
-
 source('gene_frequency_functions.R')
-
+theme_set(theme_cowplot())
 
 # Read annotated sequences from Greiff et al. 2017
 

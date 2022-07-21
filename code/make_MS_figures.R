@@ -1,14 +1,9 @@
-library(ggplot2)
-library(cowplot)
-library(magick)
 library(stringr)
+source('plot_options.R')
 theme_set(theme_cowplot())
 
-
-source('plot_options.R')
-
 args <- commandArgs(trailingOnly = T)
-figures_dir <- args[1]
+figures_dir <- args[1] # Path to folder within figures directory
 
 exported_objecs_dir <- paste0(figures_dir, '/exported_ggplot_objects/')
 
