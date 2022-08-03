@@ -1,6 +1,6 @@
 #!/bin/bash
 # Splits full data table into mouse specific files
-full_data_path=../data/sequence_data/m293_mouse_flu_bigtable_isotype
+full_data_path=../data/sequence_data/main_data_table
 
 mkdir -p ../processed_data/mouse_specific_data_files/
 
