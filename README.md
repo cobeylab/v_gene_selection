@@ -1,7 +1,5 @@
 # v_gene_selection
 
-R Packages: readr, plyr, dplyr, tidyr, ggplot2, cowplot, purr, stringr, Biostrings, seqinr, RColorBrewer, yaml, msa, truncnorm, scales, vegan, shazam,
-
 V gene usage in mice infected with flu. 
 
 1. Pre-processing and annotation of sequence data.
@@ -11,6 +9,12 @@ V gene usage in mice infected with flu.
 5. Analyzing simulation results
 
 Because parts several steps are computationally expensive and assume access to a computing cluster, we provide intermetiade files in this Dryad repository so users can choose to reproduce the analyses starting from different points. 
+
+## Dependencies
+
+R Packages: readr, plyr, dplyr, tidyr, ggplot2, cowplot, purr, stringr, Biostrings, seqinr, RColorBrewer, yaml, msa, truncnorm, scales, vegan, shazam.
+
+Other software: [partis](https://github.com/psathyrella/partis), [pRESTO](https://presto.readthedocs.io/en/stable/), [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html)
 
 ## 1. Pre-processing and annotation of sequence data ##
 
@@ -34,8 +38,6 @@ Because parts several steps are computationally expensive and assume access to a
 1.6. Run  `run_partis_seq_data_Greiff2017.sh` to run partis on the processed reads from this second dataset and process the resulting yaml files.
 
 1.7 Run `estimate_error_rate.sh` to estimate the sequencing/amplification error rate based on mutated bases in the constant region, using a SLURM-based cluster (with user-specific configurations) to run `estimate_error_rate.py` for multiple mouse-specific `.csv` files.
-
-Python 2.7.15 with packages sys, csv and os is assumed. LIST R DEPENDENCIES
 
 ## 2. Pre-calculation of germline allele frequencies, lineage sizes, mutation frequencies, and randomization-based null distributions. ##
 
