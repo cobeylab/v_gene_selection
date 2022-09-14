@@ -1,6 +1,8 @@
 # v_gene_selection
 
-V gene usage in mice infected with flu. 
+Code for "Chance and contingency in B cell evolution limit the similarity of antibody responses to infection across individuals" [Link to biorXiv pending].
+
+## Contents
 
 1. Pre-processing and annotation of sequence data.
 2. Pre-calculation of germline allele frequencies, lineage sizes, mutation frequencies, and randomization-based null distributions.
@@ -8,7 +10,7 @@ V gene usage in mice infected with flu.
 4. Running simulations
 5. Analyzing simulation results
 
-Because parts several steps are computationally expensive and assume access to a computing cluster, we provide intermetiade files in this Dryad repository so users can choose to reproduce the analyses starting from different points. 
+Because several steps are computationally expensive and assume access to a computing cluster, we provide intermediate files in this Zenodo repository [Link pending] so users can reproduce the analyses starting from different points. After downloading the compressed file from Zenodo, decompress it and put the contents in the root folder of the code.
 
 ## Dependencies
 
@@ -18,9 +20,7 @@ Other software: [partis](https://github.com/psathyrella/partis), [pRESTO](https:
 
 ## 1. Pre-processing and annotation of sequence data ##
 
-[After setting up directory structure...]
-
-1.1. Run `split_full_data.sh` to break the file containing the main BCR sequence dataset ([NAME_OF_FILE]) into a separate csv file for each mouse.
+1.1. Run `split_full_data.sh` to break the file containing the main BCR sequence dataset into a separate csv file for each mouse.
 
 1.2. Run `run_partis.sh` to run [partis](https://github.com/psathyrella/partis) v0.15.0 for all mice from the specified time point (passed as an argument: 8, 16, 24, 40 or 56). This script generates a sbatch file for each mouse and uses it to submit a job to a SLURM-based cluster (precise sbatch configurations need to be modified by the user).
 
@@ -53,7 +53,7 @@ Other software: [partis](https://github.com/psathyrella/partis), [pRESTO](https:
 
 2.5. `Rscript precompute_gene_and_mutation_frequencies.R unique_seqs FALSE TRUE`: sensitivity analysis for collapsing novel alleles.
 
-Because of bootstrapping and replicated randomizations, `precompute_gene_and_mutation_frequencies.R` takes several hours to run. It could be modified to run the randomizations in parallel, but we did not find it necessary because it only needs to be run once for each case (main analysis or sensitivity analysis). Each run of `precompute_gene_and_mutation_frequencies.R` produces an `.RData` object that to be used by downstream scripts.
+Because of bootstrapping and replicated randomizations, `precompute_gene_and_mutation_frequencies.R` takes several hours to run. It could be modified to run the randomizations in parallel, but we did not find it necessary because it only needs to be run once for each case (main analysis or sensitivity analysis). Each run of `precompute_gene_and_mutation_frequencies.R` produces an `.RData` object to be used by downstream scripts.
 
 ## 3. Empirical analyses
 Different scripts execute different parts of the analysis, exporting plots as `.RData` objects to be subsequently combined by `make_MS_figures.R`. By default, figures are exported to `figures/all_seqs_freqs/`. Figures specificic to sensitivity analyses are exported to the other directories in `figures` (see below).
@@ -72,7 +72,7 @@ Run `clone_size_and_composition.R`
 
 3.3.*Mutability of germline alleles*
  
- `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Dryad repository. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
+ `annotate_germline_FRs_CDRs.sbatch` annotates germline allele sequences with FR and CDR positions using the [Immcantation wrapper for IgBlast](https://changeo.readthedocs.io/en/stable/examples/igblast.html). Because this script is specific to our cluster configuration, we provide the output file (`germline_genes_igblast.tsv`) in the results directory via the Zenodo repository. Run `estimate_germline_mutability.R` to estimate the mutability of germline V alleles.
  
 3.4. *Analysis of high-frequency mutations*
 
