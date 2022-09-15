@@ -10,7 +10,7 @@ Code for "Chance and contingency in B cell evolution limit the similarity of ant
 4. Running simulations
 5. Analyzing simulation results
 
-Because several steps are computationally expensive and assume access to a computing cluster, we provide intermediate files in this Zenodo repository [Link pending] so users can reproduce the analyses starting from different points. After downloading the compressed file from Zenodo, decompress it and put the contents in the root folder of the code.
+Because several steps are computationally expensive and assume access to a computing cluster, we provide intermediate files in this Zenodo repository [Link pending] so users can reproduce the analyses starting from different points. Decompress the files from Zenodo and put the folders in the code's root folder.
 
 ## Dependencies
 
