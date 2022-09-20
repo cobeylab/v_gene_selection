@@ -1,6 +1,6 @@
 # v_gene_selection
 
-Code for "Chance and contingency in B cell evolution limit the similarity of antibody responses to infection across individuals" [Link to biorXiv pending].
+Code for Vieira  et al., [Chance and contingency in B cell evolution limit the similarity of antibody responses to infection across individuals](https://www.biorxiv.org/content/10.1101/2022.09.16.508315v1).
 
 ## Contents
 
