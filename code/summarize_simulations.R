@@ -9,6 +9,10 @@ allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
 model_parameters <- read_csv(paste0(results_directory, 'combined_model_parameters.csv'))
 simulations <- read_csv(paste0(results_directory, 'combined_simulations.csv'))
 
+#sampled_gc <- sample(1:max(simulations$GC),1)
+#simulations <- simulations %>% filter(GC == sampled_gc)
+
+
 n_individuals <- length(unique(simulations$individual))
 n_GCs_per_individual <- length(unique(simulations$GC))
 
