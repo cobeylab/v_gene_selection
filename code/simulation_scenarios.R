@@ -294,7 +294,7 @@ create_scenario(scenario_directory = '../results/simulations/test_scenario_neutr
                 beta = c(1,4),
                 tmax = 50,
                 uniform_naive_freqs = F,
-                dominant_allele_naive_freq = 0.95)
+                dominant_allele_naive_freq = 0.999)
 
 # === TEST SCENARIO: neutral with uniform frequencies in the naive repertoire
 create_scenario(scenario_directory = '../results/simulations/test_scenario_neutral_uniform/',

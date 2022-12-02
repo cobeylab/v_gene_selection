@@ -105,7 +105,8 @@ mutations_color_scale <- scale_color_manual(name = 'Mutation rate (affinity-chan
 
 # ======================== MAKING PLOTS ========================
 # Load simulation summaries
-scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scenario', 'neutral_uniform_freqs_scenario')
+scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scenario', 'neutral_uniform_freqs_scenario',
+               'test_scenario_neutral_highly_dominant')
 
 model_parameters <- bind_rows(
   lapply(as.list(scenarios),
