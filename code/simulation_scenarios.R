@@ -201,7 +201,7 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario/',
                 n_high_mutability_alleles = 0,
                 gamma = 1,
                 K = 2000,
-                I_total = c(50,100,200),
+                I_total = 200,
                 t_imm = 6,
                 mu_max = 3,
                 delta = 0.2,
@@ -221,7 +221,7 @@ create_scenario(scenario_directory = '../results/simulations/neutral_uniform_fre
                 n_high_mutability_alleles = 0,
                 gamma = 1,
                 K = 2000,
-                I_total = c(50,100,200),
+                I_total = 200,
                 t_imm = 6,
                 mu_max = 3,
                 delta = 0.2,
@@ -271,53 +271,3 @@ create_scenario(scenario_directory = '../results/simulations/high_mutation_scena
                 beta = c(1,2,3,4),
                 tmax = 50,
                 uniform_naive_freqs = F)
-
-
-# Test scenarios
-
-# === TEST SCENARIO: neutral with a highly dominant allele in naive repertoire (0.9)
-create_scenario(scenario_directory = '../results/simulations/test_scenario_neutral_highly_dominant/',
-                obs_naive_freqs = obs_naive_freqs,
-                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
-                n_high_avg_alleles = 0,
-                s = 0,
-                sigma_r = 1,
-                n_high_mutability_alleles = 0,
-                gamma = 1,
-                K = 2000,
-                I_total = c(50,200),
-                t_imm = 6,
-                mu_max = 3,
-                delta = 0.2,
-                mutation_rate = c(0, 0.05),
-                beta = c(1,4),
-                tmax = 50,
-                uniform_naive_freqs = F,
-                dominant_allele_naive_freq = 0.999)
-
-# === TEST SCENARIO: neutral with uniform frequencies in the naive repertoire
-create_scenario(scenario_directory = '../results/simulations/test_scenario_neutral_uniform/',
-                obs_naive_freqs = obs_naive_freqs,
-                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
-                selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
-                n_high_avg_alleles = 0,
-                s = 0,
-                sigma_r = 1,
-                n_high_mutability_alleles = 0,
-                gamma = 1,
-                K = 2000,
-                I_total = c(50,200),
-                t_imm = 6,
-                mu_max = 3,
-                delta = 0.2,
-                mutation_rate = c(0, 0.05),
-                beta = c(1,4),
-                tmax = 50,
-                uniform_naive_freqs = T,
-                dominant_allele_naive_freq = NULL)
-
-
-
-
-
