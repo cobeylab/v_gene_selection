@@ -285,13 +285,33 @@ compute_clone_diversity_per_GC <- function(simulations, variable_pars){
     ungroup()
 }
 
+sample_random_GCs <- function(allele_freqs_by_GC, sample_size){
+  GC_indices <- unique(allele_freqs_by_GC$GC)
+  stopifnot(sample_size <= length(GC_indices))
+  
+  sampled_indices <- sample(GC_indices, size = sample_size)
+  
+  subsampled_tibble <- allele_freqs_by_GC %>%
+    filter(GC %in% sampled_indices) %>%
+    mutate(nGCs = sample_size) %>%
+    select(nGCs, everything())
+  return(subsampled_tibble)
+}
+
 # Computes repertoire-wide allele freqs per individual per time from GC-specific freqs.
-compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, allele_info, variable_pars){
-  repertoire_allele_freqs <- allele_freqs_by_GC %>%
-    group_by(across(c(any_of(variable_pars),'individual', 't', 'allele'))) %>%
+compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, nGC_values, allele_info, variable_pars){
+  
+  # For each nGCs value, create a subsample of allele_freqs_by_GC
+  extended_freqs_tibble <- lapply(as.list(nGC_values), FUN = sample_random_GCs,
+         allele_freqs_by_GC = allele_freqs_by_GC)
+  
+  extended_freqs_tibble <- bind_rows(extended_freqs_tibble)
+  
+  repertoire_allele_freqs <- extended_freqs_tibble %>%
+    group_by(across(c(any_of(variable_pars),'nGCs','individual', 't', 'allele'))) %>%
     summarise(n_cells = sum(n_cells)) %>%
     ungroup() %>%
-    group_by(across(c(any_of(variable_pars),'individual', 't'))) %>%
+    group_by(across(c(any_of(variable_pars), 'nGCs', 'individual', 't'))) %>%
     mutate(experienced_freq = n_cells / sum(n_cells)) %>%
     ungroup()
   
@@ -301,7 +321,7 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, allele_info, var
   
   # Add total number of cells, rank alleles
   repertoire_allele_freqs <- repertoire_allele_freqs %>%
-    group_by(across(c(any_of(variable_pars), 't', 'individual'))) %>%
+    group_by(across(c(any_of(variable_pars), 'nGCs','t', 'individual'))) %>%
     mutate(total_time_point_cells = sum(n_cells),
            allele_rank = rank(-experienced_freq, ties.method = 'average')) %>%
     ungroup()
@@ -317,6 +337,14 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, allele_info, var
   repertoire_allele_freqs <- repertoire_allele_freqs %>%
     mutate(allele = factor(allele, levels = allele_order))
   
+  # Check allele frequencies sum to 1
+  freq_sums <- repertoire_allele_freqs %>%
+    group_by(across(c(any_of(variable_pars), 'nGCs','t', 'individual'))) %>%
+    summarise(freq_sum = sum(experienced_freq)) %>% ungroup() %>% select(freq_sum) %>%
+    unique() %>% pull(freq_sum)
+  
+  stopifnot(all(abs(freq_sums-1) < 1e-6))
+  
   return(repertoire_allele_freqs)
 
 }
@@ -325,9 +353,10 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, allele_info, var
 # (uses allele_info to find the full set of alleles present in the naive repertoire for each individual)
 complete_repertoire_allele_freqs <- function(repertoire_allele_freqs, allele_info, variable_pars){
   
-  # All alleles of an individual explicitly represented at all time points
+  # All alleles of an individual explicitly represented at all time points, for all nGCs
   complete_scaffold <- left_join(expand_grid(individual = unique(repertoire_allele_freqs$individual),
-                                             t = unique(repertoire_allele_freqs$t)),
+                                             t = unique(repertoire_allele_freqs$t),
+                                             nGCs = unique(repertoire_allele_freqs$nGCs)),
                                  allele_info %>% select(individual, allele))
   
   if(length(variable_pars) > 0){
@@ -343,7 +372,7 @@ complete_repertoire_allele_freqs <- function(repertoire_allele_freqs, allele_inf
 
 compute_repertoire_allele_diversity <- function(repertoire_allele_freqs, variable_pars){
   repertoire_allele_freqs %>%
-    group_by(across(c(any_of(variable_pars), 't', 'individual', 'total_time_point_cells'))) %>%
+    group_by(across(c(any_of(variable_pars), 'nGCs', 't', 'individual', 'total_time_point_cells'))) %>%
     summarise(repertoire_allele_diversity = 1 - sum(experienced_freq^2),
               n_alleles_in_experienced_repertoire = sum(experienced_freq>0)) %>%
     ungroup()
@@ -365,8 +394,7 @@ get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
   
   # Will add these back later to fill full-join missing values in rows where a gene is missing from one individual
   total_time_point_cells <- repertoire_allele_freqs %>% select(any_of(variable_pars),
-                                                               individual, t, total_time_point_cells) %>% unique()
-  
+                                                               individual, nGCs, t, total_time_point_cells) %>% unique()
   
   internal_function <- function(pair, repertoire_allele_freqs){
     
@@ -383,7 +411,7 @@ get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
     pair_values <- full_join(ind_i_values %>% select(-total_time_point_cells_i),
                              ind_j_values %>% select(-total_time_point_cells_j)) %>%
       mutate(pair = pair) %>%
-      select(any_of(variable_pars), pair, t, allele, matches('_i'), matches('_j')) %>%
+      select(any_of(variable_pars), nGCs, t, pair, allele, matches('_i'), matches('_j')) %>%
       mutate(individual_i = individual_ids[1], individual_j = individual_ids[2])
     
     return(pair_values)
@@ -397,13 +425,13 @@ get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
                              total_time_point_cells %>% rename(individual_i = individual, total_time_point_cells_i = total_time_point_cells))
   paired_tibble <- left_join(paired_tibble,
                              total_time_point_cells %>% rename(individual_j = individual, total_time_point_cells_j = total_time_point_cells)) %>%
-    select(any_of(variable_pars), pair, t, allele, matches('_i'), matches('_j')) 
+    select(any_of(variable_pars), nGCs, t, pair, allele, matches('_i'), matches('_j')) 
   
   # keep only alleles present in the germline set of both individuals. For plotting purposes, compute Spearman ranks
   # (i.e., with smaller values assigned smaller ranks)
   paired_tibble <- paired_tibble %>%
     filter(!is.na(naive_freq_i), !is.na(naive_freq_j)) %>%
-    group_by(across(c(any_of(variable_pars), 'pair', 't'))) %>%
+    group_by(across(c(any_of(variable_pars), nGCs, 'pair', 't'))) %>%
     mutate(spearman_rank_freq_i = rank(experienced_freq_i),
            spearman_rank_freq_j = rank(experienced_freq_j),
            spearman_rank_freq_ratio_i = rank(freq_ratio_i),
@@ -417,7 +445,7 @@ get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
 compute_pairwise_correlations <- function(pairwise_allele_freqs, variable_pars){
   bind_rows(pairwise_allele_freqs %>% mutate(method = 'pearson'),
             pairwise_allele_freqs %>% mutate(method = 'spearman')) %>%
-    group_by(across(c(any_of(variable_pars), 'pair', 't', 'method'))) %>%
+    group_by(across(c(any_of(variable_pars), 'pair', 'nGCs','t', 'method'))) %>%
     mutate(n_points_in_pairwise_comparison = n()) %>%
     filter(n_points_in_pairwise_comparison >= 3) %>%
     summarise(freq_correlation = cor.test(experienced_freq_i, experienced_freq_j, method = unique(method))$estimate,
@@ -432,8 +460,8 @@ compute_pairwise_correlations <- function(pairwise_allele_freqs, variable_pars){
 summarise_across_individuals <- function(data, vars_to_summarise){
   data %>%
     summarise(across(all_of(vars_to_summarise),
-                     list(median = median, lowerq = ~ quantile(.x, 0.25, na.rm = T),
-                          upperq = ~ quantile(.x, 0.75, na.rm = T))))
+                     list(median = median, lowerq = ~ quantile(.x, 0.25, na.rm = F),
+                          upperq = ~ quantile(.x, 0.75, na.rm = F))))
 }
 
 count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars){
@@ -443,7 +471,7 @@ count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars
       freq_ratio == 1 ~ 'stable',
       freq_ratio < 1 ~ 'decreasing'
     )) %>%
-    group_by(across(c(any_of(variable_pars), 't','allele', 'allele_type_affinity', 'allele_type_mutability', 'direction_of_change'))) %>%
+    group_by(across(c(any_of(variable_pars), 'nGCs' ,'t','allele', 'allele_type_affinity', 'allele_type_mutability', 'direction_of_change'))) %>%
     summarise(n_individuals = n()) %>%
     ungroup() %>%
     pivot_wider(names_from = direction_of_change, values_from = n_individuals, values_fill = 0) %>%

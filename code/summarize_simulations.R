@@ -14,7 +14,8 @@ simulations <- read_csv(paste0(results_directory, 'combined_simulations.csv'))
 
 
 n_individuals <- length(unique(simulations$individual))
-n_GCs_per_individual <- length(unique(simulations$GC))
+nGC_values <- c(1,5,15,30)
+
 
 # Figure out which parameters vary:
 variable_pars <- find_variable_parameters(model_parameters)
@@ -34,6 +35,7 @@ GC_statistics <- left_join(clone_diversity_by_GC, allele_diversity_by_GC, by = c
 
 # Repertoire-wide allele freqs (aggregated across individual GCs)
 repertoire_allele_freqs <- compute_repertoire_allele_freqs(allele_freqs_by_GC = allele_freqs_by_GC,
+                                                           nGC_values = nGC_values,
                                                            allele_info = allele_info, variable_pars = variable_pars)
 
 repertoire_allele_diversity <- compute_repertoire_allele_diversity(repertoire_allele_freqs, variable_pars)
@@ -52,7 +54,7 @@ pairwise_correlations <- compute_pairwise_correlations(pairwise_allele_freqs = p
 
 # Summarise statistics across individual (or pairs of individuals) per time point (always grouping by variable params.)
 summary_repertoire_allele_diversity <- repertoire_allele_diversity %>%
-  group_by(across(c(any_of(variable_pars),'t'))) %>%
+  group_by(across(c(any_of(variable_pars), 'nGCs','t'))) %>%
   summarise_across_individuals(vars_to_summarise = c('repertoire_allele_diversity', 'n_alleles_in_experienced_repertoire')) %>%
   ungroup()
 
@@ -62,7 +64,9 @@ summary_GC_stats <- GC_statistics %>%
   ungroup()
 
 summary_pairwise_correlations <- pairwise_correlations %>%
-  group_by(across(c(any_of(variable_pars),'t', 'method'))) %>%
+  # NAs will happen in 1-GC simulations, when the winner allele in an individual is not in the other individual's allele set.
+  filter(!is.na(freq_correlation), !is.na(freq_ratio_correlation)) %>%
+  group_by(across(c(any_of(variable_pars),'nGCs','t', 'method'))) %>%
   summarise_across_individuals(vars_to_summarise = c('freq_correlation', 'freq_ratio_correlation')) %>%
   ungroup()
 
@@ -72,7 +76,8 @@ if("high_avg" %in% unique(allele_info$allele_type_affinity)){
     group_by(across(c(any_of(variable_pars), 't', 'individual','GC'))) %>%
     summarise(combined_freq_high_avg = sum(allele_freq[allele_type_affinity == 'high_avg']),
               combined_freq_low_avg = sum(allele_freq[allele_type_affinity == 'low_avg'])) %>%
-    ungroup() 
+    ungroup() %>%
+    filter(GC <= max(nGC_values))
   
 }else{
   combined_freq_of_high_avg_alleles_in_GCs <- NULL
@@ -84,7 +89,8 @@ if("high_mut" %in% unique(allele_info$allele_type_mutability)){
     group_by(across(c(any_of(variable_pars), 't', 'individual','GC'))) %>%
     summarise(combined_freq_high_mut = sum(allele_freq[allele_type_mutability == 'high_mut']),
               combined_freq_low_mut = sum(allele_freq[allele_type_mutability == 'low_mut'])) %>%
-    ungroup() 
+    ungroup() %>%
+    filter(GC <= max(nGC_values))
     
 }else{
   combined_freq_of_high_mut_alleles_in_GCs <- NULL
@@ -95,17 +101,11 @@ if("high_mut" %in% unique(allele_info$allele_type_mutability)){
 summary_object_name = paste0(basename(results_directory), '_summary')
 assign(summary_object_name,
        list(n_individuals = n_individuals,
-            n_GCs_per_individual = n_GCs_per_individual,
+            nGC_values = nGC_values,
             summary_repertoire_allele_diversity = summary_repertoire_allele_diversity,
             summary_GC_stats = summary_GC_stats,
             summary_pairwise_correlations = summary_pairwise_correlations,
             n_inds_increasing_decreasing = n_inds_increasing_decreasing,
-            #allele_diversity_by_GC = allele_diversity_by_GC,
-            #allele_freqs_by_GC = allele_freqs_by_GC,
-            #clone_diversity_by_GC = clone_diversity_by_GC,
-            #GC_statistics = GC_statistics, 
-            #repertoire_allele_diversity = repertoire_allele_diversity,
-            #repertoire_allele_freqs = repertoire_allele_freqs,
             combined_freq_of_high_avg_alleles_in_GCs = combined_freq_of_high_avg_alleles_in_GCs,
             combined_freq_of_high_mut_alleles_in_GCs = combined_freq_of_high_mut_alleles_in_GCs
        ))
