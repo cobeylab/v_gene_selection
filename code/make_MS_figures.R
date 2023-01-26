@@ -46,19 +46,19 @@ if('total_genes_and_genes_in_LN_pops' %in% ls()){
 
 # Correlations in V gene freqs and freq deviations
 top_row <- plot_grid(pairwise_freq_correlations_plot +
-                       ylab('Correlation between pairs of mice') +
+                       ylab('Pairwise correlation\nbetween individuals') +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
                              plot.margin = margin(l = 20, r = 10,t = 5, b = 30),
                              plot.title = element_text(hjust = 0.5), legend.position = 'none') +
-                       ggtitle('Allele frequencies'),
+                       ggtitle('Germline allele frequencies in the response'),
                      pairwise_freq_deviations_plot +
-                       ylab('Correlation between pairs of mice') +
+                       ylab('\n') +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
                              plot.margin = margin(r = 20, l = 10, t = 5, b = 30),
                              plot.title = element_text(hjust = 0.5), legend.position = 'none') +
-                       ggtitle('Frequency deviations from the naive repertoire'),
+                       ggtitle('Experienced-to-naive ratios'),
                      align = 'h')
 
 
@@ -90,7 +90,7 @@ freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
                                              label_size = 16)
 
 
-save_plot(paste0(figures_dir, 'freq_and_deviation_correlations.pdf'),
+save_plot(paste0(figures_dir, 'freq_and_deviation_correlations_ADJUSTED.pdf'),
           freq_and_deviation_correlations, 
           base_height = 13, base_width = 19)
 
