@@ -50,14 +50,18 @@ top_row <- plot_grid(pairwise_freq_correlations_plot +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
                              plot.margin = margin(l = 20, r = 10,t = 5, b = 30),
-                             plot.title = element_text(hjust = 0.5), legend.position = 'none') +
-                       ggtitle('Germline allele frequencies in the response'),
+                             plot.title = element_text(hjust = 0.5),
+                             legend.position = 'none',
+                             axis.text.x = element_text(angle = 45, vjust = 0.7)) +
+                       ggtitle('Germline V allele frequencies in the response'),
                      pairwise_freq_deviations_plot +
-                       ylab('\n') +
+                       ylab('') +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
                              plot.margin = margin(r = 20, l = 10, t = 5, b = 30),
-                             plot.title = element_text(hjust = 0.5), legend.position = 'none') +
+                             plot.title = element_text(hjust = 0.5),
+                             legend.position = 'none',
+                             axis.text.x = element_text(angle = 45, vjust = 0.7)) +
                        ggtitle('Experienced-to-naive ratios'),
                      align = 'h')
 
@@ -81,7 +85,7 @@ bottom_row <- top_20_genes_day8_LN_PC +
         axis.title = element_text(size = 16)) +
   #scale_y_continuous(expand = c(0.001,0.1),
   #                   limits = c(-0.05,NA)) +
-  xlab('Top 20 germline V alleles in lymph node plasma cells from each infected mouse on day 8') +
+  xlab('\nTop 20 germline V alleles in lymph node plasma cells from each infected mouse on day 8') +
   ylab('V allele frequency')
 
 freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
@@ -90,7 +94,7 @@ freq_and_deviation_correlations <- plot_grid(top_row, bottom_row, nrow = 2,
                                              label_size = 16)
 
 
-save_plot(paste0(figures_dir, 'freq_and_deviation_correlations_ADJUSTED.pdf'),
+save_plot(paste0(figures_dir, 'freq_and_deviation_correlations.pdf'),
           freq_and_deviation_correlations, 
           base_height = 13, base_width = 19)
 
