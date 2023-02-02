@@ -1,6 +1,6 @@
 # v_gene_selection
 
-Code for Vieira  et al., [Chance and contingency in B cell evolution limit the similarity of antibody responses to infection across individuals](https://www.biorxiv.org/content/10.1101/2022.09.16.508315v1).
+Code for Vieira  et al., [Increasingly divergent responses to infection in mice suggest B cell evolution is not constrained by germline-encoded specificities](https://doi.org/10.1101/2022.09.16.508315).
 
 ## Contents
 
