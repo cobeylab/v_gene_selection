@@ -5,10 +5,26 @@ library(readr)
 library(vegan)
 theme_set(theme_cowplot())
 
-clone_info <- read_csv('../processed_data/clone_info.csv')
+args <- commandArgs(trailingOnly = T)
+collapsed_novel_alleles <- as.logical(args[1])
 
-# Load pre-computed gene frequencies
-load('../results/precomputed_gene_freqs_all_seqs.RData')
+if(is.na(collapsed_novel_alleles)){
+  collapsed_novel_alleles <- F
+}
+
+# Load pre-computed gene frequencies, define and create fig directory (if non-existent)
+if(collapsed_novel_alleles){
+  load('../results/precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData')
+  figure_output_dir = '../figures/all_seqs_freqs_collapsed_novel_alleles/exported_ggplot_objects/'
+  n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse_collapsed_novel_alleles.csv'
+}else{
+  # Load pre-computed gene frequencies
+  load('../results/precomputed_gene_freqs_all_seqs.RData')
+  figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
+  n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse.csv'
+}
+
+dir.create(figure_output_dir, recursive = T, showWarnings = F)
 
 min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
 
@@ -91,7 +107,7 @@ obs_n_genes <- left_join(obs_n_genes,
          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
 # Export csv files
-write_csv(obs_n_genes, '../results/n_v_genes_by_mouse.csv')
+write_csv(obs_n_genes, n_v_genes_by_mouse_path)
 
 
 # PLOTS:
@@ -149,10 +165,6 @@ total_genes_and_genes_in_LN_pops <-
   xlab('Group') +
   ylab('Number of V genes (Chao1 estimate)')
 
-# Put these plots in the folder with figures based on analysis of all sequences (main analysis; as opposed to unique seqs only)
-
-figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
-dir.create(figure_output_dir, recursive = T, showWarnings = F)
 
 save(total_genes_and_genes_in_LN_pops, n_shared_genes,
      file = paste0(figure_output_dir,'n_genes.RData'))
