@@ -19,7 +19,7 @@ for(f in ggplot_object_files){load(f)}
 if('total_genes_and_genes_in_LN_pops' %in% ls()){
   
   top_2_rows <- plot_grid(total_genes_and_genes_in_LN_pops +
-                            ylab('Number of V genes\n(Chao1 estimate)'), 
+                            ylab('Number of V alleles\n(Chao1 estimate)'), 
                           plot_grid(n_shared_genes + 
                                       ylab ('Number of V alleles\nshared by mouse pair') +
                                       theme(axis.text.x = element_text(size = 10, angle = 15, vjust = 0.5),
