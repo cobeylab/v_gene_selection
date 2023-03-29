@@ -1,4 +1,5 @@
 source('gene_frequency_functions.R')
+library(readr)
 theme_set(theme_cowplot())
 
 # Read annotated sequences from Greiff et al. 2017
