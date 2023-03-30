@@ -40,6 +40,11 @@ if('total_genes_and_genes_in_LN_pops' %in% ls()){
             gene_sets_and_naive_freqs, 
             base_height = 13, base_width = 15)
   
+  # Save rarefaction curve plot
+  save_plot(paste0(figures_dir, 'rarefaction_curves.pdf'),
+            rarefaction_curves_pl,
+            base_width = 7, base_height = 5)
+  
 }
 
 

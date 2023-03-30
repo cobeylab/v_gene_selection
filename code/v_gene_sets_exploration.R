@@ -69,6 +69,44 @@ compute_chao1 <- function(gene_freqs){
   return(chao1_ests)
 }
 
+build_rarefaction_curves <- function(all_tissue_all_cell_freqs){
+
+  sample_sizes <- seq(1000, max(all_tissue_all_cell_freqs$total_compartment_seqs), 1000)
+  
+  sample_sizes <- unique(c(sample_sizes, unique(all_tissue_all_cell_freqs$total_compartment_seqs)))
+  
+  wide_format_tibble <- all_tissue_all_cell_freqs %>%
+    select(mouse_id, v_gene, n_vgene_seqs) %>%
+    pivot_wider(names_from = 'v_gene', values_from = 'n_vgene_seqs',
+                values_fill = 0)
+  
+  count_matrix <- as.matrix(wide_format_tibble %>% select(-mouse_id))
+  
+  rarefaction_curves <- rarefy(count_matrix, sample_sizes)
+  
+  colnames(rarefaction_curves) <- str_remove(colnames(rarefaction_curves), 'N')
+  
+  rarefaction_curves <- as_tibble(rarefaction_curves) %>%
+    mutate(mouse_id = wide_format_tibble$mouse_id) %>%
+    select(mouse_id, everything()) %>%
+    pivot_longer(cols = as.character(sample_sizes),
+                 names_to = 'sample_size', 
+                 values_to = 'n_v_genes')  %>%
+    mutate(sample_size = as.numeric(as.character(sample_size)))
+  
+  rarefaction_curves <- get_info_from_mouse_id(rarefaction_curves)
+  
+  # Exclude values for sample size larger than n. seqs in mouse
+  rarefaction_curves <- left_join(rarefaction_curves,
+                                  all_tissue_all_cell_freqs %>% 
+                                    select(mouse_id, total_compartment_seqs) %>%
+                                    unique()) %>%
+    filter(sample_size <= total_compartment_seqs)
+  
+  return(rarefaction_curves)
+
+}
+
 # ==========================================================================================
 # How many alleles do mice use?
 # ==========================================================================================
@@ -88,8 +126,19 @@ exp_freqs_across_all_tissues <- exp_freqs %>%
   mutate(tissue = 'all') %>%
   ungroup()
 
-gene_freqs <- bind_rows(gene_freqs,
-                        exp_freqs_across_all_tissues)
+gene_freqs <- bind_rows(gene_freqs, exp_freqs_across_all_tissues)
+
+# Allele frequencies across all cell types and tissues for each mouse (for rarefaction curves)
+all_tissue_all_cell_freqs <- gene_freqs %>%
+  filter(cell_type %in% c('naive','experienced'), tissue == 'all') %>%
+  group_by(mouse_id, day, infection_status, group, group_controls_pooled, v_gene) %>%
+  dplyr::summarise(across(c('n_vgene_seqs','total_compartment_seqs'), sum)) %>%
+  group_by(mouse_id) %>%
+  ungroup() %>%
+  mutate(vgene_seq_freq = n_vgene_seqs / total_compartment_seqs) %>%
+  mutate(cell_type = 'all', tissue = 'all') %>%
+  select(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, v_gene, n_vgene_seqs,
+         total_compartment_seqs, vgene_seq_freq)
  
 # For each tissue / cell type combination in each mouse, count number of alleles with freq. > 0
 obs_n_genes <- gene_freqs %>% filter(n_vgene_seqs > 0) %>%
@@ -111,6 +160,29 @@ write_csv(obs_n_genes, n_v_genes_by_mouse_path)
 
 
 # PLOTS:
+
+# Rarefaction_curves
+mice_with_enough_LN_seqs <- exp_freqs %>% filter(tissue == 'LN') %>%
+  filter(total_compartment_seqs >= min_compartment_size) %>%
+  select(mouse_id) %>%
+  unique()
+
+
+rarefaction_curves <- build_rarefaction_curves(all_tissue_all_cell_freqs)
+
+rarefaction_curves_pl <- rarefaction_curves %>%
+  ggplot(aes(x = sample_size, y = n_v_genes, group = mouse_id, color = infection_status)) +
+  geom_line() +
+  scale_x_log10() +
+  geom_point(data = rarefaction_curves %>%
+               group_by(mouse_id) %>% filter(sample_size == max(sample_size)) %>%
+               ungroup()) +
+  theme(legend.position = 'top') +
+  groups_color_scale(name = 'Infection') +
+  xlab('Number of sequences') +
+  ylab('Number of V genes')
+
+
 
 # Number of genes shared by pairs of mice
 n_shared_genes <- pairwise_gene_freqs %>%
@@ -167,4 +239,4 @@ total_genes_and_genes_in_LN_pops <-
 
 
 save(total_genes_and_genes_in_LN_pops, n_shared_genes,
-     file = paste0(figure_output_dir,'n_genes.RData'))
+     rarefaction_curves_pl, file = paste0(figure_output_dir,'n_genes.RData'))
