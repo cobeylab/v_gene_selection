@@ -49,7 +49,7 @@ merge_info <- function(yaml_object, mouse_data_file_path){
     select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
            vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa,
-           partis_processed_seq, matches('igblast')) %>%
+           partis_processed_seq, productive_igblast, clone_id_igblast) %>%
     select(-parsed_igh_igblast_id) %>%
     dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset) %>%
     mutate(cell_type = as.character(cell_type))
@@ -97,7 +97,13 @@ merge_info <- function(yaml_object, mouse_data_file_path){
                   d_gene = d_segment_igblast) %>%
     mutate(clone_id = as.character(clone_id))
   
-  write.csv(clone_info_partis, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_igblast.csv'),
+  # Check the igblast assignment has only 1 v gene per clone
+  n_vgenes_per_clone <- clone_info_igblast %>% select(mouse_id, clone_id, v_gene) %>% group_by(mouse_id, clone_id, v_gene) %>%
+    count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
+  stopifnot(n_vgenes_per_clone == 1)
+  
+  
+  write.csv(clone_info_igblast, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_igblast.csv'),
             row.names = F)
   
   

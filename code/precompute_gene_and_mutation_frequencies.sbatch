@@ -11,4 +11,4 @@
 
 module load R/3.6.1
 
-Rscript precompute_gene_and_mutation_frequencies.R all_seqs FALSE FALSE
+Rscript precompute_gene_and_mutation_frequencies.R all_seqs FALSE FALSE partis

@@ -4,8 +4,9 @@ library(tidyr)
 library(readr)
 library(stringr)
 
-# Read germline sequences annotated with FRs and CDRS (by IgBlast, since partis annotates only CDR3.)
-annotated_germline_seqs_file <- '../results/germline_genes_igblast.tsv'
+# Read germline sequences annotated with FRs and CDRS
+# Uses partis inferred genes but runs them through IgBlast (since partis annotates only CDR3, not the other CDRs and FRs)
+annotated_germline_seqs_file <- '../results/germline_genes_partis_igblast.tsv'
 
 annotated_germline_seqs <- read_tsv(annotated_germline_seqs_file)
 
