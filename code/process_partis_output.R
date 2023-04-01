@@ -50,7 +50,6 @@ merge_info <- function(yaml_object, mouse_data_file_path){
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
            vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa,
            partis_processed_seq, productive_igblast, clone_id_igblast) %>%
-    select(-parsed_igh_igblast_id) %>%
     dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset) %>%
     mutate(cell_type = as.character(cell_type))
   
