@@ -90,17 +90,25 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   
   # Export clone info file based on the IgBLAST assignment by the Boyd lab.
   clone_info_igblast <- merged_data %>% mutate(mouse_id = mouse_id) %>%
-    select(mouse_id, clone_id_igblast, v_segment_igblast, d_segment_igblast, j_segment_igblast) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    # Some clones were assigned more than 1 allele of the same V gene. Use most common one within the clone
+    group_by(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    dplyr::summarise(n_clone_seqs_assigned_v_segment = dplyr::n()) %>%
+    group_by(mouse_id, clone_id_igblast) %>%
+    filter(n_clone_seqs_assigned_v_segment == max(n_clone_seqs_assigned_v_segment)) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
     unique() %>%
-    dplyr::rename(clone_id = clone_id_igblast, v_gene = v_segment_igblast, j_gene = j_segment_igblast,
-                  d_gene = d_segment_igblast) %>%
+    # Resolve potential ties arbitrarily choosing the first one
+    group_by(mouse_id, clone_id_igblast) %>%
+    dplyr::summarise(v_segment_igblast = v_segment_igblast[1]) %>%
+    ungroup() %>%
+    dplyr::rename(clone_id = clone_id_igblast, v_gene = v_segment_igblast) %>%
     mutate(clone_id = as.character(clone_id))
   
   # Check the igblast assignment has only 1 v gene per clone
   n_vgenes_per_clone <- clone_info_igblast %>% select(mouse_id, clone_id, v_gene) %>% group_by(mouse_id, clone_id, v_gene) %>%
-    count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
+    dplyr::count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
   stopifnot(n_vgenes_per_clone == 1)
-  
   
   write.csv(clone_info_igblast, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_igblast.csv'),
             row.names = F)
