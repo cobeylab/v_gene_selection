@@ -63,6 +63,14 @@ if(assignment == 'partis'){
 # Import annotated sequences
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 
+if(assignment == 'partis'){
+  annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_partis)
+}else{
+  stopifnot(assignment == 'igblast')
+  annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_igblast)
+}
+
+
 # Add mouse information to sequence counts object, then left join clone info
 seq_counts <- get_info_from_mouse_id(seq_counts)
 
@@ -232,8 +240,8 @@ if(frequency_type == 'all_seqs' & assignment == 'partis'){
   
   
 }else{
-  mutation_freqs_within_clones <- 'Not defined when using unique seqs'
-  mutation_freqs_within_clones_by_tissue_and_cell_type <- 'Not defined when using unique seqs'
+  mutation_freqs_within_clones <- "Not defined when using unique seqs or an assignment other than partis"
+  mutation_freqs_within_clones_by_tissue_and_cell_type <- "Not defined when using unique seqs"
 }
 
 
