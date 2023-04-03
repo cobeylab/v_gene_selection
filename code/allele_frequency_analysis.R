@@ -4,48 +4,35 @@ source('plot_options.R')
 
 theme_set(theme_cowplot())
 
-args <- commandArgs(trailingOnly = T)
-frequency_type <- args[1] # frequency_type <- 'all_seqs'
-use_Greiff2017_naive_freqs <- as.logical(args[2]) # use_Greiff2017_naive_freqs <- F
-collapsed_novel_alleles <- as.logical(args[3]) # collapsed_novel_alleles <- F
-
 # For some analyses, exclude mice with fewer than min_compartment_size reads
 min_compartment_size = 100
 
+args <- commandArgs(trailingOnly = T)
+
 # ===== LOAD PRE-COMPUTED OBJECTS AND DEFINE OUTPUT DIRECTORIES =====
 
-results_directory <- '../results/'
+precomputed_freqs_file <- as.character(args[1])
 
-processed_data_directory <- '../processed_data/'
+precomputed_file_name <- basename(precomputed_freqs_file)
 
-precomputed_freqs_file <- paste0('precomputed_gene_freqs_', frequency_type, '.RData')
+output_label <- case_when(
+  precomputed_file_name  == 'precomputed_gene_freqs_all_seqs.RData' ~ 'all_seqs_freqs',
+  precomputed_file_name  == 'precomputed_gene_freqs_unique_seqs.RData' ~ 'unique_seqs_freqs',
+  precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_Greiff2017_naive_freqs.RData' ~ 'all_seqs_freqs_Greiff2017_naive_freqs',
+  precomputed_file_name == 'precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData' ~ 'all_seqs_freqs_collapsed_novel_alleles',
+  precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast_assignment.RData' ~ 'all_seqs_freqs_igblast_assignment'
+)
+figure_directory <- paste0('../figures/', output_label, '/')
+
+deviations_by_allele_results_path <- paste0('../results/deviations_by_allele_', output_label, '.csv')
+
 
 germline_mutability_by_region <- read_csv('../results/germline_mutability_by_region.csv')
 germline_mutability_by_region_type <- read_csv('../results/germline_mutability_by_region_type.csv')
 
 
-figure_directory <- paste0('../figures/', frequency_type, '_freqs/')
-deviations_by_allele_results_path <- paste0(results_directory, 'deviations_by_allele_', frequency_type, '_freqs.csv')
-
-
-if(use_Greiff2017_naive_freqs){
-  stopifnot(frequency_type == 'all_seqs')
-  stopifnot(collapsed_novel_alleles == F)
-  figure_directory <- '../figures/all_seqs_freqs_Greiff2017_naive_freqs/'
-  precomputed_freqs_file <- 'precomputed_gene_freqs_all_seqs_Greiff2017_naive_freqs.RData'
-  deviations_by_allele_results_path  <-paste0(results_directory, 'deviations_by_allele_', frequency_type, 'freqs_Greiff2017_naive_freqs.csv')
-}
-if(collapsed_novel_alleles){
-  stopifnot(frequency_type == 'all_seqs')
-  stopifnot(use_Greiff2017_naive_freqs == F)
-  figure_directory <- '../figures/all_seqs_freqs_collapsed_novel_alleles/'
-  precomputed_freqs_file <- 'precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData'
-  deviations_by_allele_results_path  <-paste0(results_directory, 'deviations_by_allele_', frequency_type, '_collapsed_novel_alleles.csv')
-  
-}
-
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
-load(paste0(results_directory, precomputed_freqs_file))
+load(precomputed_freqs_file)
 
 # Create necessary directories
 #dir.create(figure_directory, showWarnings = F, recursive = T)

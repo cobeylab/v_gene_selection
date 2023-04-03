@@ -84,7 +84,7 @@ Run `CDR3_analysis.R`.
 
 3.6 *Analysis of germline allele frequencies*
 
- `allele_frequency_analysis.R` follows the same argument structure outlined in step 2. For instance, `Rscript allele_frequency_analysis.R all_seqs FALSE FALSE` runs the frequency analyses presented in the main text, based on `.RData` object from 2.1.
+ `allele_frequency_analysis.R` takes as input the output of step 2 (for instance, `../results/precomputed_gene_freqs_all_seqs_freqs.RData`).
 
 3.7 *Make figures*
 
