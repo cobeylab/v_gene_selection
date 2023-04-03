@@ -6,22 +6,30 @@ library(vegan)
 theme_set(theme_cowplot())
 
 args <- commandArgs(trailingOnly = T)
-collapsed_novel_alleles <- as.logical(args[1])
+assignment <- as.character(args[1])
+collapsed_novel_alleles <- as.logical(args[2])
 
-if(is.na(collapsed_novel_alleles)){
-  collapsed_novel_alleles <- F
-}
 
 # Load pre-computed gene frequencies, define and create fig directory (if non-existent)
 if(collapsed_novel_alleles){
+  stopifnot(assignment == 'partis')
   load('../results/precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData')
   figure_output_dir = '../figures/all_seqs_freqs_collapsed_novel_alleles/exported_ggplot_objects/'
   n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse_collapsed_novel_alleles.csv'
 }else{
-  # Load pre-computed gene frequencies
-  load('../results/precomputed_gene_freqs_all_seqs.RData')
-  figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
-  n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse.csv'
+  if(assignment == 'partis'){
+  
+    load('../results/precomputed_gene_freqs_all_seqs.RData')
+    figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
+    n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse.csv'
+    
+  }else{
+    stopifnot(assignment == 'igblast')
+    load('../results/precomputed_gene_freqs_all_seqs_igblast_assignment.RData')
+    figure_output_dir = '../figures/all_seqs_freqs_igblast_assignment/exported_ggplot_objects/'
+    n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse_igblast_assignment.csv'
+  }
+
 }
 
 dir.create(figure_output_dir, recursive = T, showWarnings = F)

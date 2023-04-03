@@ -9,6 +9,7 @@ args <- commandArgs(trailingOnly = T)
 frequency_type <- as.character(args[1]) 
 use_Greiff2017_naive_freqs <- as.logical(args[2]) # Use alternative dataset to estimate naive freqs?
 collapse_novel_alleles <- as.logical(args[3]) # Ignore novel alleles identified by partis?
+assignment <- as.character(args[4]) # VDJ/Clone assignment method ('partis', 'igblast')
 
 if(is.na(use_Greiff2017_naive_freqs)){
   use_Greiff2017_naive_freqs <- F
@@ -16,43 +17,65 @@ if(is.na(use_Greiff2017_naive_freqs)){
 if(is.na(collapse_novel_alleles)){
   collapse_novel_alleles <- F
 }
+if(is.na(assignment)){
+  assignment <- 'partis'
+}
 
 n_null_model_realizations <- 500
 
-# Read sequencec counts by mouse/clone/cell type
-if(frequency_type == 'all_seqs'){
-  seq_counts <- read_csv('../processed_data/seq_counts.csv')
-  # seq_counts <- read_csv('~/Desktop/v_gene_selection/processed_data/seq_counts.csv')
+if(assignment == 'partis'){
+  # Import basic info for each clone (germline genes, CDR length, naive CDR seq)
+  clone_info <- read_csv('../processed_data/clone_info_partis.csv')
+  
+  # Read sequences counts by mouse/clone/cell type
+  if(frequency_type == 'all_seqs'){
+    seq_counts <- read_csv('../processed_data/seq_counts_partis.csv')
+  }else{
+    stopifnot(frequency_type == 'unique_seqs')
+    stopifnot(!use_Greiff2017_naive_freqs)
+    seq_counts <- read_csv('../processed_data/unique_seq_counts_partis.csv')
+  }
+  
+  # Path to exported RData object.
+  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '.RData')
+  
+  # If collapse_novel_alleles is true, assigns novel alleles to their reference allele
+  if(collapse_novel_alleles){
+    stopifnot(use_Greiff2017_naive_freqs == F)
+    seq_counts <- seq_counts %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
+    clone_info <- clone_info %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
+    output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_collapsed_novel_alleles.RData') 
+  }
 }else{
-  stopifnot(frequency_type == 'unique_seqs')
+  stopifnot(assignment == 'igblast')
+  stopifnot(frequency_type == 'all_seqs')
   stopifnot(!use_Greiff2017_naive_freqs)
-  seq_counts <- read_csv('../processed_data/unique_seq_counts.csv')
-}
+  stopifnot(!collapse_novel_alleles | is.na(collapse_novel_alleles))
 
-# Path to exported RData object.
-output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '.RData')
+  
+  clone_info <- read_csv('../processed_data/clone_info_igblast.csv')
+  seq_counts <- read_csv('../processed_data/unique_seq_counts_igblast.csv')
+  
+  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_igblast_assignment.RData')
+  
+}
 
 # Import annotated sequences
 annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
-# annotated_seqs <- read_csv('~/Desktop/v_gene_selection/processed_data/annotated_seqs.csv')
 
-# Import basic info for each clone (germline genes, CDR length, naive CDR seq)
-clone_info <- read_csv('../processed_data/clone_info.csv')
-# clone_info <- read_csv('~/Desktop/v_gene_selection/processed_data/clone_info.csv')
+if(assignment == 'partis'){
+  annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_partis)
+}else{
+  stopifnot(assignment == 'igblast')
+  annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_igblast)
+}
+
 
 # Add mouse information to sequence counts object, then left join clone info
 seq_counts <- get_info_from_mouse_id(seq_counts)
 
 seq_counts <- left_join(seq_counts, clone_info %>% select(mouse_id, clone_id, v_gene)) %>%
   select(mouse_id, clone_id, v_gene, everything())
-
-# If collapse_novel_alleles is true, assigns novel alleles to their reference allele
-if(collapse_novel_alleles){
-  stopifnot(use_Greiff2017_naive_freqs == F)
-  seq_counts <- seq_counts %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
-  clone_info <- clone_info %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
-  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_collapsed_novel_alleles.RData') 
-}
 
 
 # =========== CALCULATING V GENE FREQUENCIES ==========
@@ -199,7 +222,7 @@ clone_freqs_by_tissue_and_cell_type <- left_join(clone_freqs_by_tissue_and_cell_
 
 # =========== V-GENE REGION MUTATION FREQUENCIES WITHIN CLONES ==========
 
-if(frequency_type == 'all_seqs'){
+if(frequency_type == 'all_seqs' & assignment == 'partis'){
   mutation_freqs_within_clones <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = F)
   mutation_freqs_within_clones_by_tissue_and_cell_type <- get_mutation_frequencies_within_clones(annotated_seqs, seq_counts, by_tissue_and_cell_type = T)
   
@@ -217,8 +240,8 @@ if(frequency_type == 'all_seqs'){
   
   
 }else{
-  mutation_freqs_within_clones <- 'Not defined when using unique seqs'
-  mutation_freqs_within_clones_by_tissue_and_cell_type <- 'Not defined when using unique seqs'
+  mutation_freqs_within_clones <- "Not defined when using unique seqs or an assignment other than partis"
+  mutation_freqs_within_clones_by_tissue_and_cell_type <- "Not defined when using unique seqs"
 }
 
 

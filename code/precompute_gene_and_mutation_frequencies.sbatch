@@ -7,8 +7,9 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=20:00:00
-#SBATCH --mem-per-cpu=64000
+#SBATCH --mem-per-cpu=128G
 
 module load R/3.6.1
 
-Rscript precompute_gene_and_mutation_frequencies.R all_seqs FALSE FALSE
+Rscript precompute_gene_and_mutation_frequencies.R all_seqs FALSE FALSE partis
+

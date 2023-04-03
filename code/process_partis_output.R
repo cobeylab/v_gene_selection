@@ -38,15 +38,19 @@ merge_info <- function(yaml_object, mouse_data_file_path){
   merged_data <- merged_data %>%
     dplyr::rename(v_segment_igblast = v_segment, d_segment_igblast = d_segment, j_segment_igblast = j_segment,
            clone_id_igblast = igh_igblast_clone_id, productive_igblast = productive,
-           v_segment_support_igblast = v_score) 
+           v_segment_support_igblast = v_score) %>%
+    mutate(v_segment_igblast = str_remove(as.character(v_segment_igblast),'mm'),
+           d_segment_igblast = str_remove(as.character(d_segment_igblast),'mm'),
+           j_segment_igblast = str_remove(as.character(j_segment_igblast),'mm')) %>%
+    mutate(d_segment_igblast = str_remove(d_segment_igblast,"\""))
   
   # Export file with sequence-level annotations
   annotated_seqs <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, seq_id, partis_uniq_ref_seq, specimen_tissue, specimen_cell_subset, isotype, seq_length_partis,
            productive_partis, n_mutations_partis_nt, n_mutations_partis_aa, cdr3_seq_partis, cdr3_mutations_partis_nt, cdr3_mutations_partis_aa,
            vgene_mutations_partis_nt, sequenced_bases_in_vgene_region_partis, vgene_mutations_list_partis_nt, vgene_mutations_list_partis_aa,
-           partis_processed_seq) %>%
-    dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset, clone_id = clone_id_partis) %>%
+           partis_processed_seq, productive_igblast, clone_id_igblast) %>%
+    dplyr::rename(tissue = specimen_tissue, cell_type = specimen_cell_subset) %>%
     mutate(cell_type = as.character(cell_type))
   
   annotated_seqs$cell_type[annotated_seqs$cell_type == 'naïve'] <- 'IgD+B220+'
@@ -55,7 +59,7 @@ merge_info <- function(yaml_object, mouse_data_file_path){
             row.names = F)
   
   # Export clone info file, including some summary statistics
-  clone_info <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+  clone_info_partis <- merged_data %>% mutate(mouse_id = mouse_id) %>%
     select(mouse_id, clone_id_partis, v_segment_partis, d_segment_partis, j_segment_partis, cdr3_length_partis,
            clone_consensus_cdr3_partis, clone_naive_cdr3_partis, clone_naive_seq_nt_partis, clone_naive_seq_aa_partis) %>%
     unique() %>%
@@ -63,8 +67,8 @@ merge_info <- function(yaml_object, mouse_data_file_path){
                   d_gene = d_segment_partis) %>%
     mutate(clone_id = as.character(clone_id))
   
-  
-  clones_summary <- annotated_seqs %>%
+  clones_summary_partis <- annotated_seqs %>%
+    dplyr::rename(clone_id = clone_id_partis) %>%
     filter(productive_partis == T) %>%
     group_by(mouse_id, clone_id) %>%
     dplyr::summarise(mean_n_mutations_partis_aa = mean(n_mutations_partis_aa),
@@ -78,23 +82,51 @@ merge_info <- function(yaml_object, mouse_data_file_path){
     ungroup() %>%
     mutate(clone_id = as.character(clone_id))
   
-  clone_info <- left_join(clone_info, clones_summary)
+  clone_info_partis <- left_join(clone_info_partis, clones_summary_partis)
   
   
-  write.csv(clone_info, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info.csv'),
+  write.csv(clone_info_partis, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_partis.csv'),
             row.names = F)
   
-  # Calculate site-specific mutation frequencies for each V gene.
+  # Export clone info file based on the IgBLAST assignment by the Boyd lab.
+  clone_info_igblast <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    # Some clones were assigned more than 1 allele of the same V gene. Use most common one within the clone
+    group_by(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    dplyr::summarise(n_clone_seqs_assigned_v_segment = dplyr::n()) %>%
+    group_by(mouse_id, clone_id_igblast) %>%
+    filter(n_clone_seqs_assigned_v_segment == max(n_clone_seqs_assigned_v_segment)) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    unique() %>%
+    # Resolve potential ties arbitrarily choosing the first one
+    group_by(mouse_id, clone_id_igblast) %>%
+    dplyr::summarise(v_segment_igblast = v_segment_igblast[1]) %>%
+    ungroup() %>%
+    dplyr::rename(clone_id = clone_id_igblast, v_gene = v_segment_igblast) %>%
+    mutate(clone_id = as.character(clone_id))
+  
+  # Check the igblast assignment has only 1 v gene per clone
+  n_vgenes_per_clone <- clone_info_igblast %>% select(mouse_id, clone_id, v_gene) %>% group_by(mouse_id, clone_id, v_gene) %>%
+    dplyr::count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
+  stopifnot(n_vgenes_per_clone == 1)
+  
+  write.csv(clone_info_igblast, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_igblast.csv'),
+            row.names = F)
+  
+  
+  # Calculate site-specific mutation frequencies for each V gene
+  # Only available for the partis assignment
   # (For these calculations, exclude unproductive sequences and sequences without an assigned V gene)
   
   annotated_seqs <- annotated_seqs %>% filter(!is.na(n_mutations_partis_nt), !is.na(vgene_mutations_partis_nt), productive_partis == T)
 
   annotated_seqs <- annotated_seqs %>%
+    dplyr::rename(clone_id = clone_id_partis) %>%
     mutate(across(c('clone_id','partis_uniq_ref_seq','seq_id'), as.character))
   
   annotated_seqs <- left_join(annotated_seqs %>% 
                                 mutate(clone_id = as.character(clone_id)),
-                              clone_info %>% select(mouse_id, clone_id, v_gene))
+                              clone_info_partis %>% select(mouse_id, clone_id, v_gene))
   
   mut_probs_per_gene_position <- estimate_mut_probs_per_vgene_position(annotated_seqs)
   
