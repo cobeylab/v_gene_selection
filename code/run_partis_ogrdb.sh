@@ -34,10 +34,12 @@ echo else >> $sbatch_file
     echo python seqs_to_fasta.py '$input_file' >> $sbatch_file
 
     echo temp_fasta_file=../processed_data/mouse_specific_data_files/$time_point-'${SLURM_ARRAY_TASK_ID}'.fasta >> $sbatch_file
+    
+    echo partis_parameter_dir=_output/$time_point-'${SLURM_ARRAY_TASK_ID}'_ogrdb/ >> $sbatch_file
 
     # Run partis
-    echo /project2/cobey/partis/bin/partis partition --n-procs 15 --species c57bl --leave-default-germline --infname '$temp_fasta_file' --outfname '$output_file' --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa >> $sbatch_file
-
+    echo /project2/cobey/partis/bin/partis partition --n-procs 15 --species c57bl --parameter-dir '$partis_parameter_dir'  --leave-default-germline --extra-annotation-columns regional_bounds:cdr3_seqs:seqs_aa:naive_seq_aa:consensus_seq:consensus_seq_aa --infname '$temp_fasta_file' --outfname '$output_file' >> $sbatch_file
+        
     # Remove temporary fasta file
     echo rm '$temp_fasta_file' >> $sbatch_file
     
