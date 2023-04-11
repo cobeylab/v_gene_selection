@@ -21,6 +21,7 @@ merge_info <- function(yaml_object, yaml_object_ogrdb, mouse_data_file_path){
   
   # Get partis information into desired format
   partis_info <- format_partis_info(yaml_object)
+  
   partis_info_ogrdb <- format_partis_info(yaml_object_ogrdb)
   
   stopifnot(length(unique(partis_info$clone_id_partis)) == length(yaml_object$events))
@@ -107,7 +108,7 @@ merge_info <- function(yaml_object, yaml_object_ogrdb, mouse_data_file_path){
 
 yaml_object <- read_yaml(yaml_file_path)
 yaml_object_ogrdb <- read_yaml(yaml_file_path_ogrdb)
-merge_info(yaml_object, yaml_file_path_ogrdb, mouse_data_file_path)
+merge_info(yaml_object, yaml_object_ogrdb, mouse_data_file_path)
 
 #Write germline gene sequences (including new alleles)
 mouse_id = str_extract(yaml_file_path,'[0-9]*-[0-9]*')

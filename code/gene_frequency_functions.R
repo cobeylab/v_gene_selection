@@ -1379,8 +1379,6 @@ export_partis_germline_genes <- function(yaml_object, mouse_id, output_dir, is_o
   
   run_id <- paste0('partis', ifelse(is_ogrdb_run,'_ogrdb',''))
   
-  
-  
   write.fasta(yaml_object$`germline-info`$seqs$v, names = names(yaml_object$`germline-info`$seqs$v),
               file.out = paste0(output_dir, 'v_genes_', run_id,'_', mouse_id,'.fasta'))
   write.fasta(yaml_object$`germline-info`$seqs$d, names = names(yaml_object$`germline-info`$seqs$d),
