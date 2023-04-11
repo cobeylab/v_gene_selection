@@ -283,3 +283,55 @@ format_partis_info <- function(yaml_object){
   }
   return(partis_info)
 }
+
+get_partis_clone_info <- function(merged_data, is_ogrdb_run){
+  
+
+  selected_vars <- c('mouse_id', 'clone_id_partis', 'v_segment_partis', 'd_segment_partis', 'j_segment_partis', 'cdr3_length_partis',
+                     'clone_consensus_cdr3_partis', 'clone_naive_cdr3_partis', 'clone_naive_seq_nt_partis', 'clone_naive_seq_aa_partis')
+    
+  if(is_ogrdb_run){
+    selected_vars <- str_replace(selected_vars, 'partis', 'partis_ogrdb')
+  }
+  
+  clone_info_partis <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+    select(all_of(selected_vars)) %>%
+    unique()
+  
+  # Remove ogrdb suffixes, if any
+  names(clone_info_partis) <- str_replace(names(clone_info_partis), 'partis_ogrdb','partis')
+
+  clone_info_partis <- clone_info_partis %>% 
+    dplyr::rename(clone_id = clone_id_partis, v_gene = v_segment_partis, j_gene = j_segment_partis,
+                  d_gene = d_segment_partis) %>%
+    mutate(clone_id = as.character(clone_id))
+  
+  return(clone_info_partis)
+  
+}
+
+get_igblast_clone_info <- function(merged_data){
+  
+  clone_info_igblast <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    # Some clones were assigned more than 1 allele of the same V gene. Use most common one within the clone
+    group_by(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    dplyr::summarise(n_clone_seqs_assigned_v_segment = dplyr::n()) %>%
+    group_by(mouse_id, clone_id_igblast) %>%
+    filter(n_clone_seqs_assigned_v_segment == max(n_clone_seqs_assigned_v_segment)) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    unique() %>%
+    # Resolve potential ties arbitrarily choosing the first one
+    group_by(mouse_id, clone_id_igblast) %>%
+    dplyr::summarise(v_segment_igblast = v_segment_igblast[1]) %>%
+    ungroup() %>%
+    dplyr::rename(clone_id = clone_id_igblast, v_gene = v_segment_igblast) %>%
+    mutate(clone_id = as.character(clone_id))
+  
+  # Check the igblast assignment has only 1 v gene per clone
+  n_vgenes_per_clone <- clone_info_igblast %>% select(mouse_id, clone_id, v_gene) %>% group_by(mouse_id, clone_id, v_gene) %>%
+    dplyr::count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
+  stopifnot(n_vgenes_per_clone == 1)
+  
+  return(clone_info_igblast)
+}

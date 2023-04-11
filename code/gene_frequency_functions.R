@@ -967,12 +967,39 @@ get_clone_freqs <- function(seq_counts, compartment_vars){
 
 }
 
-estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
+estimate_mut_probs_per_vgene_position <- function(annotated_seqs, is_ogrdb_run){
+  
+  # Calculate site-specific mutation frequencies for each V gene
+  # Only available for the partis assignments
+  # (For these calculations, exclude unproductive sequences and sequences without an assigned V gene)
+  
+  input_data <- annotated_seqs
+  
+  if(is_ogrdb_run){
+    partis_vars <- names(input_data)[str_detect(names(input_data), 'partis')]
+    excluded_vars <- partis_vars[str_detect(partis_vars, 'ogrdb') == F]
+    
+    input_data <- input_data %>%
+      select(-all_of(excluded_vars))
+    
+    names(input_data) <- str_replace(names(input_data), 'partis_ogrdb','partis')
+  }
+  
+  input_data <- input_data %>% filter(!is.na(n_mutations_partis_nt), !is.na(vgene_mutations_partis_nt), productive_partis == T)
+  
+  input_data <- input_data %>%
+    dplyr::rename(clone_id = clone_id_partis) %>%
+    mutate(across(c('clone_id','partis_uniq_ref_seq','seq_id'), as.character))
+  
+  input_data <- left_join(input_data %>% 
+                                mutate(clone_id = as.character(clone_id)),
+                              clone_info_partis %>% select(mouse_id, clone_id, v_gene))
+  
   
   # For a vector with position-specific mutation information for a single mouse / cell type / tissue / v gene,
   # counts how many times each position was mutated
-  base_function <- function(annotated_seqs, selected_mouse, selected_tissue, selected_cell_type, selected_v_gene){
-    vgene_specific_mutation_list <- annotated_seqs %>% filter(mouse_id == selected_mouse, cell_type == selected_cell_type,
+  base_function <- function(input_data, selected_mouse, selected_tissue, selected_cell_type, selected_v_gene){
+    vgene_specific_mutation_list <- input_data %>% filter(mouse_id == selected_mouse, cell_type == selected_cell_type,
                                              tissue == selected_tissue, v_gene == selected_v_gene) %>%
       pull(vgene_mutations_list_partis_nt)
     
@@ -995,7 +1022,7 @@ estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
     )
   }
   
-  unique_combinations <- annotated_seqs %>%
+  unique_combinations <- input_data %>%
     select(mouse_id, tissue, cell_type, v_gene) %>%
     unique()
 
@@ -1004,7 +1031,7 @@ estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
          selected_tissue = unique_combinations$tissue,
          selected_cell_type = unique_combinations$cell_type,
          selected_v_gene = unique_combinations$v_gene,
-         MoreArgs = list(annotated_seqs = annotated_seqs), 
+         MoreArgs = list(input_data = input_data), 
          SIMPLIFY = F)
   
   return(bind_rows(output))
@@ -1345,6 +1372,22 @@ get_pairwise_corrs_for_randomized_datasets <- function(randomized_gene_freqs_lis
   pw_corr_freq_ratios <- pw_corr_freq_ratios %>% select(replicate, everything())
   
   return(list(freqs = pw_corr_freqs, freq_ratios = pw_corr_freq_ratios))
+  
+}
+
+export_partis_germline_genes <- function(yaml_object, mouse_id, output_dir, is_ogrdb_run){
+  
+  run_id <- paste0('partis', ifelse(is_ogrdb_run,'_ogrdb',''))
+  
+  
+  
+  write.fasta(yaml_object$`germline-info`$seqs$v, names = names(yaml_object$`germline-info`$seqs$v),
+              file.out = paste0(output_dir, 'v_genes_', run_id,'_', mouse_id,'.fasta'))
+  write.fasta(yaml_object$`germline-info`$seqs$d, names = names(yaml_object$`germline-info`$seqs$d),
+              file.out = paste0(output_dir, 'd_genes_', run_id,'_', mouse_id,'.fasta'))
+  write.fasta(yaml_object$`germline-info`$seqs$j, names = names(yaml_object$`germline-info`$seqs$j),
+              file.out = paste0(output_dir, 'j_genes_', run_id,'_', mouse_id,'.fasta'))
+  
   
 }
 

@@ -8,6 +8,7 @@ for mid in ${mice_ids//,/ }
 do
     sbatch_file=process_partis_yaml_$mid.sbatch
     yaml_file=../results/partis/${mid}_partis.yaml 
+    yaml_ogrdb_file=../results/partis/${mid}_partis_ogrdb.yaml
     mouse_data_file=../processed_data/mouse_specific_data_files/${mid}.csv
     
     echo "Processing mouse $mid"
@@ -25,8 +26,8 @@ do
 
     echo module load R/3.6.1 >> $sbatch_file
  
-    echo Rscript process_partis_output.R ${yaml_file} ${mouse_data_file} >> $sbatch_file
-        # ------------------------------------------------------------------------------------
+    echo Rscript process_partis_output.R ${yaml_file} ${yaml_ogrdb_file} ${mouse_data_file} >> $sbatch_file
+    # ------------------------------------------------------------------------------------
 
     sbatch $sbatch_file   
     rm $sbatch_file
