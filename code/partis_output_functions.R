@@ -294,7 +294,7 @@ get_partis_clone_info <- function(merged_data, is_ogrdb_run){
     selected_vars <- str_replace(selected_vars, 'partis', 'partis_ogrdb')
   }
   
-  clone_info_partis <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+  clone_info_partis <- merged_data %>% 
     select(all_of(selected_vars)) %>%
     unique()
   
@@ -312,7 +312,7 @@ get_partis_clone_info <- function(merged_data, is_ogrdb_run){
 
 get_igblast_clone_info <- function(merged_data){
   
-  clone_info_igblast <- merged_data %>% mutate(mouse_id = mouse_id) %>%
+  clone_info_igblast <- merged_data %>%
     select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
     # Some clones were assigned more than 1 allele of the same V gene. Use most common one within the clone
     group_by(mouse_id, clone_id_igblast, v_segment_igblast) %>%

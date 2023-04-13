@@ -967,7 +967,7 @@ get_clone_freqs <- function(seq_counts, compartment_vars){
 
 }
 
-estimate_mut_probs_per_vgene_position <- function(annotated_seqs, is_ogrdb_run){
+estimate_mut_probs_per_vgene_position <- function(annotated_seqs, clone_info_partis, is_ogrdb_run){
   
   # Calculate site-specific mutation frequencies for each V gene
   # Only available for the partis assignments

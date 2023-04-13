@@ -38,7 +38,8 @@ merge_info <- function(yaml_object, yaml_object_ogrdb, mouse_data_file_path){
   
   # Mouse raw data contains raw data sent from the Boyd lab. Add clone id, V/D/J assignment with those from partis
   merged_data <- left_join(mouse_raw_data %>% mutate(trimmed_read_id = as.character(trimmed_read_id)),
-                           partis_info, by = 'trimmed_read_id')
+                           partis_info, by = 'trimmed_read_id') %>%
+    dplyr::rename(mouse_id = participant_alt_label)
   
   # Merge with partis ogrdb info
   names(partis_info_ogrdb) <- str_replace(names(partis_info_ogrdb), 'partis', 'partis_ogrdb')
@@ -79,14 +80,19 @@ merge_info <- function(yaml_object, yaml_object_ogrdb, mouse_data_file_path){
             row.names = F)
   
   # Export clone info files, including some summary statistics
+  
+
   clone_info_partis <- get_partis_clone_info(merged_data = merged_data, is_ogrdb_run = F)
+  
+
   clone_info_partis_ogrdb <- get_partis_clone_info(merged_data = merged_data, is_ogrdb_run = T)
+  
   
   write.csv(clone_info_partis, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_partis.csv'),
             row.names = F)
   write.csv(clone_info_partis_ogrdb, paste0('../processed_data/clone_info_files/', mouse_id, '_clone_info_partis_ogrdb.csv'),
             row.names = F)
-  
+
   # Export clone info file based on the IgBLAST assignment by the Boyd lab.
   clone_info_igblast <- get_igblast_clone_info(merged_data)
   
@@ -95,20 +101,24 @@ merge_info <- function(yaml_object, yaml_object_ogrdb, mouse_data_file_path){
   
   # Calculate site-specific mutation frequencies for each V gene
   # Only available for the partis assignments 
-  mut_probs_per_gene_position_partis <- estimate_mut_probs_per_vgene_position(annotated_seqs, is_ogrdb_run = F)
+  mut_probs_per_gene_position_partis <- estimate_mut_probs_per_vgene_position(annotated_seqs,
+                                                                              clone_info_partis,
+                                                                              is_ogrdb_run = F)
   
   write.csv(mut_probs_per_gene_position_partis,
             paste0('../results/mutations_per_vgene_base/', mouse_id, '_mutations_per_vgene_base_partis.csv'),
             row.names = F)
   
-  mut_probs_per_gene_position_partis_ogrdb <- estimate_mut_probs_per_vgene_position(annotated_seqs, is_ogrdb_run = T)
+  mut_probs_per_gene_position_partis_ogrdb <- estimate_mut_probs_per_vgene_position(annotated_seqs,
+                                                                                    clone_info_partis_ogrdb,
+                                                                                    is_ogrdb_run = T)
   write.csv(mut_probs_per_gene_position_partis_ogrdb,
             paste0('../results/mutations_per_vgene_base/', mouse_id, '_mutations_per_vgene_base_partis_ogrdb.csv'))
 }
 
 yaml_object <- read_yaml(yaml_file_path)
 yaml_object_ogrdb <- read_yaml(yaml_file_path_ogrdb)
-merge_info(yaml_object, yaml_object_ogrdb, mouse_data_file_path)
+
 
 #Write germline gene sequences (including new alleles)
 mouse_id = str_extract(yaml_file_path,'[0-9]*-[0-9]*')
@@ -120,3 +130,7 @@ export_partis_germline_genes(yaml_object = yaml_object, mouse_id = mouse_id,
 
 export_partis_germline_genes(yaml_object = yaml_object_ogrdb, mouse_id = mouse_id,
                              output_dir = germline_genes_dir, is_ogrdb_run = T)
+
+# Export annotated sequences and clone information
+
+merge_info(yaml_object, yaml_object_ogrdb, mouse_data_file_path)
