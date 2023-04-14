@@ -20,7 +20,7 @@ output_label <- case_when(
   precomputed_file_name  == 'precomputed_gene_freqs_unique_seqs.RData' ~ 'unique_seqs_freqs',
   precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_Greiff2017_naive_freqs.RData' ~ 'all_seqs_freqs_Greiff2017_naive_freqs',
   precomputed_file_name == 'precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData' ~ 'all_seqs_freqs_collapsed_novel_alleles',
-  precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast_assignment.RData' ~ 'all_seqs_freqs_igblast_assignment'
+  precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast.RData' ~ 'all_seqs_freqs_igblast_assignment'
 )
 figure_directory <- paste0('../figures/', output_label, '/')
 

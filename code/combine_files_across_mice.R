@@ -45,25 +45,56 @@ annotated_seqs <- lapply(annotated_seq_files, read_csv)
 annotated_seqs <- bind_rows(annotated_seqs)
 annotated_seqs$cell_type[annotated_seqs$cell_type == 'naive'] <- 'IgD+B220+'
 
+# Final annotated seqs depend on filters for naive seqs, which are assignment specific
+# Hence assignment-specific annotated_seqs objects
+
+# For the partis assignments, standardize variable names
+partis_var_names <- names(annotated_seqs)[str_detect(names(annotated_seqs),'partis')]
+
+annotated_seqs_partis <- annotated_seqs %>%
+  select(-all_of(partis_var_names[str_detect(partis_var_names,'ogrdb')])) %>%
+  select(-matches('igblast')) %>%
+  dplyr::rename(clone_id = clone_id_partis, productive = productive_partis)
+
+annotated_seqs_partis_ogrdb <- annotated_seqs %>%
+  select(-all_of(partis_var_names[str_detect(partis_var_names,'ogrdb') == F])) %>%
+  select(-matches('igblast'))
+
+names(annotated_seqs_partis_ogrdb) <- str_replace(names(annotated_seqs_partis_ogrdb), 'partis_ogrdb','partis')
+
+annotated_seqs_partis_ogrdb <- annotated_seqs_partis_ogrdb %>%
+  dplyr::rename(clone_id = clone_id_partis, productive = productive_partis)
+
+
 # Process Igd+B220+ cells to decide which are naive, which are likely non-naive
-# (Because some criteria depend on clone size, this call is assignment-specific)
+max_clone_unique_IgDB220_seqs = 1
+max_v_gene_mutations = 2
 
+annotated_seqs_partis <- process_IgD_B220_seqs(annotated_seqs_partis,
+                                        max_clone_unique_IgDB220_seqs = max_clone_unique_IgDB220_seqs,
+                                        max_v_gene_mutations = max_v_gene_mutations)
 
-annotated_seqs_partis <- process_IgD_B220_seqs(annotated_seqs,
-                                        max_clone_unique_IgDB220_seqs = 1,
-                                        max_v_gene_mutations = 2,
-                                        filters_from = 'partis')
+annotated_seqs_partis_ogrdb <- process_IgD_B220_seqs(annotated_seqs_partis_ogrdb,
+                                                     max_clone_unique_IgDB220_seqs = max_clone_unique_IgDB220_seqs,
+                                                     max_v_gene_mutations = max_v_gene_mutations)
 
-write_csv(annotated_seqs_partis, '../processed_data/annotated_seqs_partis.csv')
+# For the igblast assignment, use the naive filters from the partis assignment
+annotated_seqs_igblast <- annotated_seqs %>%
+  select(-matches('partis')) %>%
+  dplyr::rename(clone_id = clone_id_igblast, productive = productive_igblast) %>%
+  select(-cell_type)
 
-
-annotated_seqs_partis_ogrdb <- process_IgD_B220_seqs(annotated_seqs,
-                                                     max_clone_unique_IgDB220_seqs = 1,
-                                                     max_v_gene_mutations = 2,
-                                                     filters_from = 'partis_ogrdb')
-write_csv(annotated_seqs_partis_ogrdb, '../processed_data/annotated_seqs_partis_ogrdb.csv')
+annotated_seqs_igblast <- left_join(annotated_seqs_igblast, 
+                                    annotated_seqs_partis %>% select(mouse_id, seq_id, cell_type, partis_uniq_ref_seq),
+                                    by = c('mouse_id','seq_id')) %>%
+  select(mouse_id, seq_id, partis_uniq_ref_seq, tissue, cell_type, everything())
 
 rm(annotated_seqs)
+
+write_csv(annotated_seqs_partis, '../processed_data/annotated_seqs_partis.csv')
+write_csv(annotated_seqs_partis_ogrdb, '../processed_data/annotated_seqs_partis_ogrdb.csv')
+write_csv(annotated_seqs_igblast, '../processed_data/annotated_seqs_igblast.csv')
+
 
 print('Combining clone-level info')
 clone_info_partis <- bind_rows(lapply(partis_clone_info_files, read_csv))
@@ -88,10 +119,10 @@ germline_v_genes_partis_ogrdb <- process_partis_germline_genes(germline_v_genes_
 write_csv(germline_v_genes_partis_ogrdb, '../results/germline_genes_partis_ogrdb.csv')
 
 # ====== Sequences counts for experienced cells, by mouse, cell type, tissue, V gene
-seq_counts_partis <- get_productive_seq_counts(annotated_seqs_partis, unique_only = F, assignment = 'partis')
+seq_counts_partis <- get_productive_seq_counts(annotated_seqs_partis, unique_only = F)
 # Ig blast assignment will use the partis assignment-based filters for naive sequences
-seq_counts_igblast <- get_productive_seq_counts(annotated_seqs_partis, unique_only = F, assignment = 'igblast')
-seq_counts_partis_ogrdb <- get_productive_seq_counts(annotated_seqs_partis_ogrdb, unique_only = F, assignment = 'partis_ogrdb')
+seq_counts_igblast <- get_productive_seq_counts(annotated_seqs_igblast, unique_only = F)
+seq_counts_partis_ogrdb <- get_productive_seq_counts(annotated_seqs_partis_ogrdb, unique_only = F)
 
 write_csv(seq_counts_partis, '../processed_data/seq_counts_partis.csv')
 write_csv(seq_counts_igblast, '../processed_data/seq_counts_igblast.csv')
@@ -99,9 +130,9 @@ write_csv(seq_counts_partis_ogrdb, '../processed_data/seq_counts_partis_ogrdb.cs
 
 # Same structure, but after grouping sequences from the same mouse, clone, cell type, tissue and isotype that are identical
 
-unique_seq_counts_partis <- get_productive_seq_counts(annotated_seqs_partis, unique_only = T, assignment = 'partis')
-unique_seq_counts_igblast <- get_productive_seq_counts(annotated_seqs_partis, unique_only = T, assignment = 'igblast')
-unique_seq_counts_partis_ogrdb <- get_productive_seq_counts(annotated_seqs_partis_ogrdb, unique_only = T, assignment = 'partis_ogrdb')
+unique_seq_counts_partis <- get_productive_seq_counts(annotated_seqs_partis, unique_only = T)
+unique_seq_counts_igblast <- get_productive_seq_counts(annotated_seqs_igblast, unique_only = T)
+unique_seq_counts_partis_ogrdb <- get_productive_seq_counts(annotated_seqs_partis_ogrdb, unique_only = T)
 
 write_csv(unique_seq_counts_partis, '../processed_data/unique_seq_counts_partis.csv')
 write_csv(unique_seq_counts_igblast, '../processed_data/unique_seq_counts_igblast.csv')

@@ -25,7 +25,7 @@ if(collapsed_novel_alleles){
     
   }else{
     stopifnot(assignment == 'igblast')
-    load('../results/precomputed_gene_freqs_all_seqs_igblast_assignment.RData')
+    load('../results/precomputed_gene_freqs_all_seqs_igblast.RData')
     figure_output_dir = '../figures/all_seqs_freqs_igblast_assignment/exported_ggplot_objects/'
     n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse_igblast_assignment.csv'
   }

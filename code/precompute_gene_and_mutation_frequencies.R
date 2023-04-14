@@ -23,28 +23,37 @@ if(is.na(assignment)){
 
 n_null_model_realizations <- 500
 
-if(assignment == 'partis'){
+if(assignment %in% c('partis','partis_ogrdb')){
   # Import basic info for each clone (germline genes, CDR length, naive CDR seq)
-  clone_info <- read_csv('../processed_data/clone_info_partis.csv')
+  clone_info <- read_csv(paste0('../processed_data/clone_info_', assignment, '.csv'))
   
+  annotated_seqs <- read_csv(paste0('../processed_data/annotated_seqs_', assignment, '.csv'))
+  
+  if(assignment == 'partis'){
+    annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_partis)
+  }else{
+    annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_partis_ogrdb)
+  }
+
   # Read sequences counts by mouse/clone/cell type
   if(frequency_type == 'all_seqs'){
-    seq_counts <- read_csv('../processed_data/seq_counts_partis.csv')
+    seq_counts <- read_csv(paste0('../processed_data/seq_counts_', assignment, '.csv'))
   }else{
     stopifnot(frequency_type == 'unique_seqs')
     stopifnot(!use_Greiff2017_naive_freqs)
-    seq_counts <- read_csv('../processed_data/unique_seq_counts_partis.csv')
+    seq_counts <- read_csv(paste0('../processed_data/unique_seq_counts_', assignment, '.csv'))
   }
   
   # Path to exported RData object.
-  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '.RData')
+  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_', assignment,'.RData')
   
   # If collapse_novel_alleles is true, assigns novel alleles to their reference allele
   if(collapse_novel_alleles){
     stopifnot(use_Greiff2017_naive_freqs == F)
+    stopifnot(assignment == 'partis') # No point in collapsing alleles if assignment == 'partis_ogrdb'
     seq_counts <- seq_counts %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
     clone_info <- clone_info %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
-    output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_collapsed_novel_alleles.RData') 
+    output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_', assignment, '_collapsed_novel_alleles.RData') 
   }
 }else{
   stopifnot(assignment == 'igblast')
@@ -55,20 +64,14 @@ if(assignment == 'partis'){
   
   clone_info <- read_csv('../processed_data/clone_info_igblast.csv')
   seq_counts <- read_csv('../processed_data/unique_seq_counts_igblast.csv')
+  annotated_seqs <- read_csv('../processed_data/annotated_seqs_partis.csv') %>% mutate(clone_id = clone_id_igblast)
+  # igblast run uses partis-derived filters for naive sequences. 
   
-  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_igblast_assignment.RData')
+  output_file <- paste0('../results/precomputed_gene_freqs_', frequency_type, '_igblast.RData')
   
 }
 
-# Import annotated sequences
-annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv')
 
-if(assignment == 'partis'){
-  annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_partis)
-}else{
-  stopifnot(assignment == 'igblast')
-  annotated_seqs <- annotated_seqs %>% mutate(clone_id = clone_id_igblast)
-}
 
 
 # Add mouse information to sequence counts object, then left join clone info
