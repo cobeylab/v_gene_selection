@@ -214,9 +214,8 @@ format_partis_info <- function(yaml_object){
       
       # Count mutations across the whole sequence
       n_mutations_partis_nt <- clone$n_mutations
-      n_mutations_partis_aa <- count_mutations_from_naive(seq_vector = clone$seqs_aa, naive_seq = clone$naive_seq_aa,
-                                                          translate_seqs = F, is_partis_aa_alignment = T)
       
+
       # Translated CDR3 sequences to be exported
       cdr3_seq_partis <- sapply(clone$cdr3_seqs,
                                 FUN = function(seq){
@@ -233,7 +232,6 @@ format_partis_info <- function(yaml_object){
       ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
                              productive_partis = productive_partis,
                              n_mutations_partis_nt = n_mutations_partis_nt, 
-                             n_mutations_partis_aa = n_mutations_partis_aa,
                              cdr3_length_partis = clone$cdr3_length / 3,
                              cdr3_seq_partis = cdr3_seq_partis,
                              cdr3_mutations_partis_nt = cdr3_mutations_nt,
@@ -247,7 +245,6 @@ format_partis_info <- function(yaml_object){
       ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
                              productive_partis = NA,
                              n_mutations_partis_nt = NA, 
-                             n_mutations_partis_aa = NA,
                              cdr3_length_partis = NA,
                              cdr3_seq_partis = NA,
                              cdr3_mutations_partis_nt = NA,

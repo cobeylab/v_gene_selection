@@ -58,7 +58,7 @@ merge_info <- function(yaml_object, yaml_object_ogrdb, mouse_data_file_path){
     mutate(d_segment_igblast = str_remove(d_segment_igblast,"\""))
   
   annotated_seqs_partis_vars <- c('clone_id_partis', 'partis_uniq_ref_seq', 'seq_length_partis',
-                                  'productive_partis', 'n_mutations_partis_nt', 'n_mutations_partis_aa', 'cdr3_seq_partis',
+                                  'productive_partis', 'n_mutations_partis_nt', 'cdr3_seq_partis',
                                   'cdr3_mutations_partis_nt', 'cdr3_mutations_partis_aa', 'vgene_mutations_partis_nt',
                                   'sequenced_bases_in_vgene_region_partis', 'vgene_mutations_list_partis_nt',
                                   'vgene_mutations_list_partis_aa')

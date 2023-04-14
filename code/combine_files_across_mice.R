@@ -5,8 +5,12 @@ library(seqinr)
 source('gene_frequency_functions.R')
 
 annotated_seq_files <- list.files('../processed_data/annotated_seq_files/', pattern = 'csv', full.names = T)
+
 partis_clone_info_files <- list.files('../processed_data/clone_info_files/', pattern = 'partis\\.csv', full.names = T)
+partis_ogrdb_clone_info_files <- list.files('../processed_data/clone_info_files/', pattern = 'partis_ogrdb\\.csv', full.names = T)
 igblast_clone_info_files <-  list.files('../processed_data/clone_info_files/', pattern = 'igblast\\.csv', full.names = T)
+
+
 mutations_per_vgene_base_files <- list.files('../results/mutations_per_vgene_base/', pattern = 'csv', full.names = T)
 germline_v_genes_files <- list.files('../results/partis/partis_germline_genes/', pattern = 'v_genes', full.names = T)
 
