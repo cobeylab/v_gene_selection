@@ -78,15 +78,23 @@ get_productive_seq_counts <- function(annotated_seqs, unique_only, assignment){
       dplyr::rename(clone_id = clone_id_partis,
                     productive = productive_partis)
   }else{
-    stopifnot(assignment == 'igblast')
+    if(assignment == 'partis_ogrdb'){
+      counts <- annotated_seqs %>%
+        dplyr::rename(clone_id = clone_id_partis_ogrdb,
+                      productive = productive_partis_ogrdb) %>%
+        mutate(partis_uniq_ref_seq = partis_ogrdb_uniq_ref_seq)
+    }else{
+      stopifnot(assignment == 'igblast')
+      
+      counts <- annotated_seqs %>%
+        dplyr::rename(clone_id = clone_id_igblast,
+                      productive = productive_igblast) 
+      
+    }
     
-    counts <- annotated_seqs %>%
-      dplyr::rename(clone_id = clone_id_igblast,
-                    productive = productive_igblast)
   }
   
-  counts <- counts %>%
-    filter(productive) 
+  counts <- counts %>% filter(productive) 
   
   # If computing counts of unique sequences only:
   if(unique_only){
@@ -154,8 +162,8 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
   # Sequences sorted as DUMP-IgD+B220+ that do not meet all the other criteria are labeled 'nonnaive_IgD+B220+'
   
-  # filters_from specificies the assignment that will be used to check this criteria (currently can only be 'partis')
-  stopifnot(filters_from == 'partis')
+  # filters_from specificies the assignment that will be used to check this criteria
+  stopifnot(filters_from == 'partis' | filters_from == 'partis_ogrdb')
   
   unique_productive_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T, assignment = filters_from)
     
@@ -169,12 +177,21 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
   igd_b220_seqs <- annotated_seqs %>% 
     filter(cell_type == 'IgD+B220+')
+  
+  if(filters_from == 'partis' | filters_from == 'igblast'){
+    igd_b220_seqs <- igd_b220_seqs %>%
+      mutate(mutations_filter = vgene_mutations_partis_nt)
+  }else{
+    stopifnot(filters_from == 'partis_ogrdb')
+    igd_b220_seqs <- igd_b220_seqs %>%
+      mutate(mutations_filter = vgene_mutations_partis_ogrdb_nt)
+  }
 
   igd_b220_seqs <- igd_b220_seqs %>%
     mutate(cell_type = case_when(
       (isotype %in% c('IGM','IGD') | is.na(isotype)) & clone_purity == "pure_IgD+B220+" &
         unique_productive_IgDB220_seqs_in_clone <= max_clone_unique_IgDB220_seqs &
-        vgene_mutations_partis_nt <= max_v_gene_mutations ~ 'naive',
+        mutations_filter <= max_v_gene_mutations ~ 'naive',
       !is.na(clone_purity) ~ 'nonnaive_IgD+B220+',
       T ~ 'unassigned_IgD+B220+' # Will contain IgD+B220+ in clones with only unproductive seqs
     ))
