@@ -1039,7 +1039,7 @@ get_mutation_frequencies_within_clones <- function(annotated_seqs, seq_counts, b
   
   # Count how many times each mutation occurs in each clone
   mutation_counts_within_clones <- annotated_seqs %>%
-    filter(productive_partis) %>%
+    filter(productive) %>%
     filter(!is.na(vgene_mutations_list_partis_aa)) %>%
     group_by(across(grouping_vars)) %>%
     dplyr::summarise(mutation = str_split(paste0(vgene_mutations_list_partis_aa, collapse = ';'), ';')[[1]]) %>%
