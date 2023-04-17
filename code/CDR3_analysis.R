@@ -32,7 +32,7 @@ annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clon
 load(paste0('../results/precomputed_gene_freqs_all_seqs_', assignment, '.RData'))
 
 
-figure_output_dir = paste0('../figures/all_seqs_freqs_', assignment, '/exported_ggplot_objects/')
+figure_output_dir = paste0('../figures/all_seqs_', assignment, '/exported_ggplot_objects/')
 dir.create(figure_output_dir, recursive = T, showWarnings = F)
 
 
