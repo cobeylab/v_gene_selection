@@ -6,33 +6,21 @@ library(vegan)
 theme_set(theme_cowplot())
 
 args <- commandArgs(trailingOnly = T)
-assignment <- as.character(args[1])
-collapsed_novel_alleles <- as.logical(args[2])
-
+precomputed_freqs_file <- as.character(args[1])
 
 # Load pre-computed gene frequencies, define and create fig directory (if non-existent)
-if(collapsed_novel_alleles){
-  stopifnot(assignment == 'partis')
-  load('../results/precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData')
-  figure_output_dir = '../figures/all_seqs_freqs_collapsed_novel_alleles/exported_ggplot_objects/'
-  n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse_collapsed_novel_alleles.csv'
-}else{
-  if(assignment == 'partis'){
-  
-    load('../results/precomputed_gene_freqs_all_seqs.RData')
-    figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
-    n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse.csv'
-    
-  }else{
-    stopifnot(assignment == 'igblast')
-    load('../results/precomputed_gene_freqs_all_seqs_igblast.RData')
-    figure_output_dir = '../figures/all_seqs_freqs_igblast_assignment/exported_ggplot_objects/'
-    n_v_genes_by_mouse_path =  '../results/n_v_genes_by_mouse_igblast_assignment.csv'
-  }
 
-}
+precomputed_file_name <- basename(precomputed_freqs_file)
 
-dir.create(figure_output_dir, recursive = T, showWarnings = F)
+output_label <- precomputed_files_labeller(precomputed_file_name)
+
+figure_directory <- paste0('../figures/', output_label, '/exported_ggplot_objects/')
+
+load(precomputed_freqs_file)
+
+n_v_genes_by_mouse_path <- paste0('../results/n_vgenes_by_mouse_', output_label, '.csv')
+
+dir.create(figure_directory, recursive = T, showWarnings = F)
 
 min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
 
@@ -247,4 +235,4 @@ total_genes_and_genes_in_LN_pops <-
 
 
 save(total_genes_and_genes_in_LN_pops, n_shared_genes,
-     rarefaction_curves_pl, file = paste0(figure_output_dir,'n_genes.RData'))
+     rarefaction_curves_pl, file = paste0(figure_directory,'n_genes.RData'))
