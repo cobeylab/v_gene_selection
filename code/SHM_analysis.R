@@ -3,16 +3,33 @@ source('plot_options.R')
 library(readr)
 theme_set(theme_cowplot())
 
+# Load data
+args <- commandArgs(trailingOnly = T)
+precomputed_freqs_file <- as.character(args[1])
+
+
+# Load pre-computed mutation frequencies, define and create fig directory (if non-existent)
+
+precomputed_file_name <- basename(precomputed_freqs_file)
+
+# Only implemented for these cases...
+stopifnot(precomputed_file_name %in%
+            c("precomputed_gene_freqs_all_seqs_partis_ogrdb.RData",
+              "precomputed_gene_freqs_all_seqs_partis.RData"))
+
+output_label <- precomputed_files_labeller(precomputed_file_name)
+
+figure_directory <- paste0('../figures/', output_label, '/exported_ggplot_objects/')
+dir.create(figure_directory, recursive = T, showWarnings = F)
+
+load(precomputed_freqs_file)
+
+
 # When looking at mutation frequencies within clones, restrict analysis to clones with at least this many seqs in the relevant compartment.
 min_clone_size = 10
 # Remove compartments with fewer than min_compartment_size seqs
 min_compartment_size = 100
 
-clone_info <- read_csv('../processed_data/clone_info.csv')
-clone_info <- get_info_from_mouse_id(clone_info) %>%
-  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
-
-load('../results/precomputed_gene_freqs_all_seqs.RData')
 
 clone_freqs_by_tissue_and_cell_type <- clone_freqs_by_tissue_and_cell_type %>%
   filter(total_seqs_in_compartment >= min_compartment_size)
@@ -207,9 +224,6 @@ clone_rank_vs_high_freq_muts_LN_GCs_plot <- clone_freqs_by_tissue_and_cell_type 
   ggtitle('(Y axis truncated at 20 mutations to improve visualization)')
 
 
-figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
-dir.create(figure_output_dir, recursive = T, showWarnings = F)
-
 # Export plots
 save(fraction_clones_with_high_freq_muts_LN_plot,
      fraction_clones_with_high_freq_muts_all_tissues_plot,
@@ -218,4 +232,4 @@ save(fraction_clones_with_high_freq_muts_LN_plot,
      clone_rank_vs_high_freq_muts_LN_PCs_plot,
      clone_rank_vs_high_freq_muts_LN_GCs_plot,
      shared_mutations_in_LN_clones_pl,
-     file = paste0(figure_output_dir, 'high_frequency_mutations.RData'))
+     file = paste0(figure_directory, 'high_frequency_mutations.RData'))

@@ -15,12 +15,11 @@ precomputed_file_name <- basename(precomputed_freqs_file)
 output_label <- precomputed_files_labeller(precomputed_file_name)
 
 figure_directory <- paste0('../figures/', output_label, '/exported_ggplot_objects/')
+dir.create(figure_directory, recursive = T, showWarnings = F)
 
 load(precomputed_freqs_file)
 
 n_v_genes_by_mouse_path <- paste0('../results/n_vgenes_by_mouse_', output_label, '.csv')
-
-dir.create(figure_directory, recursive = T, showWarnings = F)
 
 min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
 
