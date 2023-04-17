@@ -15,6 +15,8 @@ precomputed_freqs_file <- as.character(args[1])
 
 precomputed_file_name <- basename(precomputed_freqs_file)
 
+output_label <- precomputed_files_output_labeller(precomputed_file_name)
+
 output_label <- case_when(
   precomputed_file_name  == 'precomputed_gene_freqs_all_seqs.RData' ~ 'all_seqs_freqs',
   precomputed_file_name  == 'precomputed_gene_freqs_unique_seqs.RData' ~ 'unique_seqs_freqs',
