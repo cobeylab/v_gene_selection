@@ -8,6 +8,36 @@ theme_set(theme_cowplot())
 
 min_compartment_size = 100
 
+# Loading data
+args <- commandArgs(trailingOnly = T)
+assignment <- as.character(args[1])
+
+# CDR3 analysis only implemented for these assignments
+stopifnot(assignment %in% c('partis', 'partis_ogrdb'))
+
+clone_info <- read_csv(paste0('../processed_data/clone_info_', assignment, '.csv'))
+
+annotated_seqs <- read_csv(paste0('../processed_data/annotated_seqs_', assignment, '.csv'))
+  
+annotated_seqs <- annotated_seqs %>% mutate(seq_id = as.character(seq_id), clone_id = as.character(clone_id)) %>%
+  filter(productive)
+
+annotated_seqs <- get_info_from_mouse_id(annotated_seqs) %>%
+  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels),
+         cdr3_length = nchar(cdr3_seq_partis))
+
+annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene) %>% mutate(clone_id = as.character(clone_id)))
+
+# These analyses are based on all productive sequences (as opposed to unique sequences only)
+load(paste0('../results/precomputed_gene_freqs_all_seqs_', assignment, '.RData'))
+
+
+figure_output_dir = paste0('../figures/all_seqs_freqs_', assignment, '/exported_ggplot_objects/')
+dir.create(figure_output_dir, recursive = T, showWarnings = F)
+
+
+# ====== Some functions ======
+
 # Defining amino acid classes following Hershberg & Schlomchik 2006, Hershberg & Saini 2015, after Chothia et al. 1998 
 amino_acid_classes <- tibble(
   amino_acid = c('F','L','I','M','V','C','W',
@@ -20,8 +50,6 @@ amino_acid_classes <- tibble(
   mutate(code = case_when(class == 'hydrophobic' ~'H',
                           class == 'hydrophilic' ~ 'L',
                           class == 'neutral' ~'N'))
-
-# ====== Some functions ======
 
 # Converts an amino acid sequence into a string with the biochem class code of each aa (as above)
 # (so we can quickly compute biochemical similarity using the function for calculating sequence similarity)
@@ -219,24 +247,6 @@ plot_cdr3_similarity <- function(matched_samples_similarity){
 
 # ====== Analyses =======
 
-clone_info <- read_csv('../processed_data/clone_info.csv')
-
-annotated_seqs <- read_csv('../processed_data/annotated_seqs.csv') %>%
-  mutate(seq_id = as.character(seq_id),
-         clone_id = as.character(clone_id))
- 
-annotated_seqs <- annotated_seqs %>%
-  filter(productive_partis)
-
-annotated_seqs <- get_info_from_mouse_id(annotated_seqs) %>%
-  mutate(group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels),
-         cdr3_length = nchar(cdr3_seq_partis))
-
-annotated_seqs <- left_join(annotated_seqs, clone_info %>% select(mouse_id, clone_id, v_gene) %>% mutate(clone_id = as.character(clone_id)))
-
-# These analyses are based on all productive sequences (as opposed to unique sequences only)
-load('../results/precomputed_gene_freqs_all_seqs.RData')
-
 # Focus on LN B cells and naive B cells from all tissues
 CDR3_seqs_naive <- annotated_seqs %>%
   filter(group_controls_pooled != 'control',
@@ -425,9 +435,6 @@ allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
   scale_x_continuous(breaks = 1:10)
 
 # Export plots 
-
-figure_output_dir = '../figures/all_seqs_freqs/exported_ggplot_objects/'
-dir.create(figure_output_dir, recursive = T, showWarnings = F)
 
 save(CDR3_length_distribution_pl,
      length_matched_CDR3_similarity_plot,
