@@ -44,7 +44,6 @@ if(frequency_type == 'all_seqs'){
 if(collapse_novel_alleles){
   stopifnot(use_Greiff2017_naive_freqs == F)
   stopifnot(assignment == 'partis') # No point in collapsing alleles if assignment == 'partis_ogrdb'
-  seq_counts <- seq_counts %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
   clone_info <- clone_info %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
   output_file <- str_replace(output_file, '\\.RData','_collapsed_novel_alleles.RData')
 }
