@@ -1371,5 +1371,18 @@ export_partis_germline_genes <- function(yaml_object, mouse_id, output_dir, is_o
   
 }
 
+precomputed_files_labeller <- function(precomputed_file_name){
+  file_label <- case_when(
+    precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_partis.RData' ~ 'all_seqs_partis',
+    precomputed_file_name  == 'precomputed_gene_freqs_unique_seqs_partis.RData' ~ 'unique_seqs_partis',
+    precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_partis_Greiff2017_naive_freqs.RData' ~ 'all_seqs_partis_Greiff2017_naive_freqs',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_collapsed_novel_alleles.RData' ~ 'all_seqs_partis_collapsed_novel_alleles',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast.RData' ~ 'all_seqs_igblast',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_ogrdb.RData' ~ 'all_seqs_partis_ogrdb',
+    precomputed_file_name == 'precomputed_gene_freqs_unique_seqs_partis_ogrdb.RData' ~ 'unique_seqs_partis_ogrdb'
+  )
+  stopifnot(!is.na(file_label))
+  return(file_label)
+}
 
 

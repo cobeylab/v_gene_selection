@@ -15,22 +15,32 @@ precomputed_freqs_file <- as.character(args[1])
 
 precomputed_file_name <- basename(precomputed_freqs_file)
 
-output_label <- precomputed_files_output_labeller(precomputed_file_name)
+output_label <- precomputed_files_labeller(precomputed_file_name)
 
-output_label <- case_when(
-  precomputed_file_name  == 'precomputed_gene_freqs_all_seqs.RData' ~ 'all_seqs_freqs',
-  precomputed_file_name  == 'precomputed_gene_freqs_unique_seqs.RData' ~ 'unique_seqs_freqs',
-  precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_Greiff2017_naive_freqs.RData' ~ 'all_seqs_freqs_Greiff2017_naive_freqs',
-  precomputed_file_name == 'precomputed_gene_freqs_all_seqs_collapsed_novel_alleles.RData' ~ 'all_seqs_freqs_collapsed_novel_alleles',
-  precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast.RData' ~ 'all_seqs_freqs_igblast_assignment'
-)
 figure_directory <- paste0('../figures/', output_label, '/')
 
 deviations_by_allele_results_path <- paste0('../results/deviations_by_allele_', output_label, '.csv')
 
+if(str_detect(output_label,'partis')){
 
-germline_mutability_by_region <- read_csv('../results/germline_mutability_by_region.csv')
-germline_mutability_by_region_type <- read_csv('../results/germline_mutability_by_region_type.csv')
+  germ_mut_by_region_file <- 'germline_mutability_by_region_partis'
+  germ_mut_by_region_type_file <- 'germline_mutability_by_region_type_partis'
+  
+  if(str_detect(output_label,'partis_ogrdb')){
+    germ_mut_by_region_file <- paste0(germ_mut_by_region_file, '_ogrdb')
+    germ_mut_by_region_type_file <- paste0(germ_mut_by_region_type_file, '_ogrdb')
+    include_focal_genes_plot <- F
+    include_mutability_vs_freq_ratio <- F
+  }else{
+    include_focal_genes_plot <- T
+    include_mutability_vs_freq_ratio <- T
+  }
+  
+  germline_mutability_by_region <- read_csv(paste0('../results/', germ_mut_by_region_file, '.csv'))
+  germline_mutability_by_region_type <- read_csv(paste0('../results/', germ_mut_by_region_type_file, '.csv'))
+}else{
+  include_mutability_vs_freq_ratio <- F
+}
 
 
 # Load precomputed gene frequencies, neutral realizations, pairwise correlations 
@@ -225,6 +235,7 @@ deviations_by_allele <- gene_freqs %>%
 write_csv(deviations_by_allele, deviations_by_allele_results_path)
 
 # ====== PLOT THE MOST ABUNDANT ALLELES =======
+
 # Plots showing deviation from naive freq for major genes
 infected_groups <- c('primary-8', 'primary-16', 'primary-24', 'secondary-40', 'secondary-56')
 
@@ -252,11 +263,16 @@ top_20_genes_day8_LN_PC <- plot_most_common_genes(plot_group = 'primary-8', gene
                                                   min_compartment_size = min_compartment_size)
 
 # ======= MAKE DETAILED PLOTS TRACKING THE FATE OF FOCAL GENES =======
-# How genes consistently overrepresented on day 8 LN PCs (14-4, 1-69, 1-82) fare at later time points and other cell types
-focal_alleles_plot <- plot_focal_genes(gene_freqs = gene_freqs,
-                                             clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
-                                             focal_genes = c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01'),
-                                             min_compartment_size = min_compartment_size)
+if(include_focal_genes_plot){
+  # How genes consistently overrepresented on day 8 LN PCs (14-4, 1-69, 1-82) fare at later time points and other cell types
+  focal_alleles_plot <- plot_focal_genes(gene_freqs = gene_freqs,
+                                         clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
+                                         focal_genes = c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01'),
+                                         min_compartment_size = min_compartment_size)
+}else{
+  focal_alleles_plot <- NA
+}
+
 
 # ======= PAIRWISE CORRELATIONS BETWEEN MICE =======
 
@@ -324,61 +340,68 @@ pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   groups_color_scale(name = 'Infection') 
 
 # ======= FREQS AND FREQ. DEVIATIONS VS. MUTABILITY =======
+if(include_mutability_vs_freq_ratio){
+  
+  freq_ratio_mutability_correlations <- get_freq_ratio_mutability_correlations(
+    gene_freqs,
+    germline_mutability_by_region_type,
+    min_compartment_size = min_compartment_size,
+    method = 'pearson') 
+  
+  freq_ratio_mutability_correlations_pl <- freq_ratio_mutability_correlations %>%
+    filter(cell_type %in% c('GC','PC', 'mem'), tissue == 'LN') %>%
+    filter(mutability_metric %in% c('average_RS5NF_mutability_cdr', 'average_RS5NF_mutability_fwr')) %>%
+    mutate(mutability_metric = case_when(
+      mutability_metric == 'average_RS5NF_mutability_cdr' ~ 'CDRs',
+      mutability_metric == 'average_RS5NF_mutability_fwr' ~ 'FRs'
+    )) %>%
+    set_controls_as_day_0() %>%
+    cell_type_facet_labeller() %>%
+    ggplot(aes(x = day, y = correlation, color = infection_status)) +
+    geom_boxplot(outlier.alpha = 0,aes(group = day)) +
+    geom_point(aes(size = total_compartment_seqs), alpha = 0.5) +
+    facet_grid(mutability_metric~cell_type) +
+    geom_hline(yintercept = 0, linetype = 2) +
+    theme(legend.position = 'top') + 
+    scale_size_continuous(name = 'Number of sequences', breaks = c(1000,10000,50000)) +
+    label_controls_as_day_0 +
+    xlab('Days after primary infection') + 
+    ylab('Correlation between average RS5NF mutability\nand experienced-to-naive frequency ratio') +
+    background_grid() +
+    groups_color_scale(name = 'Infection')
+  
+  germline_mutability_by_region <- germline_mutability_by_region %>%
+    mutate(region = case_when(
+      region == 'cdr1' ~ 'CDR1',
+      region == 'cdr2' ~ 'CDR2',
+      region == 'fwr1' ~ 'FR1',
+      region == 'fwr2' ~ 'FR2',
+      region == 'fwr3' ~ 'FR3',
+      region == 'whole_sequence' ~ 'whole sequence'
+    ))
+  
+  germline_mutability_by_region_pl <- germline_mutability_by_region  %>%
+    ggplot(aes(x = average_RS5NF_mutability)) +
+    geom_histogram() +
+    facet_wrap('region') +
+    geom_vline(data = germline_mutability_by_region %>% filter(v_gene %in% c('IGHV14-4*01',
+                                                                             'IGHV1-82*01',
+                                                                             'IGHV1-69*01')),
+               aes(xintercept = average_RS5NF_mutability, color = v_gene), size = 1.5) +
+    theme(legend.position = 'top') +
+    xlab('Average RS5NF mutability') +
+    ylab('Number of alleles') +
+    scale_color_brewer(name = 'V allele', type = 'qual') +
+    background_grid()
+  
+  
+}else{
+  germline_mutability_by_region_pl <- NA
+  freq_ratio_mutability_correlations_pl <- NA
+}
 
-freq_ratio_mutability_correlations <- get_freq_ratio_mutability_correlations(
-  gene_freqs,
-  germline_mutability_by_region_type,
-  min_compartment_size = min_compartment_size,
-  method = 'pearson') 
 
-freq_ratio_mutability_correlations_pl <- freq_ratio_mutability_correlations %>%
-  filter(cell_type %in% c('GC','PC', 'mem'), tissue == 'LN') %>%
-  filter(mutability_metric %in% c('average_RS5NF_mutability_cdr', 'average_RS5NF_mutability_fwr')) %>%
-  mutate(mutability_metric = case_when(
-    mutability_metric == 'average_RS5NF_mutability_cdr' ~ 'CDRs',
-    mutability_metric == 'average_RS5NF_mutability_fwr' ~ 'FRs'
-  )) %>%
-  set_controls_as_day_0() %>%
-  cell_type_facet_labeller() %>%
-  ggplot(aes(x = day, y = correlation, color = infection_status)) +
-  geom_boxplot(outlier.alpha = 0,aes(group = day)) +
-  geom_point(aes(size = total_compartment_seqs), alpha = 0.5) +
-  facet_grid(mutability_metric~cell_type) +
-  geom_hline(yintercept = 0, linetype = 2) +
-  theme(legend.position = 'top') + 
-  scale_size_continuous(name = 'Number of sequences', breaks = c(1000,10000,50000)) +
-  label_controls_as_day_0 +
-  xlab('Days after primary infection') + 
-  ylab('Correlation between average RS5NF mutability\nand experienced-to-naive frequency ratio') +
-  background_grid() +
-  groups_color_scale(name = 'Infection')
-
-germline_mutability_by_region <- germline_mutability_by_region %>%
-  mutate(region = case_when(
-    region == 'cdr1' ~ 'CDR1',
-    region == 'cdr2' ~ 'CDR2',
-    region == 'fwr1' ~ 'FR1',
-    region == 'fwr2' ~ 'FR2',
-    region == 'fwr3' ~ 'FR3',
-    region == 'whole_sequence' ~ 'whole sequence'
-  ))
-
-germline_mutability_by_region_pl <- germline_mutability_by_region  %>%
-  ggplot(aes(x = average_RS5NF_mutability)) +
-  geom_histogram() +
-  facet_wrap('region') +
-  geom_vline(data = germline_mutability_by_region %>% filter(v_gene %in% c('IGHV14-4*01',
-                                                                           'IGHV1-82*01',
-                                                                           'IGHV1-69*01')),
-             aes(xintercept = average_RS5NF_mutability, color = v_gene), size = 1.5) +
-  theme(legend.position = 'top') +
-  xlab('Average RS5NF mutability') +
-  ylab('Number of alleles') +
-  scale_color_brewer(name = 'V allele', type = 'qual') +
-  background_grid()
-
-
-# Null model with fixed lineage sizes but randomized V alleles
+# ======= Null model with fixed lineage sizes but randomized V alleles
 
 # Compute summary statistics for randomizations
 summary_pwcorr_randomized_lineage_V_alleles <-
