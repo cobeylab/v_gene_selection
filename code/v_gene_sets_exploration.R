@@ -177,13 +177,11 @@ rarefaction_curves_pl <- rarefaction_curves %>%
   xlab('Number of sequences') +
   ylab('Number of V genes')
 
-
-
 # Number of genes shared by pairs of mice
 n_shared_genes <- pairwise_gene_freqs %>%
-  filter(cell_type == 'naive') %>%
-  filter(vgene_seq_freq_i != 0, vgene_seq_freq_j != 0,
-         total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
+  filter(!is.na(vgene_seq_freq_i) & !is.na(vgene_seq_freq_j)) %>%
+  select(mouse_pair, pair_type, v_gene) %>%
+  unique() %>%
   group_by(mouse_pair, pair_type) %>%
   dplyr::summarise(n_genes_shared = n()) %>%
   ungroup() %>%
@@ -195,6 +193,7 @@ n_shared_genes <- pairwise_gene_freqs %>%
   pair_types_color_scale(name = '') +
   background_grid() +
   theme(legend.position = 'none')
+  
 
 total_genes_and_genes_in_LN_pops <- 
   bind_rows(obs_n_genes %>%
