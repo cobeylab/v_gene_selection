@@ -190,15 +190,17 @@ if('titers_against_NL09' %in% ls()){
 
 
 # Correlation between germline mutability and freq-deviations from naive repertoire
-save_plot(paste0(figures_dir,'germline_mutability_fig.pdf'),
-          plot_grid(germline_mutability_by_region_pl +
-                      theme(axis.text.x = element_text(angle = -45)) +
-                      ylab('\nNumber of alleles'),
-                    freq_ratio_mutability_correlations_pl ,
-                    nrow = 2,
-                    labels = c('A','B'),
-                    align = 'v'),
-          base_height = 13, base_width = 12)
+if(!is.na(germline_mutability_by_region_pl)){
+  save_plot(paste0(figures_dir,'germline_mutability_fig.pdf'),
+            plot_grid(germline_mutability_by_region_pl +
+                        theme(axis.text.x = element_text(angle = -45)) +
+                        ylab('\nNumber of alleles'),
+                      freq_ratio_mutability_correlations_pl ,
+                      nrow = 2,
+                      labels = c('A','B'),
+                      align = 'v'),
+            base_height = 13, base_width = 12)
+}
           
 
 
@@ -295,12 +297,14 @@ save_plot(
 )
 
 # Plot with focal alleles (those consistently overrepresented early in the plasma cell response)
-save_plot(
-  paste0(figures_dir,'focal_alleles_plot.pdf'),
-  focal_alleles_plot$LN$freq_ratios,
-  base_width = 16,
-  base_height = 10
-)
+if(!is.na(focal_alleles_plot)){
+  save_plot(
+    paste0(figures_dir,'focal_alleles_plot.pdf'),
+    focal_alleles_plot$LN$freq_ratios,
+    base_width = 16,
+    base_height = 10
+  )
+}
 
 # Detailed arrow plots
 

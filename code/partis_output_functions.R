@@ -172,71 +172,94 @@ format_partis_info <- function(yaml_object){
     clone <- yaml_object$events[[i]]
     
     # Check there's a single CDR3 sequence associated with this clone
-    stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
+    stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1 | clone$invalid)
     
-    # Productive status for each unique sequence in clone:
-    productive_partis <- (clone$stops == F)&(clone$in_frames)&(clone$mutated_invariants == F)
+    if(!clone$invalid){
+      # Productive status for each unique sequence in clone:
+      productive_partis <- (clone$stops == F)&(clone$in_frames)&(clone$mutated_invariants == F)
+      
+      # Get naive CDR3 sequence
+      cdr3_start <- clone$codon_positions$v + 1 # Adds one because partis numbering starts at 0
+      cdr3_end <- clone$codon_positions$j + 3 # adds +1 and then +2 to go to end of codon
+      naive_cdr3_seq <- str_sub(clone$naive_seq, cdr3_start, cdr3_end)
+      naive_cdr3_seq_aa <- c2s(seqinr::translate(s2c(tolower(naive_cdr3_seq))))
+      
+      # Get sequences encoded by V gene
+      v_gene_bounds <- clone$regional_bounds$v
+      naive_v_gene_region_seq <- str_sub(clone$naive_seq, v_gene_bounds[1], v_gene_bounds[2])
+      v_gene_region_seqs <- str_sub(clone$input_seqs, v_gene_bounds[1], v_gene_bounds[2])
+      
+      # Number of mutations in V gene region
+      vgene_mutations_nt <- count_mutations_from_naive(seq_vector = v_gene_region_seqs, naive_seq = naive_v_gene_region_seq,
+                                                       translate_seqs = F)
+      # Number of bases effectively sequenced in V gene region for each sequence (i.e. excluding "N"'s introduced by partis)
+      sequenced_bases_in_vgene_region <- nchar(str_remove_all(v_gene_region_seqs,'N'))
+      
+      # Precise list of mutations in V gene region for each sequences
+      vgene_mutations_list <- identify_vgene_mutations(naive_v_gene_region_seq = naive_v_gene_region_seq,
+                                                       v_gene_region_seqs = v_gene_region_seqs)
+      
+      vgene_mutations_list_nt <- vgene_mutations_list$nt
+      vgene_mutations_list_aa <- vgene_mutations_list$aa
+      
+      # Count mutations specifically in CDR3
+      stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
+      stopifnot(unique(nchar(clone$cdr3_seqs)) == nchar(naive_cdr3_seq))
+      
+      cdr3_mutations_nt <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
+                                                      naive_seq = naive_cdr3_seq, translate_seqs = F)
+      
+      cdr3_mutations_aa <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
+                                                      naive_seq = naive_cdr3_seq, translate_seqs = T)
+      
+      # Count mutations across the whole sequence
+      n_mutations_partis_nt <- clone$n_mutations
+      
+
+      # Translated CDR3 sequences to be exported
+      cdr3_seq_partis <- sapply(clone$cdr3_seqs,
+                                FUN = function(seq){
+                                  c2s(seqinr::translate(s2c(tolower(seq))))
+                                }, USE.NAMES = F)
+      
+      # Consensus CDR3 seq from partis
+      cdr3_start_aa <- ceiling(cdr3_start/3)
+      cdr3_end_aa <- ceiling(cdr3_end/3)
+      consensus_cdr3_partis <- str_sub(clone$consensus_seq_aa, start = cdr3_start_aa, end = cdr3_end_aa)
+      
+      
+      # Compile sequence info for reference seqs (partis clusters identical seqs. choosing one as the ref)
+      ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
+                             productive_partis = productive_partis,
+                             n_mutations_partis_nt = n_mutations_partis_nt, 
+                             cdr3_length_partis = clone$cdr3_length / 3,
+                             cdr3_seq_partis = cdr3_seq_partis,
+                             cdr3_mutations_partis_nt = cdr3_mutations_nt,
+                             cdr3_mutations_partis_aa = cdr3_mutations_aa,
+                             vgene_mutations_partis_nt = vgene_mutations_nt,
+                             sequenced_bases_in_vgene_region_partis =sequenced_bases_in_vgene_region,
+                             vgene_mutations_list_partis_nt = vgene_mutations_list_nt,
+                             vgene_mutations_list_partis_aa = vgene_mutations_list_aa,
+                             partis_processed_seq = clone$input_seqs)
+    }else{
+      ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
+                             productive_partis = NA,
+                             n_mutations_partis_nt = NA, 
+                             cdr3_length_partis = NA,
+                             cdr3_seq_partis = NA,
+                             cdr3_mutations_partis_nt = NA,
+                             cdr3_mutations_partis_aa = NA,
+                             vgene_mutations_partis_nt = NA,
+                             sequenced_bases_in_vgene_region_partis = NA,
+                             vgene_mutations_list_partis_nt = NA,
+                             vgene_mutations_list_partis_aa = NA,
+                             partis_processed_seq = clone$input_seqs)
+      
+      consensus_cdr3_partis <- NA
+      naive_cdr3_seq_aa <- NA
+      
+    }
     
-    # Get naive CDR3 sequence
-    cdr3_start <- clone$codon_positions$v + 1 # Adds one because partis numbering starts at 0
-    cdr3_end <- clone$codon_positions$j + 3 # adds +1 and then +2 to go to end of codon
-    naive_cdr3_seq <- str_sub(clone$naive_seq, cdr3_start, cdr3_end)
-    naive_cdr3_seq_aa <- c2s(seqinr::translate(s2c(tolower(naive_cdr3_seq))))
-    
-    # Get sequences encoded by V gene
-    v_gene_bounds <- clone$regional_bounds$v
-    naive_v_gene_region_seq <- str_sub(clone$naive_seq, v_gene_bounds[1], v_gene_bounds[2])
-    v_gene_region_seqs <- str_sub(clone$input_seqs, v_gene_bounds[1], v_gene_bounds[2])
-    
-    # Number of mutations in V gene region
-    vgene_mutations_nt <- count_mutations_from_naive(seq_vector = v_gene_region_seqs, naive_seq = naive_v_gene_region_seq,
-                                                     translate_seqs = F)
-    # Number of bases effectively sequenced in V gene region for each sequence (i.e. excluding "N"'s introduced by partis)
-    sequenced_bases_in_vgene_region <- nchar(str_remove_all(v_gene_region_seqs,'N'))
-    
-    # Precise list of mutations in V gene region for each sequences
-    vgene_mutations_list <- identify_vgene_mutations(naive_v_gene_region_seq = naive_v_gene_region_seq,
-                                                     v_gene_region_seqs = v_gene_region_seqs)
-    
-    vgene_mutations_list_nt <- vgene_mutations_list$nt
-    vgene_mutations_list_aa <- vgene_mutations_list$aa
-    
-    # Count mutations specifically in CDR3
-    stopifnot(length(unique(nchar(clone$cdr3_seqs))) == 1)
-    stopifnot(unique(nchar(clone$cdr3_seqs)) == nchar(naive_cdr3_seq))
-    
-    cdr3_mutations_nt <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
-                                                    naive_seq = naive_cdr3_seq, translate_seqs = F)
-    
-    cdr3_mutations_aa <- count_mutations_from_naive(seq_vector = clone$cdr3_seqs,
-                                                    naive_seq = naive_cdr3_seq, translate_seqs = T)
-    
-    # Count mutations across the whole sequence
-    n_mutations_partis_nt <- clone$n_mutations
-    n_mutations_partis_aa <- count_mutations_from_naive(seq_vector = clone$seqs_aa, naive_seq = clone$naive_seq_aa,
-                                                        translate_seqs = F, is_partis_aa_alignment = T)
-    
-    # Translated CDR3 sequences to be exported
-    cdr3_seq_partis <- sapply(clone$cdr3_seqs,
-                              FUN = function(seq){
-                                c2s(seqinr::translate(s2c(tolower(seq))))
-                              }, USE.NAMES = F)
-    
-    # Compile sequence info for reference seqs (partis clusters identical seqs. choosing one as the ref)
-    ref_seq_info <- tibble(seq = clone$unique_ids, seq_length_partis = nchar(str_remove_all(clone$input_seqs,'N')),
-                           productive_partis = productive_partis,
-                           n_mutations_partis_nt = n_mutations_partis_nt, 
-                           n_mutations_partis_aa = n_mutations_partis_aa,
-                           cdr3_length_partis = clone$cdr3_length / 3,
-                           cdr3_seq_partis = cdr3_seq_partis,
-                           cdr3_mutations_partis_nt = cdr3_mutations_nt,
-                           cdr3_mutations_partis_aa = cdr3_mutations_aa,
-                           vgene_mutations_partis_nt = vgene_mutations_nt,
-                           sequenced_bases_in_vgene_region_partis =sequenced_bases_in_vgene_region,
-                           vgene_mutations_list_partis_nt = vgene_mutations_list_nt,
-                           vgene_mutations_list_partis_aa = vgene_mutations_list_aa,
-                           partis_processed_seq = clone$input_seqs
-    )
     
     # Get productivity of duplicate sequences by referring to the productivity of their corresponding reference seq.
     duplicate_seqs <- pair_duplicates(clone)
@@ -259,10 +282,6 @@ format_partis_info <- function(yaml_object){
         mutate(partis_uniq_ref_seq = seq) %>% select(seq, partis_uniq_ref_seq, everything())
     }
     
-    # Add consensus CDR3 seq from partis
-    cdr3_start_aa <- ceiling(cdr3_start/3)
-    cdr3_end_aa <- ceiling(cdr3_end/3)
-    consensus_cdr3_partis <- str_sub(clone$consensus_seq_aa, start = cdr3_start_aa, end = cdr3_end_aa)
     
     # Add germline genes and clone id
     clone_tibble <- clone_tibble %>%
@@ -282,4 +301,56 @@ format_partis_info <- function(yaml_object){
     
   }
   return(partis_info)
+}
+
+get_partis_clone_info <- function(merged_data, is_ogrdb_run){
+  
+
+  selected_vars <- c('mouse_id', 'clone_id_partis', 'v_segment_partis', 'd_segment_partis', 'j_segment_partis', 'cdr3_length_partis',
+                     'clone_consensus_cdr3_partis', 'clone_naive_cdr3_partis', 'clone_naive_seq_nt_partis', 'clone_naive_seq_aa_partis')
+    
+  if(is_ogrdb_run){
+    selected_vars <- str_replace(selected_vars, 'partis', 'partis_ogrdb')
+  }
+  
+  clone_info_partis <- merged_data %>% 
+    select(all_of(selected_vars)) %>%
+    unique()
+  
+  # Remove ogrdb suffixes, if any
+  names(clone_info_partis) <- str_replace(names(clone_info_partis), 'partis_ogrdb','partis')
+
+  clone_info_partis <- clone_info_partis %>% 
+    dplyr::rename(clone_id = clone_id_partis, v_gene = v_segment_partis, j_gene = j_segment_partis,
+                  d_gene = d_segment_partis) %>%
+    mutate(clone_id = as.character(clone_id))
+  
+  return(clone_info_partis)
+  
+}
+
+get_igblast_clone_info <- function(merged_data){
+  
+  clone_info_igblast <- merged_data %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    # Some clones were assigned more than 1 allele of the same V gene. Use most common one within the clone
+    group_by(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    dplyr::summarise(n_clone_seqs_assigned_v_segment = dplyr::n()) %>%
+    group_by(mouse_id, clone_id_igblast) %>%
+    filter(n_clone_seqs_assigned_v_segment == max(n_clone_seqs_assigned_v_segment)) %>%
+    select(mouse_id, clone_id_igblast, v_segment_igblast) %>%
+    unique() %>%
+    # Resolve potential ties arbitrarily choosing the first one
+    group_by(mouse_id, clone_id_igblast) %>%
+    dplyr::summarise(v_segment_igblast = v_segment_igblast[1]) %>%
+    ungroup() %>%
+    dplyr::rename(clone_id = clone_id_igblast, v_gene = v_segment_igblast) %>%
+    mutate(clone_id = as.character(clone_id))
+  
+  # Check the igblast assignment has only 1 v gene per clone
+  n_vgenes_per_clone <- clone_info_igblast %>% select(mouse_id, clone_id, v_gene) %>% group_by(mouse_id, clone_id, v_gene) %>%
+    dplyr::count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
+  stopifnot(n_vgenes_per_clone == 1)
+  
+  return(clone_info_igblast)
 }

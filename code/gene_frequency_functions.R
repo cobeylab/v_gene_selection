@@ -73,26 +73,13 @@ assign_infection_status <- function(day, mouse_id_number){
 # Counts productive sequences by mouse, clone, tissue, cell type. 
 get_productive_seq_counts <- function(annotated_seqs, unique_only, assignment){
   
-  if(assignment == 'partis'){
-    counts <- annotated_seqs %>%
-      dplyr::rename(clone_id = clone_id_partis,
-                    productive = productive_partis)
-  }else{
-    stopifnot(assignment == 'igblast')
-    
-    counts <- annotated_seqs %>%
-      dplyr::rename(clone_id = clone_id_igblast,
-                    productive = productive_igblast)
-  }
-  
-  counts <- counts %>%
-    filter(productive) 
+  counts <- annotated_seqs %>% filter(productive) 
   
   # If computing counts of unique sequences only:
   if(unique_only){
     counts <- counts %>%
       # Partis's assignment of a reference id to multiple identical sequences can be used 
-      # when computing unique sequences for clones defined using other methods.
+      # when computing unique sequences for clones defined using Igblast
       select(mouse_id, clone_id, partis_uniq_ref_seq, tissue, cell_type, isotype) %>%
       unique() %>%
       group_by(mouse_id, clone_id, tissue, cell_type) %>%
@@ -143,7 +130,7 @@ rm(clone_purity_test)
 
 # Selects sequences sorted as naive based on additional filters (n. mutations, isotype, clone size)
 process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
-                                  max_v_gene_mutations, filters_from){
+                                  max_v_gene_mutations){
   
   # Naive sequences are those that satisfy ALL the following:
   # - were sorted as naive (DUMP-IgD+B220+)
@@ -154,22 +141,17 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
   # Sequences sorted as DUMP-IgD+B220+ that do not meet all the other criteria are labeled 'nonnaive_IgD+B220+'
   
-  # filters_from specificies the assignment that will be used to check this criteria (currently can only be 'partis')
-  stopifnot(filters_from == 'partis')
-  
-  unique_productive_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T, assignment = filters_from)
+  unique_productive_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T)
     
   clone_purity <- get_clone_purity(unique_productive_seq_counts) %>%
     dplyr::rename(unique_productive_IgDB220_seqs_in_clone = IgD_B220_seqs_in_clone,
                   unique_productive_nonIgDB220_seqs_in_clone = non_IgD_B220_seqs_in_clone)
   
-  names(clone_purity)[names(clone_purity) == 'clone_id'] <- paste0('clone_id_', filters_from)
-  
   annotated_seqs <- left_join(annotated_seqs, clone_purity)
   
   igd_b220_seqs <- annotated_seqs %>% 
     filter(cell_type == 'IgD+B220+')
-
+  
   igd_b220_seqs <- igd_b220_seqs %>%
     mutate(cell_type = case_when(
       (isotype %in% c('IGM','IGD') | is.na(isotype)) & clone_purity == "pure_IgD+B220+" &
@@ -189,13 +171,13 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
 }
 
 process_IgD_B220_test <- process_IgD_B220_seqs(tibble(mouse_id = 'A',
-                                                      clone_id_partis = c(1,1,1,1,2,3,4), 
+                                                      clone_id = c(1,1,1,1,2,3,4), 
                                                       partis_uniq_ref_seq = c(1,1,1,2,3,4,5),
                                                       cell_type = c('GC',rep('IgD+B220+',6)),
                                                       isotype = c(rep('IGM',6), 'IGG'),
                                                       vgene_mutations_partis_nt = c(0,0,0,0,0,3,0),
-                                                      tissue = 'LN', productive_partis = T),
-       max_clone_unique_IgDB220_seqs = 1, max_v_gene_mutations = 2, filters_from = 'partis')
+                                                      tissue = 'LN', productive = T),
+       max_clone_unique_IgDB220_seqs = 1, max_v_gene_mutations = 2)
 stopifnot(process_IgD_B220_test$cell_type == c('GC', rep('nonnaive_IgD+B220+', 3), 'naive', rep('nonnaive_IgD+B220+', 2)))
 rm(process_IgD_B220_test)
 
@@ -967,12 +949,39 @@ get_clone_freqs <- function(seq_counts, compartment_vars){
 
 }
 
-estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
+estimate_mut_probs_per_vgene_position <- function(annotated_seqs, clone_info_partis, is_ogrdb_run){
+  
+  # Calculate site-specific mutation frequencies for each V gene
+  # Only available for the partis assignments
+  # (For these calculations, exclude unproductive sequences and sequences without an assigned V gene)
+  
+  input_data <- annotated_seqs
+  
+  if(is_ogrdb_run){
+    partis_vars <- names(input_data)[str_detect(names(input_data), 'partis')]
+    excluded_vars <- partis_vars[str_detect(partis_vars, 'ogrdb') == F]
+    
+    input_data <- input_data %>%
+      select(-all_of(excluded_vars))
+    
+    names(input_data) <- str_replace(names(input_data), 'partis_ogrdb','partis')
+  }
+  
+  input_data <- input_data %>% filter(!is.na(n_mutations_partis_nt), !is.na(vgene_mutations_partis_nt), productive_partis == T)
+  
+  input_data <- input_data %>%
+    dplyr::rename(clone_id = clone_id_partis) %>%
+    mutate(across(c('clone_id','partis_uniq_ref_seq','seq_id'), as.character))
+  
+  input_data <- left_join(input_data %>% 
+                                mutate(clone_id = as.character(clone_id)),
+                              clone_info_partis %>% select(mouse_id, clone_id, v_gene))
+  
   
   # For a vector with position-specific mutation information for a single mouse / cell type / tissue / v gene,
   # counts how many times each position was mutated
-  base_function <- function(annotated_seqs, selected_mouse, selected_tissue, selected_cell_type, selected_v_gene){
-    vgene_specific_mutation_list <- annotated_seqs %>% filter(mouse_id == selected_mouse, cell_type == selected_cell_type,
+  base_function <- function(input_data, selected_mouse, selected_tissue, selected_cell_type, selected_v_gene){
+    vgene_specific_mutation_list <- input_data %>% filter(mouse_id == selected_mouse, cell_type == selected_cell_type,
                                              tissue == selected_tissue, v_gene == selected_v_gene) %>%
       pull(vgene_mutations_list_partis_nt)
     
@@ -995,7 +1004,7 @@ estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
     )
   }
   
-  unique_combinations <- annotated_seqs %>%
+  unique_combinations <- input_data %>%
     select(mouse_id, tissue, cell_type, v_gene) %>%
     unique()
 
@@ -1004,7 +1013,7 @@ estimate_mut_probs_per_vgene_position <- function(annotated_seqs){
          selected_tissue = unique_combinations$tissue,
          selected_cell_type = unique_combinations$cell_type,
          selected_v_gene = unique_combinations$v_gene,
-         MoreArgs = list(annotated_seqs = annotated_seqs), 
+         MoreArgs = list(input_data = input_data), 
          SIMPLIFY = F)
   
   return(bind_rows(output))
@@ -1030,7 +1039,7 @@ get_mutation_frequencies_within_clones <- function(annotated_seqs, seq_counts, b
   
   # Count how many times each mutation occurs in each clone
   mutation_counts_within_clones <- annotated_seqs %>%
-    filter(productive_partis) %>%
+    filter(productive) %>%
     filter(!is.na(vgene_mutations_list_partis_aa)) %>%
     group_by(across(grouping_vars)) %>%
     dplyr::summarise(mutation = str_split(paste0(vgene_mutations_list_partis_aa, collapse = ';'), ';')[[1]]) %>%
@@ -1348,5 +1357,32 @@ get_pairwise_corrs_for_randomized_datasets <- function(randomized_gene_freqs_lis
   
 }
 
+export_partis_germline_genes <- function(yaml_object, mouse_id, output_dir, is_ogrdb_run){
+  
+  run_id <- paste0('partis', ifelse(is_ogrdb_run,'_ogrdb',''))
+  
+  write.fasta(yaml_object$`germline-info`$seqs$v, names = names(yaml_object$`germline-info`$seqs$v),
+              file.out = paste0(output_dir, 'v_genes_', run_id,'_', mouse_id,'.fasta'))
+  write.fasta(yaml_object$`germline-info`$seqs$d, names = names(yaml_object$`germline-info`$seqs$d),
+              file.out = paste0(output_dir, 'd_genes_', run_id,'_', mouse_id,'.fasta'))
+  write.fasta(yaml_object$`germline-info`$seqs$j, names = names(yaml_object$`germline-info`$seqs$j),
+              file.out = paste0(output_dir, 'j_genes_', run_id,'_', mouse_id,'.fasta'))
+  
+  
+}
+
+precomputed_files_labeller <- function(precomputed_file_name){
+  file_label <- case_when(
+    precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_partis.RData' ~ 'all_seqs_partis',
+    precomputed_file_name  == 'precomputed_gene_freqs_unique_seqs_partis.RData' ~ 'unique_seqs_partis',
+    precomputed_file_name  == 'precomputed_gene_freqs_all_seqs_partis_Greiff2017_naive_freqs.RData' ~ 'all_seqs_partis_Greiff2017_naive_freqs',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_collapsed_novel_alleles.RData' ~ 'all_seqs_partis_collapsed_novel_alleles',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast.RData' ~ 'all_seqs_igblast',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_ogrdb.RData' ~ 'all_seqs_partis_ogrdb',
+    precomputed_file_name == 'precomputed_gene_freqs_unique_seqs_partis_ogrdb.RData' ~ 'unique_seqs_partis_ogrdb'
+  )
+  stopifnot(!is.na(file_label))
+  return(file_label)
+}
 
 

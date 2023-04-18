@@ -3,35 +3,23 @@ source('gene_frequency_functions.R')
 
 theme_set(theme_cowplot())
 
-# This analysis is based on counts of all productive sequences (as opposed to unique sequences only)
-frequency_type <- 'all_seqs'
+
+# Loading data
+# This analysis assumes counts of all productive sequences (as opposed to unique sequences only)
+args <- commandArgs(trailingOnly = T)
+assignment <- as.character(args[1])
+stopifnot(assignment %in% c('partis', 'partis_ogrdb', 'igblast'))
+
+clone_info <- read_csv(paste0('../processed_data/clone_info_', assignment, '.csv'))
+figure_directory <- paste0('../figures/all_seqs_', assignment, '/exported_ggplot_objects/')
+
+load(paste0('../results/precomputed_gene_freqs_all_seqs_', assignment, '.RData'))
+
 
 # When looking at clone's tissue or cell type composition, consider only clones with at least this many seqs.
 min_clone_size = 10
 min_compartment_size = 100 # When looking at fraction seqs in top 10 clones, disregard compartments with fewer seqs than this.
 
-results_directory <- '../results/'
-
-processed_data_directory <- '../processed_data/'
-
-figure_directory <- paste0('../figures/', frequency_type, '_freqs/')
-
-precomputed_freqs_file <- paste0('precomputed_gene_freqs_', frequency_type, '.RData')
-
-# Load precomputed gene frequencies, neutral realizations, pairwise correlations 
-load(paste0(results_directory, precomputed_freqs_file))
-
-if(frequency_type == 'all_seqs'){
-  seq_counts <- read_csv('../processed_data/seq_counts.csv')
-}else{
-  stopifnot(frequency_type == 'unique_seqs')
-  read_csv('../processed_data/unique_seq_counts.csv')
-}
-
-# Basic info for each clone (incl. tissue and cell type composition)
-clone_info <- read_csv(paste0(processed_data_directory,'clone_info.csv'))
-
-exported_figure_objects_dir <- paste0(figure_directory,'exported_ggplot_objects/')
 
 # Set order of tissues and cell types for plotting
 clone_freqs_by_tissue <- clone_freqs_by_tissue %>%
@@ -125,10 +113,10 @@ fraction_in_top_10_clones_plot <- clone_freqs_by_tissue_and_cell_type %>%
   scale_size_continuous(breaks = c(100,1000,10000,50000), name = ' Number of sequences')
 
 save(fraction_in_top_10_clones_plot,
-     file = paste0(exported_figure_objects_dir, 'fraction_in_top_10_clones_plot.RData'))
+     file = paste0(figure_directory, 'fraction_in_top_10_clones_plot.RData'))
 
 save(fraction_clones_dominated_by_single_cell_type_plot,
      fraction_clones_dominated_by_single_tissue_plot,
-     file = paste0(exported_figure_objects_dir,'clonal_composition.RData'))
+     file = paste0(figure_directory,'clonal_composition.RData'))
 
 
