@@ -71,10 +71,14 @@ assign_infection_status <- function(day, mouse_id_number){
 }
 
 # Counts productive sequences by mouse, clone, tissue, cell type. 
-get_productive_seq_counts <- function(annotated_seqs, unique_only, assignment){
+get_seq_counts <- function(annotated_seqs, unique_only, productive_only){
   
-  counts <- annotated_seqs %>% filter(productive) 
+  counts <- annotated_seqs
   
+  if(productive_only){
+    counts <- annotated_seqs %>% filter(productive) 
+  }
+
   # If computing counts of unique sequences only:
   if(unique_only){
     counts <- counts %>%
@@ -91,6 +95,10 @@ get_productive_seq_counts <- function(annotated_seqs, unique_only, assignment){
       group_by(mouse_id, clone_id, tissue, cell_type) %>%
       summarise(prod_seqs = n()) %>%
       ungroup()
+  }
+  
+  if(!productive_only){
+    names(counts) <- str_replace(names(counts), 'prod_seqs', 'seqs')
   }
   
   return(counts)
@@ -141,7 +149,7 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
   # Sequences sorted as DUMP-IgD+B220+ that do not meet all the other criteria are labeled 'nonnaive_IgD+B220+'
   
-  unique_productive_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T)
+  unique_productive_seq_counts <- get_seq_counts(annotated_seqs, unique_only = T, productive_only = T)
     
   clone_purity <- get_clone_purity(unique_productive_seq_counts) %>%
     dplyr::rename(unique_productive_IgDB220_seqs_in_clone = IgD_B220_seqs_in_clone,
