@@ -43,34 +43,34 @@ fastq_1=$(ls *_1.fastq) # File indexed 1 contains the forward read starting from
 fastq_2=$(ls *_2.fastq) # File 2 contains the reverse read starting from constant region
         
 # Paired-end assembly
-AssemblePairs.py align -1 $fastq_1 -2 $fastq_2 --coord sra --rc tail --outname $output_identifier --log AP.log
+/home/mvieira/.local/bin/AssemblePairs.py align -1 $fastq_1 -2 $fastq_2 --coord sra --rc tail --outname $output_identifier --log AP.log
 
-ParseLog.py -l AP.log -f ID LENGTH OVERLAP ERROR PVALUE
+/home/mvieira/.local/bin/ParseLog.py -l AP.log -f ID LENGTH OVERLAP ERROR PVALUE
 
 # Filter low-quality seqs
-FilterSeq.py quality -s ${output_identifier}_assemble-pass.fastq -q 20 --outname $output_identifier --log FS.log
+/home/mvieira/.local/bin/FilterSeq.py quality -s ${output_identifier}_assemble-pass.fastq -q 20 --outname $output_identifier --log FS.log
 
-ParseLog.py -l FS.log -f ID QUALITY
+/home/mvieira/.local/bin/ParseLog.py -l FS.log -f ID QUALITY
 
 # ---- Mask primers
 
 # Forward (V region) primers
 
-MaskPrimers.py score -s ${output_identifier}_quality-pass.fastq -p ../V_primers.fasta \
+/home/mvieira/.local/bin/MaskPrimers.py score -s ${output_identifier}_quality-pass.fastq -p ../V_primers.fasta \
     --start 4 --mode cut --pf VPRIMER --outname ${output_identifier}-FWD --log MPV.log
 
 # Reverse (C region) primers. The --fasta flag forces output to be a fasta file
 
-MaskPrimers.py score -s ${output_identifier}-FWD_primers-pass.fastq -p ../C_primers.fasta \
+/home/mvieira/.local/bin/MaskPrimers.py score -s ${output_identifier}-FWD_primers-pass.fastq -p ../C_primers.fasta \
     --start 4 --mode cut --revpr --pf CPRIMER --outname ${output_identifier}-REV --log MPC.log --fasta
 
-ParseLog.py -l MPV.log MPC.log -f ID PRIMER ERROR
+/home/mvieira/.local/bin/ParseLog.py -l MPV.log MPC.log -f ID PRIMER ERROR
 
 # The fasta file with the processed sequences:
 mv ${output_identifier}-REV_primers-pass.fasta ${output_identifier}_processed_reads.fasta 
 
 # Create annotation table
-#ParseHeaders.py table -s ${output_identifier}_processed_reads.fasta  -f ID CPRIMER VPRIMER
+#/home/mvieira/.local/bin/ParseHeaders.py table -s ${output_identifier}_processed_reads.fasta  -f ID CPRIMER VPRIMER
 
 # Remove intermediate files
 rm *pass.fastq*
