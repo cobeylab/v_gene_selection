@@ -534,6 +534,18 @@ get_unique_pairs <- function(gene_freqs, within_groups_only){
   
 }
 
+# For a vector of infection status ('primary','secondary', or 'control'),
+# of length 1 or 2, returns a pair label
+get_pair_type <- function(infection_status){
+  stopifnot(length(infection_status) %in% c(1,2))
+  
+  pair_type = ifelse(length(unique(infection_status)) == 1,
+                     infection_status,
+                     paste(sort(unique(infection_status)),collapse = '/'))
+  return(pair_type)
+  
+}
+
 # For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
 get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_only){
   # Assumes gene_freqs in wide format:
@@ -584,9 +596,8 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_onl
     infection_status <- pair_info$infection_status
     #mouse_id_numbers <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][2]})
    
-    pair_type = ifelse(length(unique(infection_status)) == 1,
-                       infection_status,
-                       paste(sort(unique(infection_status)),collapse = '/'))
+    pair_type <- get_pair_type(infection_status)
+
     time_i <- days[1]
     time_j <- days[2]
     #pair_time <- paste(sort(as.numeric(days)), collapse=';')

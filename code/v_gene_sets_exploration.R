@@ -5,28 +5,39 @@ library(readr)
 library(vegan)
 theme_set(theme_cowplot())
 
+# ==== Parsing arguments, importing data ====
+
 args <- commandArgs(trailingOnly = T)
-precomputed_freqs_file <- as.character(args[1])
 
-# Load pre-computed gene frequencies, define and create fig directory (if non-existent)
+assignment <- as.character(args[1])
+collapse_novel_alleles <- as.logical(as.character(args[2]))
 
-precomputed_file_name <- basename(precomputed_freqs_file)
+clone_info <- read_csv(paste0('../processed_data/clone_info_', assignment, '.csv'))
 
-output_label <- precomputed_files_labeller(precomputed_file_name)
+if(collapse_novel_alleles){
+  stopifnot(assignment == 'partis') # Other assignments do not look for novel alleles
+  clone_info <- clone_info %>% mutate(v_gene = str_remove(v_gene, '\\+.*'))
+}
 
-figure_directory <- paste0('../figures/', output_label, '/exported_ggplot_objects/')
-dir.create(figure_directory, recursive = T, showWarnings = F)
+# For the analyses of germline V sets detected in the mice, include unproductive sequences.
+seq_counts_incl_unprod <- read_csv(paste0('../processed_data/seq_counts_', assignment, '_incl_unprod.csv')) 
 
-load(precomputed_freqs_file)
+seq_counts_incl_unprod <- left_join(seq_counts_incl_unprod, clone_info %>% select(mouse_id, clone_id, v_gene))
 
-n_v_genes_by_mouse_path <- paste0('../results/n_vgenes_by_mouse_', output_label, '.csv')
 
-min_compartment_size = 100 # For certain plots, exclude mice with fewer than 100 sequences.
+figure_directory <- paste0('../figures/all_seqs_', assignment, 
+                           ifelse(collapse_novel_alleles, '_collapsed_novel_alleles/','/'),
+                           'exported_ggplot_objects/')
+
+n_vgenes_by_mouse_path <- paste0('../results/n_vgenes_by_mouse_', assignment,
+                                 ifelse(collapse_novel_alleles, '_collapsed_novel_alleles.csv','.csv'))
+
+# ==== Defining additional functions ====
 
 # Function for computing Chao 1 estimate of number of alleles
-compute_chao1 <- function(gene_freqs){
+compute_chao1 <- function(gene_counts){
   
-  gene_counts <- gene_freqs %>%
+  gene_counts <- gene_counts %>%
     select(mouse_id, day, infection_status, v_gene, cell_type, matches('tissue'), n_vgene_seqs) %>%
     pivot_wider(names_from = v_gene, values_from =  n_vgene_seqs, values_fill = 0) %>%
     arrange(mouse_id)
@@ -64,13 +75,16 @@ compute_chao1 <- function(gene_freqs){
   return(chao1_ests)
 }
 
-build_rarefaction_curves <- function(all_tissue_all_cell_freqs){
-
-  sample_sizes <- seq(1000, max(all_tissue_all_cell_freqs$total_compartment_seqs), 1000)
+# Function for building rarefaction curve
+build_rarefaction_curves <- function(whole_mice_gene_counts){
   
-  sample_sizes <- unique(c(sample_sizes, unique(all_tissue_all_cell_freqs$total_compartment_seqs)))
   
-  wide_format_tibble <- all_tissue_all_cell_freqs %>%
+  
+  sample_sizes <- seq(1000, max(whole_mice_gene_counts$total_compartment_seqs), 1000)
+  
+  sample_sizes <- unique(c(sample_sizes, unique(whole_mice_gene_counts$total_compartment_seqs)))
+  
+  wide_format_tibble <- whole_mice_gene_counts %>%
     select(mouse_id, v_gene, n_vgene_seqs) %>%
     pivot_wider(names_from = 'v_gene', values_from = 'n_vgene_seqs',
                 values_fill = 0)
@@ -93,77 +107,102 @@ build_rarefaction_curves <- function(all_tissue_all_cell_freqs){
   
   # Exclude values for sample size larger than n. seqs in mouse
   rarefaction_curves <- left_join(rarefaction_curves,
-                                  all_tissue_all_cell_freqs %>% 
+                                  whole_mice_gene_counts %>% 
                                     select(mouse_id, total_compartment_seqs) %>%
                                     unique()) %>%
     filter(sample_size <= total_compartment_seqs)
   
   return(rarefaction_curves)
-
+  
 }
 
-# ==========================================================================================
-# How many alleles do mice use?
-# ==========================================================================================
-# Put gene freqs back in long format
-gene_freqs <- bind_rows(exp_freqs,
-                        naive_freqs %>%
-                          dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs,
-                                        vgene_seq_freq = naive_vgene_seq_freq,
-                                        total_compartment_seqs = total_mouse_naive_seqs) %>%
-                          mutate(tissue = 'all', cell_type = 'naive'))
+count_shared_genes <- function(whole_mice_gene_counts){
   
-# Compute allele freqs across all experienced cells across all tissues
-exp_freqs_across_all_tissues <- exp_freqs %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, cell_type, v_gene) %>%
-  dplyr::summarise(across(c('n_vgene_seqs','total_compartment_seqs'), sum)) %>%
-  mutate(vgene_seq_freq = n_vgene_seqs / total_compartment_seqs) %>%
-  mutate(tissue = 'all') %>%
-  ungroup()
+  unique_pairs <- get_unique_pairs(whole_mice_gene_counts, within_groups_only = F)
+  
+  base_function <- function(mouse_pair, whole_mice_gene_counts){
+    mouse_ids <- str_split(mouse_pair, ';')[[1]] 
+    
+    mouse_pair_counts <- whole_mice_gene_counts %>% 
+      filter(mouse_id %in% mouse_ids)
+    
+    pair_type <- get_pair_type(unique(mouse_pair_counts$infection_status))
+    
+    mouse_i_genes <- mouse_pair_counts %>% filter(mouse_id == mouse_ids[1]) %>%
+      pull(v_gene)
+    
+    mouse_j_genes <- mouse_pair_counts %>% filter(mouse_id == mouse_ids[2]) %>%
+      pull(v_gene)
+    
+    n_shared_genes <- length(intersect(mouse_i_genes, mouse_j_genes))
+    
+    return(tibble(
+      mouse_pair = mouse_pair,
+      pair_type = pair_type,
+      n_shared_genes
+    ))
+  }
+  
+  shared_genes <- bind_rows(lapply(as.list(unique_pairs),
+                                   FUN = base_function,
+                                   whole_mice_gene_counts = whole_mice_gene_counts))
+  return(shared_genes)
+  
+}
 
-gene_freqs <- bind_rows(gene_freqs, exp_freqs_across_all_tissues)
+# ==== Running the analyses ====
 
-# Allele frequencies across all cell types and tissues for each mouse (for rarefaction curves)
-all_tissue_all_cell_freqs <- gene_freqs %>%
-  filter(cell_type %in% c('naive','experienced'), tissue == 'all') %>%
-  group_by(mouse_id, day, infection_status, group, group_controls_pooled, v_gene) %>%
-  dplyr::summarise(across(c('n_vgene_seqs','total_compartment_seqs'), sum)) %>%
-  group_by(mouse_id) %>%
+# Sequence counts per V gene (by tissue/cell type & for the whole mouse)
+
+vgene_counts_by_tissue_cell_type <- seq_counts_incl_unprod %>%
+  group_by(mouse_id, tissue, cell_type, v_gene) %>%
+  summarise(n_vgene_seqs = sum(seqs)) %>%
+  ungroup() 
+
+vgene_counts_whole_mice <- seq_counts_incl_unprod %>%
+  group_by(mouse_id, v_gene) %>%
+  summarise(n_vgene_seqs = sum(seqs)) %>%
   ungroup() %>%
-  mutate(vgene_seq_freq = n_vgene_seqs / total_compartment_seqs) %>%
-  mutate(cell_type = 'all', tissue = 'all') %>%
-  select(mouse_id, day, infection_status, group, group_controls_pooled, tissue, cell_type, v_gene, n_vgene_seqs,
-         total_compartment_seqs, vgene_seq_freq)
- 
-# For each tissue / cell type combination in each mouse, count number of alleles with freq. > 0
-obs_n_genes <- gene_freqs %>% filter(n_vgene_seqs > 0) %>%
+  mutate(tissue = 'all', cell_type = 'all') 
+
+vgene_counts <- bind_rows(vgene_counts_by_tissue_cell_type, vgene_counts_whole_mice) %>%
+  filter(!is.na(v_gene)) %>%
+  group_by(mouse_id, tissue, cell_type) %>%
+  mutate(total_compartment_seqs = sum(n_vgene_seqs)) %>%
+  ungroup() %>%
+  get_info_from_mouse_id()
+
+rm(vgene_counts_by_tissue_cell_type)
+rm(vgene_counts_whole_mice)
+
+
+# Number of V genes (whole mouse and by tissue/cell type)
+obs_n_genes <- vgene_counts %>% 
   group_by(mouse_id, day, infection_status, group_controls_pooled, cell_type, tissue,
            total_compartment_seqs) %>%
   summarise(n_genes = length(unique(v_gene))) %>% ungroup() 
 
-# Add Chao 1 estimates
-chao1_estimates <- compute_chao1(gene_freqs)
+# Add in Chao 1 estimates
+chao1_estimates <- compute_chao1(gene_counts = vgene_counts)
 
 obs_n_genes <- left_join(obs_n_genes,
                          chao1_estimates %>% select(-obs) %>% dplyr::rename(n_genes_chao1 = chao1)) %>%
-  mutate(cell_type = factor(cell_type, levels = c('naive','experienced','nonnaive_IgD+B220+','GC','PC','mem')),
+  mutate(cell_type = factor(cell_type, levels = c('all','GC','PC','mem','naive','nonnaive_IgD+B220+','unassigned_IgD+B220+')),
          tissue = factor(tissue, levels = c('all','LN','spleen','BM')),
          group_controls_pooled = factor(group_controls_pooled, levels = group_controls_pooled_factor_levels))
 
-# Export csv files
-write_csv(obs_n_genes, n_v_genes_by_mouse_path)
+
+# Number of shared genes (whole mice only)
+shared_genes <- count_shared_genes(whole_mice_gene_counts = vgene_counts %>% filter(cell_type == 'all', tissue == 'all'))
+
+# Rarefaction curves (whole mice only)
+rarefaction_curves <- build_rarefaction_curves(vgene_counts %>% filter(tissue == 'all', cell_type == 'all'))
+
+# Export csv file with number of alleles
+write_csv(obs_n_genes, n_vgenes_by_mouse_path)
 
 
 # PLOTS:
-
-# Rarefaction_curves
-mice_with_enough_LN_seqs <- exp_freqs %>% filter(tissue == 'LN') %>%
-  filter(total_compartment_seqs >= min_compartment_size) %>%
-  select(mouse_id) %>%
-  unique()
-
-
-rarefaction_curves <- build_rarefaction_curves(all_tissue_all_cell_freqs)
 
 rarefaction_curves_pl <- rarefaction_curves %>%
   ggplot(aes(x = sample_size, y = n_v_genes, group = mouse_id, color = infection_status)) +
@@ -177,31 +216,11 @@ rarefaction_curves_pl <- rarefaction_curves %>%
   xlab('Number of sequences') +
   ylab('Number of V genes')
 
-# Number of genes shared by pairs of mice
-n_shared_genes <- pairwise_gene_freqs %>%
-  filter(!is.na(vgene_seq_freq_i) & !is.na(vgene_seq_freq_j)) %>%
-  select(mouse_pair, pair_type, v_gene) %>%
-  unique() %>%
-  group_by(mouse_pair, pair_type) %>%
-  dplyr::summarise(n_genes_shared = n()) %>%
-  ungroup() %>%
-  ggplot(aes(x = pair_type, y = n_genes_shared, color = pair_type)) +
-  geom_boxplot(outlier.alpha = 0) +
-  geom_point(position = position_jitter(width = 0.1), alpha = 0.5) +
-  xlab('Type of pair') +
-  ylab('Number of genes shared by mouse pair') +
-  pair_types_color_scale(name = '') +
-  background_grid() +
-  theme(legend.position = 'none')
-  
 
 total_genes_and_genes_in_LN_pops <- 
   bind_rows(obs_n_genes %>%
-              filter(tissue == 'all', cell_type %in% c('naive', 'experienced')) %>%
-              mutate(cell_type = case_when(
-                cell_type == 'naive' ~ 'Naive cells (all tissues)',
-                cell_type == 'experienced' ~ 'Experienced cells (all tissues)'
-              )) %>%
+              filter(tissue == 'all', cell_type == 'all') %>%
+              mutate(cell_type = 'All cell types and tissues') %>%
               select(-tissue),
             obs_n_genes %>%
               filter(tissue == 'LN', cell_type %in% c('GC','PC','mem')) %>%
@@ -212,12 +231,11 @@ total_genes_and_genes_in_LN_pops <-
               )) %>%
               select(-tissue)) %>%
   mutate(cell_type = factor(cell_type,
-         levels = c('Naive cells (all tissues)',
-                    'Experienced cells (all tissues)',
+         levels = c('All cell types and tissues',
                     'Lymph node GC cells',
                     'Lymph node plasma cells',
                     'Lymph node memory cells'))) %>%
-  ggplot(aes(x = group_controls_pooled, y = n_genes_chao1, color = infection_status)) +
+  ggplot(aes(x = group_controls_pooled, y = n_genes, color = infection_status)) +
   geom_boxplot(outlier.alpha = 0) +
   geom_point(aes(size = total_compartment_seqs),
              position = position_jitter(height = 0, width = 0.1),
@@ -229,8 +247,21 @@ total_genes_and_genes_in_LN_pops <-
   scale_size(name = 'Number of sequences') +
   background_grid() +
   xlab('Group') +
-  ylab('Number of V genes (Chao1 estimate)')
+  ylab('Number of V genes')
 
+# Number of genes shared by pairs of mice
+n_shared_genes_pl <- shared_genes %>%
+  mutate(pair_type = factor(pair_type, levels = c('control','control/primary','primary',
+                                                  'control/secondary','secondary','primary/secondary'))) %>%
+  ggplot(aes(x = pair_type, y = n_shared_genes, color = pair_type)) +
+  geom_boxplot(outlier.alpha = 0) +
+  geom_point(position = position_jitter(width = 0.1), alpha = 0.5) +
+  xlab('Type of pair') +
+  ylab('Number of genes shared by mouse pair') +
+  pair_types_color_scale(name = '') +
+  background_grid() +
+  ylim(c(0,NA)) +
+  theme(legend.position = 'none')
 
-save(total_genes_and_genes_in_LN_pops, n_shared_genes,
+save(total_genes_and_genes_in_LN_pops, n_shared_genes_pl,
      rarefaction_curves_pl, file = paste0(figure_directory,'n_genes.RData'))
