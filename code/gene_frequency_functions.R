@@ -71,10 +71,14 @@ assign_infection_status <- function(day, mouse_id_number){
 }
 
 # Counts productive sequences by mouse, clone, tissue, cell type. 
-get_productive_seq_counts <- function(annotated_seqs, unique_only, assignment){
+get_seq_counts <- function(annotated_seqs, unique_only, productive_only){
   
-  counts <- annotated_seqs %>% filter(productive) 
+  counts <- annotated_seqs
   
+  if(productive_only){
+    counts <- annotated_seqs %>% filter(productive) 
+  }
+
   # If computing counts of unique sequences only:
   if(unique_only){
     counts <- counts %>%
@@ -91,6 +95,10 @@ get_productive_seq_counts <- function(annotated_seqs, unique_only, assignment){
       group_by(mouse_id, clone_id, tissue, cell_type) %>%
       summarise(prod_seqs = n()) %>%
       ungroup()
+  }
+  
+  if(!productive_only){
+    names(counts) <- str_replace(names(counts), 'prod_seqs', 'seqs')
   }
   
   return(counts)
@@ -141,7 +149,7 @@ process_IgD_B220_seqs <- function(annotated_seqs, max_clone_unique_IgDB220_seqs,
   
   # Sequences sorted as DUMP-IgD+B220+ that do not meet all the other criteria are labeled 'nonnaive_IgD+B220+'
   
-  unique_productive_seq_counts <- get_productive_seq_counts(annotated_seqs, unique_only = T)
+  unique_productive_seq_counts <- get_seq_counts(annotated_seqs, unique_only = T, productive_only = T)
     
   clone_purity <- get_clone_purity(unique_productive_seq_counts) %>%
     dplyr::rename(unique_productive_IgDB220_seqs_in_clone = IgD_B220_seqs_in_clone,
@@ -526,6 +534,18 @@ get_unique_pairs <- function(gene_freqs, within_groups_only){
   
 }
 
+# For a vector of infection status ('primary','secondary', or 'control'),
+# of length 1 or 2, returns a pair label
+get_pair_type <- function(infection_status){
+  stopifnot(length(infection_status) %in% c(1,2))
+  
+  pair_type = ifelse(length(unique(infection_status)) == 1,
+                     infection_status,
+                     paste(sort(unique(infection_status)),collapse = '/'))
+  return(pair_type)
+  
+}
+
 # For all pairs of mice, rearrange freqs tibble to show changes in each mouse as different vars.
 get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_only){
   # Assumes gene_freqs in wide format:
@@ -576,9 +596,8 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_onl
     infection_status <- pair_info$infection_status
     #mouse_id_numbers <- sapply(mice, FUN = function(x){str_split(x,'-')[[1]][2]})
    
-    pair_type = ifelse(length(unique(infection_status)) == 1,
-                       infection_status,
-                       paste(sort(unique(infection_status)),collapse = '/'))
+    pair_type <- get_pair_type(infection_status)
+
     time_i <- days[1]
     time_j <- days[2]
     #pair_time <- paste(sort(as.numeric(days)), collapse=';')

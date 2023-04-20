@@ -118,11 +118,11 @@ write_csv(germline_v_genes_partis, '../results/germline_genes_partis.csv')
 germline_v_genes_partis_ogrdb <- process_partis_germline_genes(germline_v_genes_partis_ogrdb_files)
 write_csv(germline_v_genes_partis_ogrdb, '../results/germline_genes_partis_ogrdb.csv')
 
-# ====== Sequences counts for experienced cells, by mouse, cell type, tissue, V gene
-seq_counts_partis <- get_productive_seq_counts(annotated_seqs_partis, unique_only = F)
+# ====== Productive sequences counts for experienced cells, by mouse, cell type, tissue, V gene
+seq_counts_partis <- get_seq_counts(annotated_seqs_partis, unique_only = F, productive_only = T)
 # Ig blast assignment will use the partis assignment-based filters for naive sequences
-seq_counts_igblast <- get_productive_seq_counts(annotated_seqs_igblast, unique_only = F)
-seq_counts_partis_ogrdb <- get_productive_seq_counts(annotated_seqs_partis_ogrdb, unique_only = F)
+seq_counts_igblast <- get_seq_counts(annotated_seqs_igblast, unique_only = F, productive_only = T)
+seq_counts_partis_ogrdb <- get_seq_counts(annotated_seqs_partis_ogrdb, unique_only = F, productive_only = T)
 
 write_csv(seq_counts_partis, '../processed_data/seq_counts_partis.csv')
 write_csv(seq_counts_igblast, '../processed_data/seq_counts_igblast.csv')
@@ -130,15 +130,16 @@ write_csv(seq_counts_partis_ogrdb, '../processed_data/seq_counts_partis_ogrdb.cs
 
 # Same structure, but after grouping sequences from the same mouse, clone, cell type, tissue and isotype that are identical
 
-unique_seq_counts_partis <- get_productive_seq_counts(annotated_seqs_partis, unique_only = T)
-unique_seq_counts_igblast <- get_productive_seq_counts(annotated_seqs_igblast, unique_only = T)
-unique_seq_counts_partis_ogrdb <- get_productive_seq_counts(annotated_seqs_partis_ogrdb, unique_only = T)
+unique_seq_counts_partis <- get_seq_counts(annotated_seqs_partis, unique_only = T, productive_only = T)
+unique_seq_counts_igblast <- get_seq_counts(annotated_seqs_igblast, unique_only = T, productive_only = T)
+unique_seq_counts_partis_ogrdb <- get_seq_counts(annotated_seqs_partis_ogrdb, unique_only = T, productive_only = T)
 
 write_csv(unique_seq_counts_partis, '../processed_data/unique_seq_counts_partis.csv')
 write_csv(unique_seq_counts_igblast, '../processed_data/unique_seq_counts_igblast.csv')
 write_csv(unique_seq_counts_partis_ogrdb, '../processed_data/unique_seq_counts_partis_ogrdb.csv')
 
 # ========= Annotate clone_info with clone tissue composition and clone cell type composition =======
+#                                     (based on productive sequences)
 
 # Numbers of productive sequences (as opposed to only unique seqs) in each tissue and cell type in each clone
 clone_info_partis <- annotate_clone_info_with_composition(clone_info = clone_info_partis,
@@ -157,3 +158,22 @@ write_csv(clone_info_partis, '../processed_data/clone_info_partis.csv')
 write_csv(clone_info_igblast, '../processed_data/clone_info_igblast.csv')
 write_csv(clone_info_partis_ogrdb, '../processed_data/clone_info_partis_ogrdb.csv')
  
+# ========== Export sequence counts including unproductive sequences
+seq_counts_partis_incl_unprod <- get_seq_counts(annotated_seqs_partis, unique_only = F, productive_only = F)
+seq_counts_partis_ogrdb_incl_unprod <- get_seq_counts(annotated_seqs_partis_ogrdb, unique_only = F, productive_only = F)
+seq_counts_igblast_incl_unprod <- get_seq_counts(annotated_seqs_igblast, unique_only = F, productive_only = F)
+
+# As a test, for clones with productive sequences, the n of seqs when unproductive sequences are included has to be equal to or greater
+# than the number of prod seqs:
+seq_count_test <- left_join(seq_counts_partis, seq_counts_partis_incl_unprod) %>%
+  mutate(test = seqs >= prod_seqs) %>%
+  select(test) %>% unique() %>% pull(test)
+stopifnot(seq_count_test)
+
+write_csv(seq_counts_partis_incl_unprod, '../processed_data/seq_counts_partis_incl_unprod.csv')
+write_csv(seq_counts_partis_ogrdb_incl_unprod, '../processed_data/seq_counts_partis_ogrdb_incl_unprod.csv')
+write_csv(seq_counts_igblast_incl_unprod, '../processed_data/seq_counts_igblast_incl_unprod.csv')
+
+
+
+
