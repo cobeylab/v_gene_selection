@@ -4,8 +4,33 @@ theme_set(theme_cowplot())
 
 # Read annotated sequences from Greiff et al. 2017
 
-annotated_seq_files_Greiff2017 <- list.files('../results/partis/seq_data_Greiff2017/', pattern = 'annotated_seqs.csv',
-                                             full.names = T)
+args <- commandArgs(trailingOnly = T)
+
+assignment <- as.character(args[1])
+
+stopifnot(assignment %in% c('partis','partis_ogrdb'))
+
+if(assignment == 'partis'){
+  annotated_seq_files_Greiff2017 <- list.files('../results/partis/seq_data_Greiff2017/', pattern = 'annotated_seqs.csv',
+                                               full.names = T)
+  annotated_seq_files_Greiff2017 <- annotated_seq_files_Greiff2017[str_detect(annotated_seq_files_Greiff2017, 'ogrdb', negate = T)]
+  
+  # Read pre-computed naive frequencies from our data
+  load('../results/precomputed_gene_freqs_all_seqs_partis.RData')
+  
+  output_file = '../processed_data/naive_freqs_Greiff2017_partis.csv'
+  
+  
+  
+}else{
+  annotated_seq_files_Greiff2017 <- list.files('../results/partis/seq_data_Greiff2017/', pattern = 'ogrdb_annotated_seqs.csv',
+                                               full.names = T)
+  
+  load('../results/precomputed_gene_freqs_all_seqs_partis_ogrdb.RData')
+  
+  output_file = '../processed_data/naive_freqs_Greiff2017_partis_ogrdb.csv'
+}
+
 
 annotated_seqs_Greiff2017 <- lapply(as.list(annotated_seq_files_Greiff2017),
                                     FUN = function(path){
@@ -30,9 +55,7 @@ naive_freqs_Greiff2017 <- annotated_seqs_Greiff2017 %>%
   ungroup()
 
 
-# Read pre-computed naive frequencies from our data
-load('../results/precomputed_gene_freqs_all_seqs.RData')
-
+# Pre-computed naive frequencies from our data
 naive_freqs_this_study <- naive_freqs %>%
   dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs,
                 vgene_seq_freq = naive_vgene_seq_freq,
@@ -159,6 +182,6 @@ pairwise_naive_freq_correlations %>% filter(pair_type == 'cross-dataset') %>%
             upper_quartile = quantile(cor_coef_freqs, 0.75))
 
 # Export Greiff et al. 2017 naive freqs.
-write_csv(file = '../processed_data/naive_freqs_Greiff2017.csv',
+write_csv(file = output_file,
           naive_freqs_Greiff2017)
 

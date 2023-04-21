@@ -68,7 +68,9 @@ exp_freqs <- gene_freqs$exp_freqs
 if(use_Greiff2017_naive_freqs){
   stopifnot(assignment %in% c('partis','partis_ogrdb'))
   
-  naive_freqs_greiff2017 <- read_csv('../processed_data/naive_freqs_Greiff2017.csv')
+  naive_freqs_greiff2017_path <- paste0('../processed_data/naive_freqs_Greiff2017_', assignment, '.csv')
+  
+  naive_freqs_greiff2017 <- read_csv(naive_freqs_greiff2017_path)
   # Compute average naive frequency of each V gene across mice in the naive dataset
   naive_freqs_greiff2017 <- naive_freqs_greiff2017 %>%
     group_by(v_gene) %>%
