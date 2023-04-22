@@ -26,7 +26,8 @@ for(i in 1:length(par_values)){
 }
 
 # Assign affinity distributions and relative mutabilities to each allele based on s, sigma r, gamma
-allele_info <- assign_allele_properties(allele_info = allele_info, s = s, sigma_r = sigma_r, gamma = gamma)
+allele_info <- assign_allele_properties(allele_info = allele_info, baseline_mean = baseline_mean,
+                                        s = s, sigma_r = sigma_r, gamma = gamma)
 
 
 

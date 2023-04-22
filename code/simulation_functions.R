@@ -25,7 +25,8 @@ test_allele_info <- read_csv('test_allele_info.csv')
 # mutation_rate: mutation probability per B cell per division
 # mutation_sd: standard deviation for normal distribution of mutational effects (mean 0) (given by beta * sigma_r)
 # allele_info: tibble with alleles' affinity distributions and naive frequencies (see simulation_scenarios.R)
-# s: increase in mean affinity associated with high-affinity alleles
+# baseline_mean: baseline mean affinity (i.e., average for 'low affinity' alleles.)
+# s: increase in mean affinity associated with high-affinity alleles, relative to sigma_r
 # sigma_r: baseline variation in naive affinity due to VDJ recombination
 # gamma relative mutability of high mutability alleles (compared to 1, for regular alleles)
 
@@ -235,9 +236,10 @@ master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutatio
 }
 
 # Adds info on affinity distributions and mutability to tibble of allele info
-assign_allele_properties <- function(allele_info, s, sigma_r, gamma){
+assign_allele_properties <- function(allele_info, baseline_mean, s, sigma_r, gamma){
+  
   allele_types_affinity <- tibble(allele_type_affinity = c('low_avg', 'high_avg'),
-                                  mean_affinity = c(1, 1 + s),
+                                  mean_affinity = c(baseline_mean, baseline_mean + s*sigma_r),
                                   sd_affinity = c(sigma_r, sigma_r))
   
   allele_types_mutability <- tibble(allele_type_mutability = c('low_mut', 'high_mut'),
@@ -501,7 +503,8 @@ quick_plotting_function <- function(GC_tibble, allele_info){
 }
 
 
-test_allele_info <- assign_allele_properties(allele_info = test_allele_info, s = 0, sigma_r = 1, gamma = 1)
+test_allele_info <- assign_allele_properties(allele_info = test_allele_info,
+                                             baseline_mean = 1, s = 0, sigma_r = 1, gamma = 1)
 
 # Some visual tests:
 # If mu_max is < delta, clones should consistently die out

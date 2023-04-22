@@ -14,7 +14,7 @@ min_naive_seqs <- 1000 # Only use mice with at least 1000 naive seqs as a base f
 
 # To use realistic naive frequencies, import precomputed gene frequencies object
 
-load('../results/precomputed_gene_freqs_all_seqs.RData')
+load('../results/precomputed_gene_freqs_all_seqs_partis.RData')
 
 
 # Remove mice with fewer than min_naive_seqs
@@ -132,7 +132,7 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_high_mut
 
 
 create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele_eligibility_threshold,
-                            selected_allele_naive_freq_interval, n_high_avg_alleles, s, sigma_r, n_high_mutability_alleles,
+                            selected_allele_naive_freq_interval, n_high_avg_alleles, baseline_mean, s, sigma_r, n_high_mutability_alleles,
                             gamma, K, I_total, t_imm, mu_max, delta, mutation_rate, beta, tmax, uniform_naive_freqs,
                             dominant_allele_naive_freq = NULL){
   
@@ -162,10 +162,11 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
 
   # Identify parameters with more than one value
   par_combinations <- expand_grid(K = K, I_total = I_total, t_imm = t_imm, mu_max = mu_max, delta = delta,
-                                  s = s, sigma_r = sigma_r, gamma = gamma, mutation_rate = mutation_rate,
-                                  beta = beta, tmax = tmax, uniform_naive_freqs = uniform_naive_freqs)
+                                  baseline_mean = baseline_mean, s = s, sigma_r = sigma_r, gamma = gamma,
+                                  mutation_rate = mutation_rate, beta = beta, tmax = tmax,
+                                  uniform_naive_freqs = uniform_naive_freqs)
   
-    
+      
   n_par_values <- par_combinations %>%
     summarise(across(everything(),.fns = function(x){length(unique(x))})) %>% unlist()
   variable_pars <- names(n_par_values)[n_par_values > 1]
@@ -196,8 +197,9 @@ create_scenario(scenario_directory = '../results/simulations/neutral_scenario/',
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
                 n_high_avg_alleles = 0,
+                baseline_mean = 1,
                 s = 0,
-                sigma_r = 1,
+                sigma_r = 0.1,
                 n_high_mutability_alleles = 0,
                 gamma = 1,
                 K = 2000,
@@ -216,8 +218,9 @@ create_scenario(scenario_directory = '../results/simulations/neutral_uniform_fre
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
                 n_high_avg_alleles = 0,
+                baseline_mean = 1,
                 s = 0,
-                sigma_r = 1,
+                sigma_r = 0.1,
                 n_high_mutability_alleles = 0,
                 gamma = 1,
                 K = 2000,
@@ -237,8 +240,9 @@ create_scenario(scenario_directory = '../results/simulations/high_affinity_scena
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
                 n_high_avg_alleles = 5,
+                baseline_mean = 1,
                 s = c(0.5, 1, 1.5, 2),
-                sigma_r = 1,
+                sigma_r = 0.1,
                 n_high_mutability_alleles = 0,
                 gamma = 1,
                 K = 2000,
@@ -251,6 +255,7 @@ create_scenario(scenario_directory = '../results/simulations/high_affinity_scena
                 tmax = 50,
                 uniform_naive_freqs = F)
 
+
 # ============================ HIGH MUTATION SCENARIO ===================================
 # some alleles have higher mutation rate by a factor gamma
 create_scenario(scenario_directory = '../results/simulations/high_mutation_scenario/',
@@ -258,8 +263,9 @@ create_scenario(scenario_directory = '../results/simulations/high_mutation_scena
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
                 n_high_avg_alleles = 0,
+                baseline_mean = 1,
                 s = 1,
-                sigma_r = 1,
+                sigma_r = 0.1,
                 n_high_mutability_alleles = 5,
                 gamma = c(1.5,2,4,6),
                 K = 2000,
