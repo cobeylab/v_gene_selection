@@ -1398,7 +1398,8 @@ precomputed_files_labeller <- function(precomputed_file_name){
     precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_collapsed_novel_alleles.RData' ~ 'all_seqs_partis_collapsed_novel_alleles',
     precomputed_file_name == 'precomputed_gene_freqs_all_seqs_igblast.RData' ~ 'all_seqs_igblast',
     precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_ogrdb.RData' ~ 'all_seqs_partis_ogrdb',
-    precomputed_file_name == 'precomputed_gene_freqs_unique_seqs_partis_ogrdb.RData' ~ 'unique_seqs_partis_ogrdb'
+    precomputed_file_name == 'precomputed_gene_freqs_unique_seqs_partis_ogrdb.RData' ~ 'unique_seqs_partis_ogrdb',
+    precomputed_file_name == 'precomputed_gene_freqs_all_seqs_partis_ogrdb_Greiff2017_naive_freqs.RData' ~ 'all_seqs_partis_ogrdb_Greiff2017_naive_freqs'
   )
   stopifnot(!is.na(file_label))
   return(file_label)
