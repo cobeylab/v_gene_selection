@@ -115,15 +115,23 @@ scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scen
 model_parameters <- bind_rows(
   lapply(as.list(scenarios),
          FUN = function(scen){
-           read_csv(paste0('../results/simulations/', scen, '/combined_model_parameters.csv')) %>%
-             mutate(scenario = str_remove(scen,'_scenario'))
+           comb_pars_path <- paste0('../results/simulations/', scen, '/combined_model_parameters.csv')
+           if(file.exists(comb_pars_path)){
+             output <- read_csv(comb_pars_path) %>% mutate(scenario = str_remove(scen,'_scenario'))
+           }else{
+             output <- c()
+           }
+           return(output)
          })
 ) %>% select(scenario, everything())
 
 parameter_names <- names(model_parameters)
 
 for(scen in scenarios){
-  load(paste0('../results/simulations/', scen, '/', scen, '_summary.RData'))
+  summary_path <- paste0('../results/simulations/', scen, '/', scen, '_summary.RData')
+  if(file.exists(summary_path)){
+    load(summary_path)
+  }
 }
 
 
