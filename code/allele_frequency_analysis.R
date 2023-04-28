@@ -276,6 +276,7 @@ if(include_focal_genes_plot){
 
 # ======= PAIRWISE CORRELATIONS BETWEEN MICE =======
 
+# Naive freq correlations
 pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
   filter(cell_type == 'naive', method == 'pearson') %>% 
   filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size) %>%
@@ -290,6 +291,16 @@ pairwise_naive_correlations_plot <- pairwise_correlations$freqs %>%
   background_grid() +
   pair_types_color_scale(name = '')
 
+# Naive freq correlation as a function of min number of naive seqs in each mouse
+pairwise_correlations$freqs %>%
+  filter(cell_type == 'naive', method == 'pearson') %>% 
+  filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_j >= min_compartment_size) %>%
+  mutate(mean_compartment_seqs = (total_compartment_seqs_i + total_compartment_seqs_j)/2) %>%
+  ggplot(aes(x = mean_compartment_seqs, y = cor_coef_freqs, )) +
+  geom_point(aes(color = pair_type)) +
+  geom_smooth()
+
+# Correlations in LN experienced cells
 pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   filter(cell_type %in% c('GC','PC','mem'), method == 'pearson') %>%
   filter((day_i == day_j | pair_type == 'control'),

@@ -184,7 +184,7 @@ process_IgD_B220_test <- process_IgD_B220_seqs(tibble(mouse_id = 'A',
                                                       cell_type = c('GC',rep('IgD+B220+',6)),
                                                       isotype = c(rep('IGM',6), 'IGG'),
                                                       vgene_mutations_partis_nt = c(0,0,0,0,0,3,0),
-                                                      tissue = 'LN', productive = T),
+                                                      tissue = 'BM', productive = T),
        max_clone_unique_IgDB220_seqs = 1, max_v_gene_mutations = 2)
 stopifnot(process_IgD_B220_test$cell_type == c('GC', rep('nonnaive_IgD+B220+', 3), 'naive', rep('nonnaive_IgD+B220+', 2)))
 rm(process_IgD_B220_test)
