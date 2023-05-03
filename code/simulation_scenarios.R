@@ -7,14 +7,18 @@ theme_set(theme_cowplot())
 
 source('gene_frequency_functions.R')
 
-selected_allele_eligibility_threshold <- 40 # Only alleles occurring in at least these many mice can be under positive allele-level selection
-selected_allele_naive_freq_interval <- c(0.02, 0.03) # Only alleles with a mean naive freq. across mice of 2-3% can be chosen.
+selected_allele_eligibility_threshold <- 37 # Only alleles occurring in at least these many mice can be under positive allele-level selection
+# This is the number of mice with sufficient naive seqs in the partis-ogrdb assignment
+
+# Only alleles with a mean naive freq. across mice of 2-3% can be chosen.
+# Median frequency in the naive rep is usually ~ 1% in the partis ogrdb assignment
+selected_allele_naive_freq_interval <- c(0.01, 0.02) 
 
 min_naive_seqs <- 1000 # Only use mice with at least 1000 naive seqs as a base for simulations
 
 # To use realistic naive frequencies, import precomputed gene frequencies object
 
-load('../results/precomputed_gene_freqs_all_seqs_partis.RData')
+load('../results/precomputed_gene_freqs_all_seqs_partis_ogrdb.RData')
 
 
 # Remove mice with fewer than min_naive_seqs
@@ -277,7 +281,7 @@ create_scenario(scenario_directory = '../results/simulations/high_mutation_scena
                 uniform_naive_freqs = F)
 
 # ============================ HIGH AFFINITY SCENARIO W/ lower sigma r ===================================
-create_scenario(scenario_directory = '../results/simulations/high_affinity_scenario_lower_sigma_r',
+create_scenario(scenario_directory = '../results/simulations/high_affinity_scenario_lower_sigma_r/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,

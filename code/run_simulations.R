@@ -9,14 +9,17 @@ allele_info_file_path <- args[1] # allele_info_file_path = '../results/simulatio
 # Directory for specific parameter values
 model_parameters_directory <- args[2] # 
 
+# Individual number (specicies a unique individual in simulations. Different sim. individuals can have the same base individual)
+individual_number <- args[3]
+
 # Individual to use naive frequencies and germline gene sets from
-individual_id <- args[3]
+base_individual <- args[4]
 
 # Arbitrary number assigned to GC being simulated (different GCs simulated by different jobs in the cluster) 
-GC_number <- args[4]
+GC_number <- args[5]
 
 allele_info <- read_csv(allele_info_file_path) %>%
-  filter(individual == individual_id) %>% select(-individual)
+  filter(individual == base_individual) %>% select(-individual)
 
 
 model_parameters <- read_csv(paste0(model_parameters_directory,'/model_parameters.csv'))
@@ -54,10 +57,8 @@ for(i in 1:length(par_values)){
 
 # Store results in directory specific to the combination of parameter values used
 write_csv(simulation %>%
-            mutate(individual = individual_id, GC = GC_number) %>%
+            mutate(individual = individual_number, GC = GC_number) %>%
             select(individual, GC, everything()),
-          file = paste0(model_parameters_directory,'simulation_individual_', individual_id, '_GC_', GC_number, '.csv'))
+          file = paste0(model_parameters_directory,'simulation_individual_', individual_number, '_GC_', GC_number, '.csv'))
 
-
-time_end <- Sys.time()
 
