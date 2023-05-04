@@ -498,7 +498,7 @@ get_naive_exp_correlations <- function(gene_freqs){
 
 
 # Generates vector of unique mouse pairs, using gene_freqs as a basis
-get_unique_pairs <- function(gene_freqs, within_groups_only){
+get_unique_pairs <- function(gene_freqs, within_groups_only, include_self_pairs = F){
   
   # Tibble containing group of each mouse.
   mouse_group_assignments <- gene_freqs %>% select(mouse_id, group_controls_pooled) %>% unique()
@@ -509,9 +509,15 @@ get_unique_pairs <- function(gene_freqs, within_groups_only){
     complete(mouse_id_i, mouse_id_j) %>%
     rowwise() %>%
     mutate(pair = paste0(sort(c(mouse_id_i, mouse_id_j)), collapse = ';')) %>%
-    ungroup() %>%
-    filter(mouse_id_i != mouse_id_j) %>%
-    unique()
+    ungroup()
+  
+  if(include_self_pairs == F){
+    unique_pairs <- unique_pairs %>%
+      filter(mouse_id_i != mouse_id_j) 
+  }
+  
+  unique_pairs <- unique_pairs %>% unique()
+  
   
   # Add info on mouse groups 
   unique_pairs <- left_join(unique_pairs,  mouse_group_assignments %>%
