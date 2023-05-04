@@ -119,14 +119,14 @@ generate_allele_info <- function(obs_naive_freqs, n_high_avg_alleles, n_high_mut
   }
   
   # Replace mouse and gene ids with arbitrary integer ids
-  individual_integer_ids <- obs_naive_freqs %>% select(mouse_id) %>% unique() %>% mutate(individual = 1:n())
+  base_individual_integer_ids <- obs_naive_freqs %>% select(mouse_id) %>% unique() %>% mutate(base_individual = 1:n())
   
   allele_integer_ids <- obs_naive_freqs %>% select(v_gene) %>% unique() %>% mutate(allele = 1:n()) %>%
     mutate(allele = paste0('V', allele))
   
-  allele_info <- left_join(allele_info, individual_integer_ids) %>% select(-mouse_id)
+  allele_info <- left_join(allele_info, base_individual_integer_ids) %>% select(-mouse_id)
   allele_info <- left_join(allele_info, allele_integer_ids) %>% select(-v_gene) %>%
-    select(individual, allele, allele_type_affinity, allele_type_mutability, naive_freq)
+    select(base_individual, allele, allele_type_affinity, allele_type_mutability, naive_freq)
   
 
   return(allele_info)
@@ -156,7 +156,7 @@ create_scenario <- function(scenario_directory, obs_naive_freqs, selected_allele
   if(uniform_naive_freqs){
     stopifnot(is.null(dominant_allele_naive_freq))
     allele_info <- allele_info %>% 
-      group_by(individual) %>%
+      group_by(base_individual) %>%
       mutate(naive_freq = 1 /n())
   }
   

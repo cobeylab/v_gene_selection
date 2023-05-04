@@ -19,7 +19,7 @@ base_individual <- args[4]
 GC_number <- args[5]
 
 allele_info <- read_csv(allele_info_file_path) %>%
-  filter(individual == base_individual) %>% select(-individual)
+  filter(base_individual == base_individual) %>% select(-base_individual)
 
 
 model_parameters <- read_csv(paste0(model_parameters_directory,'/model_parameters.csv'))
@@ -57,8 +57,8 @@ for(i in 1:length(par_values)){
 
 # Store results in directory specific to the combination of parameter values used
 write_csv(simulation %>%
-            mutate(individual = individual_number, GC = GC_number) %>%
-            select(individual, GC, everything()),
+            mutate(individual = individual_number, base_individual = base_individual, GC = GC_number) %>%
+            select(individual, base_individual, GC, everything()),
           file = paste0(model_parameters_directory,'simulation_individual_', individual_number, '_GC_', GC_number, '.csv'))
 
 
