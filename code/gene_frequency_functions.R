@@ -1075,7 +1075,7 @@ get_mutation_frequencies_within_clones <- function(annotated_seqs, seq_counts, b
   
   # Arrange mutations by the position number in which they occurred
   mutation_counts_within_clones <- mutation_counts_within_clones %>%
-    mutate(position = as.integer(str_remove_all(mutation, '[A-Z]'))) %>%
+    mutate(position = as.integer(str_remove_all(mutation, '[A-Z\\*]'))) %>%
     arrange(across(c(grouping_vars, 'position')))
   
   
