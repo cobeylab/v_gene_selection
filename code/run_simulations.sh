@@ -4,42 +4,59 @@ n_individuals=$2 # Number of individuals to simulate
 n_GCs=$3 # Number of germinal centers per individual
 
 path_to_allele_info=${scenario_dir}/allele_info.csv
-
-# Run job array for each individual, with as many jobs as GCs   
-for ind in $(seq 1 $n_individuals) 
+  
+  
+# For all directories representing parameter combinations...
+for param_dir in $scenario_dir/raw_simulation_files/*/
 do
-    # Randomly sample a base individual from the 37 mice with 1000 or more naive seqs
-    base_ind=$(shuf -i 1-37 -n 1)
 
-    # For all directories representing parameter combinations...
-    for param_dir in $scenario_dir/raw_simulation_files/*/
-    do
+    # Run a parallel batch jobs for each parameter combination
+    # Each job will run $n_individuals, ntasks at a time
+    # https://rcc.uchicago.edu/docs/running-jobs/srun-parallel/index.html#parallel-batch
+    
+    # First, create a temporary shell script to be called by the sbatch file
+    # This shell file will have a simulated individual id number as argument $1.
+    # It will simulate n_GCs for that individual for given parameter combinations
         
-        sbatch_file_id=$(basename $scenario_dir)_$(basename $param_dir)_individual_$ind
-    
-        # -------------------------- Create sbatch file for job array ------------------------
-        sbatch_file=run_simulation_${sbatch_file_id}.sbatch
-    
-        echo '#!/bin/bash' > $sbatch_file
-        echo "#SBATCH --job-name=run_simulations_"${sbatch_file_id} >> $sbatch_file
-        echo "#SBATCH --nodes=1" >> $sbatch_file
-        echo "#SBATCH --ntasks-per-node=1" >> $sbatch_file
-	    echo "#SBATCH --partition=cobey" >> $sbatch_file
-        echo "#SBATCH -o out_err_files/run_simulations_"${sbatch_file_id}"_%A_%a.out" >> $sbatch_file       
-        echo "#SBATCH -e out_err_files/run_simulations_"${sbatch_file_id}"_%A_%a.err" >> $sbatch_file         
-        echo "#SBATCH --time=100:00:00" >> $sbatch_file
-        echo "#SBATCH --mem-per-cpu=2G" >> $sbatch_file
+    file_id=$(basename $scenario_dir)_$(basename $param_dir)
+        
+    temp_sh_file=temp_sh_files/run_$file_id.sh
+        
+    echo '#!/bin/bash' > $temp_sh_file
+    echo Rscript run_simulations.R $path_to_allele_info $param_dir/ $n_GCs '$1' >> $temp_sh_file
+        
+    chmod +x $temp_sh_file
+        
+    # --------------------- Create sbatch file for parallel batch --------------------
+    # Will do parallel runs of the temporary shell file, ntasks at a time
+       
 
-        echo module load R/3.6.1  >> $sbatch_file
+    sbatch_file=run_simulation_${file_id}.sbatch
     
-        # SLURM_ARRAY_TASK_ID will be an integer specifying a GC
+    echo '#!/bin/bash' > $sbatch_file
+    echo "#SBATCH --job-name=run_simulations_"${file_id} >> $sbatch_file
+    echo "#SBATCH -e out_err_files/run_simulations_"${file_id}.err >> $sbatch_file
+    echo "#SBATCH -o out_err_files/run_simulations_"${file_id}.out >> $sbatch_file
+    # RUN 50 individuals at a time
+    echo "#SBATCH --ntasks=50" >> $sbatch_file 
+    echo "#SBATCH --partition=cobey" >> $sbatch_file
+    echo "#SBATCH --time=100:00:00" >> $sbatch_file
+    echo "#SBATCH --mem-per-cpu=2G" >> $sbatch_file
+
+    echo module load R/3.6.1 >> $sbatch_file
+    echo module load parallel >> $sbatch_file
     
-        echo Rscript run_simulations.R $path_to_allele_info $param_dir $ind $base_ind '${SLURM_ARRAY_TASK_ID}' >> $sbatch_file
+    echo srun='"srun --exclusive -N1 -n1"' >> $sbatch_file
+        
+    echo parallel='"'parallel --delay 0.2 -j '$SLURM_NTASKS' --joblog out_err_files/$file_id.log --resume'"' >> $sbatch_file
+        
+    echo '$parallel' '"$srun' ./${temp_sh_file}'"' ::: {1..$n_individuals} >> $sbatch_file
     
-        # ----------------------------- Run job array ----------------------------------------
+    # ----------------------------- Run job  ----------------------------------------
     
-        sbatch --array=1-$n_GCs $sbatch_file     
-        # Remove sbatch file
-        rm $sbatch_file
-    done
+    sbatch $sbatch_file
+             
+    # Remove sbatch file
+    rm $sbatch_file
+
 done
