@@ -15,35 +15,6 @@ mutations_per_vgene_base_partis_ogrdb_files <- list.files('../results/mutations_
 germline_v_genes_partis_files <- list.files('../results/partis/partis_germline_genes/', pattern = 'v_genes_partis_[0-9]', full.names = T)
 germline_v_genes_partis_ogrdb_files <- list.files('../results/partis/partis_germline_genes/', pattern = 'v_genes_partis_ogrdb', full.names = T)
 
-# OGRDB dataset, for renaming V genes in partis-ogrdb assignment back to their IMGT names
-ogrdb_data <- read_csv('../data/OGRDB_C57BL6_genes.csv') %>%
-  # Remove space from gene labels
-  mutate(Label = str_remove(Label, '\\s')) %>%
-  dplyr::rename(ogrdb_name = Label,
-                imgt_name = `IMGT Name`)
-
-# Function for renaming ogrdb genes following the traditional nomenclature
-convert_ogrdb_to_imgt <- function(input_tibble, ogrdb_data){
-  # Removing the '*x' suffix
-  input_tibble <- input_tibble %>% mutate(v_gene = str_remove(v_gene,'\\*x'))
-  
-  # Check if all genes in input tibble are listed in the ogrdb data
-  input_tibble_labels <- unique(input_tibble$v_gene)
-  stopifnot(all(input_tibble_labels[!is.na(input_tibble_labels)] %in% ogrdb_data$ogrdb_name))
-  
-  relabelled_tibble <- left_join(input_tibble,
-            ogrdb_data %>% dplyr::rename(v_gene = ogrdb_name) %>% select(v_gene, imgt_name)) %>%
-    mutate(new_label = ifelse(is.na(imgt_name), v_gene, imgt_name)) %>%
-    mutate(v_gene = new_label) %>%
-    select(-new_label, imgt_name) %>%
-    select(matches('mouse_id'), matches('clone_id'), matches('v_gene'), everything())
-  
-  stopifnot(nrow(relabelled_tibble) == nrow(input_tibble))
-  
-  return(relabelled_tibble)
-
-}
-
 # =========================================== Some auxillary functions =================================
 read_partis_germline_genes <- function(path){
   mouse_id = str_extract(path,'[0-9]+-[0-9]+')

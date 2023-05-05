@@ -78,7 +78,7 @@ if(use_Greiff2017_naive_freqs){
     ungroup() %>%
     # Re-normalize so frequencies sum to 1
     mutate(average_greiff2017_naive_freq = average_greiff2017_naive_freq/sum(average_greiff2017_naive_freq))
-  
+
   naive_freqs <- left_join(naive_freqs, 
             naive_freqs_greiff2017) %>%
     mutate(naive_vgene_seq_freq = case_when(

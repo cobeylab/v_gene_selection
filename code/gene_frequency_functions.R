@@ -1,4 +1,5 @@
 library(tidyr)
+library(readr)
 library(dplyr)
 library(cowplot)
 library(stringr)
@@ -8,6 +9,13 @@ estimated_seq_error_rate <- 0.0018
 
 cell_type_list <- list('GC','PC','mem','experienced')
 names(cell_type_list) <- c('GC','PC','mem','experienced')
+
+# OGRDB dataset, for renaming V genes in partis-ogrdb assignment back to their IMGT names
+ogrdb_data <- read_csv('../data/OGRDB_C57BL6_genes.csv') %>%
+  # Remove space from gene labels
+  mutate(Label = str_remove(Label, '\\s')) %>%
+  dplyr::rename(ogrdb_name = Label,
+                imgt_name = `IMGT Name`)
 
 # Order of mice, for plotting...
 mouse_id_factor_levels = expand.grid(id = 1:10, day = c(8,16,24,40,56))%>%
@@ -1411,4 +1419,24 @@ precomputed_files_labeller <- function(precomputed_file_name){
   return(file_label)
 }
 
-
+# Function for renaming ogrdb genes following the traditional IMGT nomenclature
+convert_ogrdb_to_imgt <- function(input_tibble, ogrdb_data){
+  # Removing the '*x' suffix
+  input_tibble <- input_tibble %>% mutate(v_gene = str_remove(v_gene,'\\*x'))
+  
+  # Check if all genes in input tibble are listed in the ogrdb data
+  input_tibble_labels <- unique(input_tibble$v_gene)
+  stopifnot(all(input_tibble_labels[!is.na(input_tibble_labels)] %in% ogrdb_data$ogrdb_name))
+  
+  relabelled_tibble <- left_join(input_tibble,
+                                 ogrdb_data %>% dplyr::rename(v_gene = ogrdb_name) %>% select(v_gene, imgt_name)) %>%
+    mutate(new_label = ifelse(is.na(imgt_name), v_gene, imgt_name)) %>%
+    mutate(v_gene = new_label) %>%
+    select(-new_label, imgt_name) %>%
+    select(matches('mouse_id'), matches('clone_id'), matches('v_gene'), everything())
+  
+  stopifnot(nrow(relabelled_tibble) == nrow(input_tibble))
+  
+  return(relabelled_tibble)
+  
+}

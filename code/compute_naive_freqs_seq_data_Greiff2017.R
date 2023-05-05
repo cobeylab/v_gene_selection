@@ -176,12 +176,15 @@ pairwise_naive_freq_correlations <- get_pairwise_correlations(
 
 # Mean and interquartile range of cross-dataset Spearman correlations
 
-pairwise_naive_freq_correlations %>% filter(pair_type == 'cross-dataset') %>%
-  summarise(mean_cross_dataset_correlation = mean(cor_coef_freqs),
+pairwise_naive_freq_correlations %>% group_by(pair_type) %>%
+  summarise(mean_correlation = mean(cor_coef_freqs),
             lower_quartile = quantile(cor_coef_freqs,0.25),
             upper_quartile = quantile(cor_coef_freqs, 0.75))
 
+if(assignment == 'partis_ogrdb'){
+  naive_freqs_Greiff2017 <- convert_ogrdb_to_imgt(naive_freqs_Greiff2017, ogrdb_data)
+}
+
 # Export Greiff et al. 2017 naive freqs.
-write_csv(file = output_file,
-          naive_freqs_Greiff2017)
+write_csv(file = output_file, naive_freqs_Greiff2017)
 
