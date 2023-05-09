@@ -300,3 +300,24 @@ create_scenario(scenario_directory = '../results/simulations/high_affinity_scena
                 beta = c(1,5,10,20),
                 tmax = 50,
                 uniform_naive_freqs = F)
+
+# High affinity scenario with a single parameter choice (to simulate 1000 individuals)
+create_scenario(scenario_directory = '../results/simulations/high_affinity_scenario_1000inds/',
+                obs_naive_freqs = obs_naive_freqs,
+                selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
+                selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
+                n_high_avg_alleles = 5,
+                baseline_mean = 1,
+                s = 1.5,
+                sigma_r = 1,
+                n_high_mutability_alleles = 0,
+                gamma = 1,
+                K = 2000,
+                I_total = 200,
+                t_imm = 6,
+                mu_max = 3,
+                delta = 0.2,
+                mutation_rate = 0.01,
+                beta = 4,
+                tmax = 50,
+                uniform_naive_freqs = F)

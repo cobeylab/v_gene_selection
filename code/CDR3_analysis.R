@@ -331,6 +331,8 @@ CDR3_length_distribution_pl <- CDR3_seqs %>%
 
 # Sample length-matched CDR3 sequences from different mice, compute similarity, compare with length-matched CDR3 sequences from naive cells
 sample_size = 500
+sample_size_naive_same_mouse = 1000
+
 length_matched_sample_NAIVE <- sample_sequence_pairs(pairwise_gene_freqs = pairwise_gene_freqs, annotated_seqs = annotated_seqs,
                                            sample_size = sample_size, selected_tissues = 'all', selected_cell_types = 'naive', match_v_allele = F)
 
@@ -463,19 +465,32 @@ allele_usage_day56_LN_PC_convergent_CDRs <- CDR3_seqs %>%
 
 # ====== SIMILARITY OF CDR3 SEQUENCES BETWEEN NAIVE SEQS FROM THE SAME MOUSE =====
 length_and_allele_matched_sample_NAIVE_same_mouse <- sample_sequence_pairs(pairwise_gene_freqs = pairwise_gene_freqs, annotated_seqs = annotated_seqs,
-                                                                sample_size = sample_size, selected_tissues = 'all', selected_cell_types = 'naive',
+                                                                sample_size = sample_size_naive_same_mouse, selected_tissues = 'all', selected_cell_types = 'naive',
                                                                 match_v_allele = T, same_mouse = T) %>%
   mutate(biochem_cdr3_seq_i = translate_aa_to_biochem_class(cdr3_seq_i),
          biochem_cdr3_seq_j = translate_aa_to_biochem_class(cdr3_seq_j))
 
 CDR3_similarity_NAIVE_same_mouse <- compute_similarity_matched_samples(matched_samples = length_and_allele_matched_sample_NAIVE_same_mouse)
 
-CDR3_similarity_NAIVE_same_mouse_pl <- CDR3_similarity_NAIVE_same_mouse %>%
-  select(v_gene, cdr3_seq_similarity, cdr3_biochem_similarity) %>%
+CDR3_similarity_NAIVE_same_mouse <- CDR3_similarity_NAIVE_same_mouse %>%
+  dplyr::rename(mouse_id = mouse_id_i) %>%
+  select(mouse_id, v_gene, cdr3_seq_similarity, cdr3_biochem_similarity) %>%
   pivot_longer(cols = c('cdr3_seq_similarity', 'cdr3_biochem_similarity'),
                names_to = 'type',
                values_to = 'similarity') %>%
-  mutate(dissimilarity = 1 - similarity) %>%
+  mutate(dissimilarity = 1 - similarity)
+
+CDR3_dissimilarity_NAIVE_same_mouse_summary <- CDR3_similarity_NAIVE_same_mouse %>%
+  group_by(mouse_id, v_gene, type) %>%
+  mutate(type = str_replace(type, 'similarity','dissimilarity')) %>%
+  summarise(mean = mean(dissimilarity)) %>%
+  ungroup()
+
+# Export mean dissimilarity per V gene
+write_csv(CDR3_dissimilarity_NAIVE_same_mouse_summary, paste0('../results/CDR3_diversity_per_V_gene_', assignment, '.csv'))
+
+
+CDR3_similarity_NAIVE_same_mouse_pl <- CDR3_similarity_NAIVE_same_mouse %>%
   ggplot(aes(x = v_gene, y = dissimilarity)) +
   geom_boxplot()
 

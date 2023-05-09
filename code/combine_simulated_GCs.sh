@@ -20,7 +20,7 @@ do
     tail -q -n+2 $dir/simulation_individual* >> $simulations_dir/combined_simulations.csv
     
     # Remove individual files
-    rm $dir/simulation_individual*
+    #rm $dir/simulation_individual*
 
 done
 

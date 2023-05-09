@@ -2,6 +2,7 @@
 scenario_dir=$1 # Path to directory containing allele info file and GC pars file
 n_individuals=$2 # Number of individuals to simulate
 n_GCs=$3 # Number of germinal centers per individual
+n_simultaneous_tasks=$4
 
 path_to_allele_info=${scenario_dir}/allele_info.csv
   
@@ -21,9 +22,18 @@ do
     file_id=$(basename $scenario_dir)_$(basename $param_dir)
         
     temp_sh_file=temp_sh_files/run_$file_id.sh
+    
+    
         
     echo '#!/bin/bash' > $temp_sh_file
+    # Skip preexinsing files (allows resuming interrupted jobs)
+    echo if [ -e $param_dir/simulation_individual_'$1'.csv ] >> $temp_sh_file
+    echo then >> $temp_sh_file
+    echo echo 'Output file already exists. Skipping' >> $temp_sh_file
+    echo else >> $temp_sh_file
+    echo echo "Simulating individual" '$1' >> $temp_sh_file
     echo Rscript run_simulations.R $path_to_allele_info $param_dir/ $n_GCs '$1' >> $temp_sh_file
+    echo fi >> $temp_sh_file
         
     chmod +x $temp_sh_file
         
@@ -37,8 +47,8 @@ do
     echo "#SBATCH --job-name=run_simulations_"${file_id} >> $sbatch_file
     echo "#SBATCH -e out_err_files/run_simulations_"${file_id}.err >> $sbatch_file
     echo "#SBATCH -o out_err_files/run_simulations_"${file_id}.out >> $sbatch_file
-    # RUN 50 individuals at a time
-    echo "#SBATCH --ntasks=50" >> $sbatch_file 
+    # RUN n_simultaneous_tasks individuals at a time
+    echo "#SBATCH --ntasks="${n_simultaneous_tasks} >> $sbatch_file 
     echo "#SBATCH --partition=cobey" >> $sbatch_file
     echo "#SBATCH --time=100:00:00" >> $sbatch_file
     echo "#SBATCH --mem-per-cpu=2G" >> $sbatch_file
@@ -46,9 +56,11 @@ do
     echo module load R/3.6.1 >> $sbatch_file
     echo module load parallel >> $sbatch_file
     
+    echo ulimit -n 10000 >> $sbatch_file
+
     echo srun='"srun --exclusive -N1 -n1"' >> $sbatch_file
         
-    echo parallel='"'parallel --delay 0.2 -j '$SLURM_NTASKS' --joblog out_err_files/$file_id.log --resume'"' >> $sbatch_file
+    echo parallel='"'parallel --delay 1 -j '$SLURM_NTASKS' --joblog out_err_files/$file_id.log --resume'"' >> $sbatch_file
         
     echo '$parallel' '"$srun' ./${temp_sh_file}'"' ::: {1..$n_individuals} >> $sbatch_file
     
