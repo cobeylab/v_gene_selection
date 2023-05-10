@@ -22,7 +22,7 @@ allele_info <- read_csv(allele_info_file_path)
 base_individual <- sample(unique(allele_info$base_individual), size = 1, replace = F)
 
 allele_info <- allele_info %>%
-  filter(base_individual == base_individual) %>% select(-base_individual)
+  filter(base_individual == !!base_individual) %>% select(-base_individual)
 
 
 model_parameters <- read_csv(paste0(model_parameters_directory,'/model_parameters.csv'))

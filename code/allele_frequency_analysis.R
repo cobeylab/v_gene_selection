@@ -25,21 +25,26 @@ if(str_detect(output_label,'partis')){
 
   germ_mut_by_region_file <- 'germline_mutability_by_region_partis'
   germ_mut_by_region_type_file <- 'germline_mutability_by_region_type_partis'
+  cdr3_diversity_per_vgene_file <- 'CDR3_diversity_per_V_gene_partis'
+  
+  include_focal_genes_plot <- T
+  include_mutability_vs_freq_ratio <- T
+  include_CDR3_diversity_vs_freq_ratios <- T
+  
   
   if(str_detect(output_label,'partis_ogrdb')){
     germ_mut_by_region_file <- paste0(germ_mut_by_region_file, '_ogrdb')
     germ_mut_by_region_type_file <- paste0(germ_mut_by_region_type_file, '_ogrdb')
-    include_focal_genes_plot <- F
-    include_mutability_vs_freq_ratio <- F
-  }else{
-    include_focal_genes_plot <- T
-    include_mutability_vs_freq_ratio <- T
+    cdr3_diversity_per_vgene_file <- 'CDR3_diversity_per_V_gene_partis_ogrdb'
   }
   
   germline_mutability_by_region <- read_csv(paste0('../results/', germ_mut_by_region_file, '.csv'))
   germline_mutability_by_region_type <- read_csv(paste0('../results/', germ_mut_by_region_type_file, '.csv'))
+  cdr3_diversity_per_vgene <- read_csv(paste0('../results/', cdr3_diversity_per_vgene_file, '.csv'))
 }else{
   include_mutability_vs_freq_ratio <- F
+  include_focal_genes_plot <- F
+  include_CDR3_diversity_vs_freq_ratios <- F
 }
 
 

@@ -301,6 +301,7 @@ create_scenario(scenario_directory = '../results/simulations/high_affinity_scena
                 tmax = 50,
                 uniform_naive_freqs = F)
 
+# ============================ HIGH AFFINITY SCENARIO W/ 1000 individuals ===================================
 # High affinity scenario with a single parameter choice (to simulate 1000 individuals)
 create_scenario(scenario_directory = '../results/simulations/high_affinity_scenario_1000inds/',
                 obs_naive_freqs = obs_naive_freqs,
