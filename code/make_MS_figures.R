@@ -276,6 +276,10 @@ if('length_matched_CDR3_similarity_plot' %in% ls()){
     xlab('V allele') +
     ylab('Dissimilarity between length-matched CDR3 sequences') 
   
+  save_plot(paste0(figures_dir,'cdr3_diversity_per_vgene.pdf'),
+            cdr3_diversity_per_vgene,
+            base_width = 15, base_height = 8)
+  
   
 }
 

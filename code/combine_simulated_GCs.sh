@@ -2,8 +2,6 @@
 
 simulations_dir=$1
 
-
-
 # Concatenate files directory by directory, to avoid "argument list too long"
 get_header=T
 
@@ -25,5 +23,5 @@ do
 done
 
 # Do the same for model parameter files
-head $simulations_dir/raw_simulation_files/*/*model_parameters* | head -2 | tail -1 > $simulations_dir/combined_model_parameters.csv
+head $simulations_dir/raw_simulation_files/*/*model_parameters* | grep -v '==>' | head -1 > $simulations_dir/combined_model_parameters.csv
 tail -q -n+2 $simulations_dir/raw_simulation_files/*/*model_parameters* >> $simulations_dir/combined_model_parameters.csv
