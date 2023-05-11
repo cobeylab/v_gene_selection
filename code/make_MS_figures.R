@@ -261,23 +261,21 @@ if('length_matched_CDR3_similarity_plot' %in% ls()){
                                  theme(plot.title = element_text(hjust = 0.5, size = 14)) + background_grid(),
                                nrow = 2
   )
+  
   save_plot(paste0(figures_dir,'cdr3_similarity.pdf'),
             cdr3_similarity,
             base_width = 15, base_height = 13)
   
+  # In CDR3 diversity per V gene plot, color
   
-  convergent_cdr3_seqs <- plot_grid(high_similarity_length_and_allele_matched_seqs_day56_LN_PCs,
-                                    plot_grid(allele_usage_day56_LN_PC_convergent_CDRs +
-                                                ylab('Fraction of sequences') + ylim(0,1),
-                                              combined_freq_of_day56_LN_PC_convergent_CDRs +
-                                                theme(legend.position = 'top') , nrow = 2, 
-                                              labels = c("B", "C")),
-                                    nrow = 1, rel_widths = c(5,10),
-                                    labels = c("A",""))
   
-  save_plot(paste0(figures_dir,'convergent_cdr3_seqs.pdf'),
-            convergent_cdr3_seqs,
-            base_width = 16, base_height = 11)
+  
+  cdr3_diversity_per_vgene <- CDR3_similarity_NAIVE_same_mouse_pl +
+    scale_x_discrete(labels = function(x){str_remove(x, 'IGHV')}) +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 5)) +
+    xlab('V allele') +
+    ylab('Dissimilarity between length-matched CDR3 sequences') 
+  
   
 }
 

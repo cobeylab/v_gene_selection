@@ -210,35 +210,25 @@ get_same_mouse_naive_seq_pairs <- function(annotated_seqs){
   
   naive_seqs <- annotated_seqs %>% filter(cell_type == 'naive', productive == T)
   
-  internal_function <- function(mouse, naive_seqs){
-    #print(paste0('Getting naive seq pairs from mouse ', mouse))
-    mouse_naive_seqs <- naive_seqs %>%
-      filter(mouse_id == mouse)
+  mouse_v_gene_combinations <- naive_seqs %>% select(mouse_id, v_gene) %>% unique()
+  
+  internal_function <- function(mouse, v_gene, naive_seqs){
+    mouse_vgene_naive_seqs <- naive_seqs %>%
+      filter(mouse_id == mouse, v_gene == !!v_gene)
     
     # Create object will all pairs of naive seqs
-    naive_seq_pairs <- expand_grid(seq_id_i = mouse_naive_seqs$seq_id,
-                                   seq_id_j = mouse_naive_seqs$seq_id) %>%
+    naive_seq_pairs <- expand_grid(seq_id_i = mouse_vgene_naive_seqs$seq_id,
+                                   seq_id_j = mouse_vgene_naive_seqs$seq_id) %>%
       filter(seq_id_i != seq_id_j)
-    
-    # Keep only pairs of sequences with the same V gene
-    naive_seq_pairs <- left_join(naive_seq_pairs,
-                                 mouse_naive_seqs %>% select(seq_id, v_gene) %>%
-                                   dplyr::rename(seq_id_i = seq_id, v_gene_i = v_gene), by = 'seq_id_i')
-    
-    naive_seq_pairs <- left_join(naive_seq_pairs,
-                                 mouse_naive_seqs %>% select(seq_id, v_gene) %>%
-                                   dplyr::rename(seq_id_j = seq_id, v_gene_j = v_gene), by = 'seq_id_j')
-    
-    naive_seq_pairs <- naive_seq_pairs %>% filter(v_gene_i == v_gene_j)
     
     # Keep only pairs with the same CDR3 length
     naive_seq_pairs <- left_join(naive_seq_pairs,
-                                 mouse_naive_seqs %>% select(seq_id, cdr3_length, cdr3_seq_partis) %>%
+                                 mouse_vgene_naive_seqs %>% select(seq_id, cdr3_length, cdr3_seq_partis) %>%
                                    dplyr::rename(seq_id_i = seq_id, cdr3_length_i = cdr3_length, cdr3_seq_i = cdr3_seq_partis),
                                  by = 'seq_id_i')
     
     naive_seq_pairs <- left_join(naive_seq_pairs,
-                                 mouse_naive_seqs %>% select(seq_id, cdr3_length, cdr3_seq_partis) %>%
+                                 mouse_vgene_naive_seqs %>% select(seq_id, cdr3_length, cdr3_seq_partis) %>%
                                    dplyr::rename(seq_id_j = seq_id, cdr3_length_j = cdr3_length, cdr3_seq_j = cdr3_seq_partis),
                                  by = 'seq_id_j')
     
@@ -250,14 +240,17 @@ get_same_mouse_naive_seq_pairs <- function(annotated_seqs){
              biochem_cdr3_seq_j = translate_aa_to_biochem_class(cdr3_seq_j))
     
     naive_seq_pairs <- naive_seq_pairs %>%
-      mutate(mouse_id = mouse, v_gene = v_gene_i, cdr3_length = cdr3_length_i) %>%
+      mutate(mouse_id = mouse, v_gene = v_gene, cdr3_length = cdr3_length_i) %>%
       select(mouse_id, v_gene, cdr3_length, matches('_seq_'))
 
     return(naive_seq_pairs)
   }
   
-  naive_seq_pairs <- lapply(as.list(mice), FUN = internal_function,
-                            naive_seqs = naive_seqs)
+  naive_seq_pairs <- mapply(FUN = internal_function,
+                            mouse = mouse_v_gene_combinations$mouse_id,
+                            v_gene = mouse_v_gene_combinations$v_gene,
+                            MoreArgs = list(naive_seqs = naive_seqs),
+                            SIMPLIFY = F)
   
   return(bind_rows(naive_seq_pairs))
   
@@ -455,20 +448,20 @@ CDR3_dissimilarity_NAIVE_same_mouse_summary <- CDR3_similarity_NAIVE_same_mouse 
 # Export mean dissimilarity per V gene
 write_csv(CDR3_dissimilarity_NAIVE_same_mouse_summary, paste0('../results/CDR3_diversity_per_V_gene_', assignment, '.csv'))
 
+focal_alleles <- c('IGHV14-4*01','IGHV1-82*01','IGHV1-69*01')
 
 CDR3_similarity_NAIVE_same_mouse_pl <- CDR3_similarity_NAIVE_same_mouse %>%
-  ggplot(aes(x = v_gene, y = dissimilarity)) +
+  mutate(focal_allele = v_gene %in% focal_alleles) %>%
+  ggplot(aes(x = v_gene, y = dissimilarity, color = focal_allele)) +
+  scale_color_manual(values = c('black','red')) +
   geom_boxplot() +
-  facet_wrap('type', nrow = 2)
+  facet_wrap('type', nrow = 2) +
+  theme(legend.position = 'None')
 
 # Export plots 
 
 save(CDR3_length_distribution_pl,
      length_matched_CDR3_similarity_plot,
      length_and_allele_matched_CDR3_similarity_plot,
-     length_and_allele_matched_CDR3_similarity_day56_LN_PC,
-     high_similarity_length_and_allele_matched_seqs_day56_LN_PCs,
-     combined_freq_of_day56_LN_PC_convergent_CDRs,
-     allele_usage_day56_LN_PC_convergent_CDRs,
      CDR3_similarity_NAIVE_same_mouse_pl,
      file = paste0(figure_output_dir, 'CDR3_plots.RData'))
