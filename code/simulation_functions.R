@@ -388,16 +388,21 @@ compute_repertoire_allele_diversity <- function(repertoire_allele_freqs, variabl
 # Not worth trying to use get_pairwise_freqs function written for obs data (too many other variables/groupings) 
 # Best to write a function specific for simulations even though it will look similar
 get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
-  unique_pairs <- repertoire_allele_freqs %>% select(individual) %>% unique() %>%
-    dplyr::rename(ind_i = individual) %>%
-    mutate(ind_j = ind_i) %>%
-    complete(ind_i, ind_j) %>%
-    rowwise() %>%
-    mutate(pair = paste0(sort(c(ind_i, ind_j)), collapse = ';')) %>%
-    ungroup() %>%
-    filter(ind_i != ind_j) %>%
-    select(pair) %>%
-    unique() %>% pull(pair)
+
+  unique_inds <- unique(repertoire_allele_freqs$individual)
+  unique_pairs <- t(combn(x = unique_inds, m = 2))
+  colnames(unique_pairs) <- c('ind_i','ind_j')
+  
+  unique_pairs <- as_tibble(unique_pairs) %>%
+    mutate(pair = paste(ind_i, ind_j, sep = ';')) %>%
+    pull(pair)
+  
+  n_pairs <- length(unique_inds) * (length(unique_inds)-1) /2
+  stopifnot(nrow(unique_pairs) == n_pairs)
+  
+  #wide_format_freqs <- repertoire_allele_freqs %>%
+  #  select(individual, t, nGCs, matches(variable_pars), allele, experienced_freq) %>%
+  #  pivot_wider(names_from = individual, values_from = experienced_freq)
   
   # Will add these back later to fill full-join missing values in rows where a gene is missing from one individual
   total_time_point_cells <- repertoire_allele_freqs %>% select(any_of(variable_pars),
@@ -405,7 +410,7 @@ get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
   
   internal_function <- function(pair, repertoire_allele_freqs){
     
-    ind_specific_vars <- c('individual','n_cells', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
+    ind_specific_vars <- c('individual', 'base_individual' ,'n_cells', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
                            'allele_rank')
     
     individual_ids <- str_split(pair,';')[[1]]
