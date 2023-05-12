@@ -14,8 +14,12 @@ dir.create('../figures/simulations/', showWarnings = F)
 # Base plotting function
 base_plotting_function <- function(summary_tibble, y_var, color_var, facet_vars = NULL){
   
-  plotting_tibble <- summary_tibble %>%
-    mutate(mutation_rate = as.factor(as.character(mutation_rate)))
+  plotting_tibble <- summary_tibble
+  
+  if('mutation_rate' %in% names(summary_tibble)){
+    plotting_tibble <- summary_tibble %>%
+      mutate(mutation_rate = as.factor(as.character(mutation_rate)))
+  }
   
   if('nGCs' %in% names(plotting_tibble)){
     plotting_tibble <- plotting_tibble %>%
@@ -67,7 +71,7 @@ base_plotting_function <- function(summary_tibble, y_var, color_var, facet_vars 
 
 
 # Function for making main fig showing simulated frequency and freq. deviation correlations in different scenarios
-generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, main_fig_I_total, main_fig_gamma){
+generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, main_fig_I_total, main_fig_gamma, facet_vars = 'mutation_rate'){
   
   subset_tibble <- summary_list$summary_pairwise_correlations %>%
     filter(if_all(any_of('s'), function(x){x == main_fig_s})) %>%
@@ -80,7 +84,7 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
   
   freq_corr <-  base_plotting_function(summary_tibble = subset_tibble,
                                        y_var = 'freq_correlation', color_var = 'nGCs',
-                                       facet_vars = 'mutation_rate')  + ylim(-0.2,1) +
+                                       facet_vars = facet_vars)  + ylim(-0.2,1) +
     ylab('Pairwise correlation between individuals') +
     theme_specs +
     geom_hline(yintercept = 0, linetype = 2) +
@@ -89,7 +93,7 @@ generate_freq_cor_panels <- function(summary_list, main_fig_s, main_fig_beta, ma
   
   freq_ratio_corr <- base_plotting_function(summary_tibble = subset_tibble,
                                             y_var = 'freq_ratio_correlation', color_var = 'nGCs',
-                                            facet_vars = 'mutation_rate')  +
+                                            facet_vars = facet_vars)  +
     ylab('') + theme(legend.position = 'none') +
     ylim(-0.2,1) +
     theme_specs +
@@ -111,6 +115,7 @@ mutation_rate_color_scale <- scale_color_manual(name = 'Mutation rate (affinity-
 # ======================== MAKING PLOTS ========================
 # Load simulation summaries
 scenarios <- c('neutral_scenario', 'high_affinity_scenario', 'high_mutation_scenario')
+# scenarios <- c('high_affinity_scenario_20inds', 'high_affinity_scenario_100inds', 'high_affinity_scenario_1000inds')
 
 model_parameters <- bind_rows(
   lapply(as.list(scenarios),
@@ -141,6 +146,51 @@ main_fig_s <- 1.5
 main_fig_beta <- 4
 main_fig_I_total <- 200
 main_fig_gamma <- 6
+
+#### PROVISIONAL POWER ANALYSIS
+nGC_color_legend <- get_legend(base_plotting_function(summary_tibble = high_affinity_scenario_20inds_summary$summary_pairwise_correlations,
+                                                      y_var = 'freq_correlation', color_var = 'nGCs', facet_vars = NULL) +
+                                 nGCs_color_scale)
+freq_cors <- plot_grid(
+  base_plotting_function(summary_tibble = high_affinity_scenario_20inds_summary$summary_pairwise_correlations %>%
+                           filter(method == 'pearson'), y_var = 'freq_correlation', color_var = 'nGCs', facet_vars = NULL) +
+    nGCs_color_scale + ylab('Pairwise correlation\nin allele frequencies') + xlab('') + theme(legend.position = 'none') ,
+  base_plotting_function(summary_tibble = high_affinity_scenario_100inds_summary$summary_pairwise_correlations %>%
+                           filter(method == 'pearson'), y_var = 'freq_correlation', color_var = 'nGCs', facet_vars = NULL) +
+    nGCs_color_scale + ylab('') + xlab('') + theme(legend.position = 'none'),
+  base_plotting_function(summary_tibble = high_affinity_scenario_1000inds_summary$summary_pairwise_correlations %>%
+                           filter(method == 'pearson'), y_var = 'freq_correlation', color_var = 'nGCs', facet_vars = NULL) +
+    nGCs_color_scale + ylab('') + xlab('') + theme(legend.position = 'none'),
+  nrow = 1, 
+  labels = c('20 inds', '100 inds', '1000 inds'),
+  label_x = 0.5
+)
+
+freq_ratio_cors <- plot_grid(
+  base_plotting_function(summary_tibble = high_affinity_scenario_20inds_summary$summary_pairwise_correlations %>%
+                           filter(method == 'pearson'), y_var = 'freq_ratio_correlation', color_var = 'nGCs', facet_vars = NULL) +
+    nGCs_color_scale + ylab('Pairwise correlation\nin exp/naive ratios') + xlab('') + theme(legend.position = 'none') ,
+  base_plotting_function(summary_tibble = high_affinity_scenario_100inds_summary$summary_pairwise_correlations %>%
+                           filter(method == 'pearson'), y_var = 'freq_ratio_correlation', color_var = 'nGCs', facet_vars = NULL) +
+    nGCs_color_scale + ylab('') + theme(legend.position = 'none'),
+  base_plotting_function(summary_tibble = high_affinity_scenario_1000inds_summary$summary_pairwise_correlations %>%
+                           filter(method == 'pearson'), y_var = 'freq_ratio_correlation', color_var = 'nGCs', facet_vars = NULL) +
+    nGCs_color_scale + ylab('') + xlab('') + theme(legend.position = 'none'),
+  nrow = 1, 
+  label_x = 0.5
+)
+      
+sim_power_analysis <- plot_grid(plot_grid(NULL,nGC_color_legend, nrow = 1, rel_widths = c(1,3)),
+          freq_cors, freq_ratio_cors, rel_heights = c(1,10,10), nrow = 3)
+
+save_plot('../figures/simulations/sim_power_analysis.pdf', sim_power_analysis, base_height = 6, base_width = 12)
+
+
+#####
+
+
+
+
 
 
 # Get nGC legend from an arbitrary plot

@@ -73,7 +73,7 @@ summary_pairwise_correlations <- pairwise_correlations %>%
 
 if("high_avg" %in% unique(allele_info$allele_type_affinity)){
   combined_freq_of_high_avg_alleles_in_GCs <- left_join(allele_freqs_by_GC, allele_info %>%
-                                                          select(individual, allele, allele_type_affinity)) %>%
+                                                          select(base_individual, allele, allele_type_affinity)) %>%
     group_by(across(c(any_of(variable_pars), 't', 'individual','GC'))) %>%
     summarise(combined_freq_high_avg = sum(allele_freq[allele_type_affinity == 'high_avg']),
               combined_freq_low_avg = sum(allele_freq[allele_type_affinity == 'low_avg'])) %>%
@@ -86,7 +86,7 @@ if("high_avg" %in% unique(allele_info$allele_type_affinity)){
 
 if("high_mut" %in% unique(allele_info$allele_type_mutability)){
   combined_freq_of_high_mut_alleles_in_GCs <- left_join(allele_freqs_by_GC, allele_info %>%
-                                                          select(individual, allele, allele_type_mutability)) %>%
+                                                          select(base_individual, allele, allele_type_mutability)) %>%
     group_by(across(c(any_of(variable_pars), 't', 'individual','GC'))) %>%
     summarise(combined_freq_high_mut = sum(allele_freq[allele_type_mutability == 'high_mut']),
               combined_freq_low_mut = sum(allele_freq[allele_type_mutability == 'low_mut'])) %>%
