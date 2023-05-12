@@ -16,12 +16,3 @@ module load R/3.6.1
 Rscript summarize_simulations.R $results_dir
 
 EOT
-
-
-
-
-
-
-
-
-

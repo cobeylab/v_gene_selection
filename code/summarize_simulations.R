@@ -46,13 +46,8 @@ repertoire_allele_diversity <- compute_repertoire_allele_diversity(repertoire_al
 n_inds_increasing_decreasing <- count_increases_and_decreases(repertoire_allele_freqs = repertoire_allele_freqs,
                                                          variable_pars = variable_pars)
 
-# Pairwise allele frequency correlations
-pairwise_allele_freqs <- get_pairwise_sim_freqs(repertoire_allele_freqs, variable_pars = variable_pars)
-
-
-pairwise_correlations <- compute_pairwise_correlations(pairwise_allele_freqs = pairwise_allele_freqs, 
-                                                       variable_pars = variable_pars)
-
+# Pairwise correlation in allele frequencies and experienced-to-naive freq ratios
+pairwise_correlations <- compute_pairwise_correlations(repertoire_allele_freqs = repertoire_allele_freqs, variable_pars = variable_pars)
 
 # Summarise statistics across individual (or pairs of individuals) per time point (always grouping by variable params.)
 summary_repertoire_allele_diversity <- repertoire_allele_diversity %>%
@@ -67,10 +62,14 @@ summary_GC_stats <- GC_statistics %>%
 
 summary_pairwise_correlations <- pairwise_correlations %>%
   # NAs will happen in 1-GC simulations, when the winner allele in an individual is not in the other individual's allele set.
-  filter(!is.na(freq_correlation), !is.na(freq_ratio_correlation)) %>%
+  filter(!is.na(correlation)) %>%
+  group_by(across(c(any_of(variable_pars),'type','t','nGCs','method'))) %>%
+  mutate(arbitrary_pair_number = 1:n()) %>%
+  ungroup() %>%
+  pivot_wider(names_from = type, values_from = correlation, names_glue = "{.name}_correlation") %>%
   group_by(across(c(any_of(variable_pars),'nGCs','t', 'method'))) %>%
   summarise_across_individuals(vars_to_summarise = c('freq_correlation', 'freq_ratio_correlation')) %>%
-  ungroup()
+  ungroup() 
 
 if("high_avg" %in% unique(allele_info$allele_type_affinity)){
   combined_freq_of_high_avg_alleles_in_GCs <- left_join(allele_freqs_by_GC, allele_info %>%

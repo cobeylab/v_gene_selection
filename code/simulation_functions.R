@@ -49,33 +49,33 @@ get_alpha <- function(mu_max, delta, K){
 
 # Creates a tibble with one row, representing a clone newly arrived at the germinal center
 recruit_naive_clone <- function(allele_info){
-
-    recruitment_pool <- sample(allele_info$allele, size = recruitment_pool_size,
-                               prob = allele_info$naive_freq, replace = T)
-    
-    recruitment_pool <- left_join(tibble(allele = recruitment_pool),
-                                  allele_info %>% select(allele, mean_affinity, sd_affinity, relative_mutability))
   
-    recruitment_pool <- recruitment_pool %>%
-      rowwise() %>%
-      #Else it's sampled from a Truncated normal distribution
-      mutate(affinity = max(0,rtruncnorm(n = 1, a = 0, b = Inf, mean = mean_affinity, sd = sd_affinity))) %>%
-      ungroup() 
-    
-    # Sample one arriving clone from the recruitment pool based on each cell's normalized affinity    
-    recruitment_pool <- recruitment_pool %>%
-      mutate(sum_affinity = sum(affinity),
-             log_normalized_affinity = log(affinity) - log(sum_affinity),
-             normalized_affinity = exp(log_normalized_affinity))
-    
-    recruited_cell_number <- sample(1:nrow(recruitment_pool), size = 1, replace = F,
-                                     prob = recruitment_pool$normalized_affinity)
-    
-    immigrant_tibble <- recruitment_pool %>%
-      mutate(cell_number = 1:n()) %>%
-      filter(cell_number == recruited_cell_number) %>%
-      select(allele, affinity, relative_mutability)
-    
+  recruitment_pool <- sample(allele_info$allele, size = recruitment_pool_size,
+                             prob = allele_info$naive_freq, replace = T)
+  
+  recruitment_pool <- left_join(tibble(allele = recruitment_pool),
+                                allele_info %>% select(allele, mean_affinity, sd_affinity, relative_mutability))
+  
+  recruitment_pool <- recruitment_pool %>%
+    rowwise() %>%
+    #Else it's sampled from a Truncated normal distribution
+    mutate(affinity = max(0,rtruncnorm(n = 1, a = 0, b = Inf, mean = mean_affinity, sd = sd_affinity))) %>%
+    ungroup() 
+  
+  # Sample one arriving clone from the recruitment pool based on each cell's normalized affinity    
+  recruitment_pool <- recruitment_pool %>%
+    mutate(sum_affinity = sum(affinity),
+           log_normalized_affinity = log(affinity) - log(sum_affinity),
+           normalized_affinity = exp(log_normalized_affinity))
+  
+  recruited_cell_number <- sample(1:nrow(recruitment_pool), size = 1, replace = F,
+                                  prob = recruitment_pool$normalized_affinity)
+  
+  immigrant_tibble <- recruitment_pool %>%
+    mutate(cell_number = 1:n()) %>%
+    filter(cell_number == recruited_cell_number) %>%
+    select(allele, affinity, relative_mutability)
+  
   return(immigrant_tibble)
 }
 
@@ -127,7 +127,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
     
     # Current total population size in GC (all clones)
     current_GC_pop <- nrow(GC_t)
-  
+    
     # Compute rates of division and death
     lambda_div <- current_GC_pop * get_pop_mu(N = current_GC_pop, mu_max = mu_max, alpha = alpha)
     lambda_death <- current_GC_pop * delta
@@ -138,7 +138,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
     # If lambda is zero (GC population extinct after the end of immigration), stop simulation
     if(lambda == 0){
       time <- tmax
-    # Otherwise simulate next event
+      # Otherwise simulate next event
     }else{
       # Sample time to next event:
       time_to_next_event <- rexp(n = 1, rate = lambda)
@@ -186,7 +186,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
             new_affinity <- max(1e-10, daughter_cell$affinity + rnorm(1, mean = 0, sd = mutation_sd))
             daughter_cell$affinity <- new_affinity
           }
-           
+          
           GC_next_t <- bind_rows(GC_t, daughter_cell) %>% 
             mutate(t = time)
           
@@ -211,7 +211,7 @@ simulate_GC_dynamics <- function(K, I_total, t_imm, mu_max, delta, mutation_rate
 }
 
 master_simulation_function <- function(K, I_total, t_imm, mu_max, delta, mutation_rate, mutation_sd, allele_info, tmax,
-                           initial_GC_state = NULL){
+                                       initial_GC_state = NULL){
   
   observation_times <- c(1, seq(5, tmax, 5))
   
@@ -250,7 +250,7 @@ assign_allele_properties <- function(allele_info, baseline_mean, s, sigma_r, gam
   allele_info <- left_join(allele_info, allele_types_mutability)
   
   return(allele_info)
-
+  
 }
 
 
@@ -305,7 +305,7 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, nGC_values, alle
   
   # For each nGCs value, create a subsample of allele_freqs_by_GC
   extended_freqs_tibble <- lapply(as.list(nGC_values), FUN = sample_random_GCs,
-         allele_freqs_by_GC = allele_freqs_by_GC)
+                                  allele_freqs_by_GC = allele_freqs_by_GC)
   
   extended_freqs_tibble <- bind_rows(extended_freqs_tibble)
   
@@ -348,7 +348,7 @@ compute_repertoire_allele_freqs <- function(allele_freqs_by_GC, nGC_values, alle
   stopifnot(all(abs(freq_sums-1) < 1e-6))
   
   return(repertoire_allele_freqs)
-
+  
 }
 
 # Used by compute_repertoire_allele_freqs to have zeros explicitly represented 
@@ -357,8 +357,8 @@ complete_repertoire_allele_freqs <- function(repertoire_allele_freqs, allele_inf
   
   # All alleles of an individual explicitly represented at all time points, for all nGCs
   complete_scaffold <-  expand_grid(individual = unique(repertoire_allele_freqs$individual),
-                                              t = unique(repertoire_allele_freqs$t),
-                                              nGCs = unique(repertoire_allele_freqs$nGCs))
+                                    t = unique(repertoire_allele_freqs$t),
+                                    nGCs = unique(repertoire_allele_freqs$nGCs))
   complete_scaffold <- left_join(complete_scaffold, repertoire_allele_freqs %>% select(individual, base_individual) %>% unique())
   
   
@@ -385,86 +385,64 @@ compute_repertoire_allele_diversity <- function(repertoire_allele_freqs, variabl
     ungroup()
 }
 
-# Not worth trying to use get_pairwise_freqs function written for obs data (too many other variables/groupings) 
-# Best to write a function specific for simulations even though it will look similar
-get_pairwise_sim_freqs <- function(repertoire_allele_freqs, variable_pars){
-
-  unique_inds <- unique(repertoire_allele_freqs$individual)
-  unique_pairs <- t(combn(x = unique_inds, m = 2))
-  colnames(unique_pairs) <- c('ind_i','ind_j')
+compute_pairwise_correlations <- function(repertoire_allele_freqs, variable_pars){
   
-  unique_pairs <- as_tibble(unique_pairs) %>%
-    mutate(pair = paste(ind_i, ind_j, sep = ';')) %>%
-    pull(pair)
-  
-  n_pairs <- length(unique_inds) * (length(unique_inds)-1) /2
-  stopifnot(nrow(unique_pairs) == n_pairs)
-  
-  #wide_format_freqs <- repertoire_allele_freqs %>%
-  #  select(individual, t, nGCs, matches(variable_pars), allele, experienced_freq) %>%
-  #  pivot_wider(names_from = individual, values_from = experienced_freq)
-  
-  # Will add these back later to fill full-join missing values in rows where a gene is missing from one individual
-  total_time_point_cells <- repertoire_allele_freqs %>% select(any_of(variable_pars),
-                                                               individual, nGCs, t, total_time_point_cells) %>% unique()
-  
-  internal_function <- function(pair, repertoire_allele_freqs){
+  # For a tibble with freqs of freq ratios for each individual as separate columns and a single par combination,
+  # time point, and nGCs, compute correlations
+  # Returns tibble with one pair of individuals per row.
+  cor_matrix_function <- function(wide_format_values){
+    cor_matrix_pearson <- wide_format_values %>% select(-type, -t, -nGCs, -allele, -any_of(variable_pars)) %>%
+      cor(use = "pairwise.complete.obs", method = 'pearson')
+    cor_matrix_spearman <- wide_format_values %>% select(-type, -t, -nGCs, -allele, -any_of(variable_pars)) %>%
+      cor(use = "pairwise.complete.obs", method = 'spearman')
     
-    ind_specific_vars <- c('individual', 'base_individual' ,'n_cells', 'total_time_point_cells', 'experienced_freq', 'naive_freq', 'freq_ratio',
-                           'allele_rank')
+    # Keep only the upper triangular matrix
+    # i.e. unique pairs, excluding self-correlations
+    cor_pearson <- cor_matrix_pearson[upper.tri(cor_matrix_pearson)]
+    cor_spearman <- cor_matrix_spearman[upper.tri(cor_matrix_spearman)]
     
-    individual_ids <- str_split(pair,';')[[1]]
     
-    ind_i_values <- repertoire_allele_freqs %>% filter(individual == individual_ids[1])  %>%
-      rename_with(.cols = any_of(ind_specific_vars), .fn = function(x){paste0(x,'_i')})
-    ind_j_values <- repertoire_allele_freqs %>% filter(individual == individual_ids[2])  %>%
-      rename_with(.cols = any_of(ind_specific_vars), .fn = function(x){paste0(x,'_j')})
+    group_pars <- wide_format_values %>% select(type, t, nGCs, any_of(variable_pars)) %>% unique()
     
-    pair_values <- full_join(ind_i_values %>% select(-total_time_point_cells_i),
-                             ind_j_values %>% select(-total_time_point_cells_j)) %>%
-      mutate(pair = pair) %>%
-      select(any_of(variable_pars), nGCs, t, pair, allele, matches('_i'), matches('_j')) %>%
-      mutate(individual_i = individual_ids[1], individual_j = individual_ids[2])
+    corr_tibble <- bind_rows(tibble(method = 'pearson', correlation = cor_pearson),
+                             tibble(method = 'spearman', correlation = cor_spearman))
     
-    return(pair_values)
+    output <- as_tibble(merge(group_pars, corr_tibble))
   }
   
-  paired_tibble <- bind_rows(lapply(as.list(unique_pairs), FUN = internal_function, repertoire_allele_freqs = repertoire_allele_freqs)) %>%
-    mutate(individual_i = as.integer(individual_i), individual_j = as.integer(individual_j))
+  # Put repertoire allele freqs in wide format (individuals as separate columns),
   
-  # Add back total cells for each individual at each time point.
-  paired_tibble <- left_join(paired_tibble,
-                             total_time_point_cells %>% rename(individual_i = individual, total_time_point_cells_i = total_time_point_cells))
-  paired_tibble <- left_join(paired_tibble,
-                             total_time_point_cells %>% rename(individual_j = individual, total_time_point_cells_j = total_time_point_cells)) %>%
-    select(any_of(variable_pars), nGCs, t, pair, allele, matches('_i'), matches('_j')) 
+  wide_format_freqs <- bind_rows(
+    repertoire_allele_freqs %>%
+      select(individual, t, nGCs, matches(variable_pars), allele, experienced_freq) %>%
+      pivot_wider(names_from = individual, values_from = experienced_freq) %>%
+      mutate(type = 'freq'),
+    repertoire_allele_freqs %>%
+      select(individual, t, nGCs, matches(variable_pars), allele, freq_ratio) %>%
+      pivot_wider(names_from = individual, values_from = freq_ratio) %>%
+      mutate(type = 'freq_ratio')
+  ) %>% select(type, everything())
   
-  # keep only alleles present in the germline set of both individuals. For plotting purposes, compute Spearman ranks
-  # (i.e., with smaller values assigned smaller ranks)
-  paired_tibble <- paired_tibble %>%
-    filter(!is.na(naive_freq_i), !is.na(naive_freq_j)) %>%
-    group_by(across(c(any_of(variable_pars), nGCs, 'pair', 't'))) %>%
-    mutate(spearman_rank_freq_i = rank(experienced_freq_i),
-           spearman_rank_freq_j = rank(experienced_freq_j),
-           spearman_rank_freq_ratio_i = rank(freq_ratio_i),
-           spearman_rank_freq_ratio_j = rank(freq_ratio_j)) %>%
-    ungroup()
+  # Split into list with a single value type, time point, nGCs, par combination per tibble
+  wide_format_list <- wide_format_freqs %>%
+    group_by(across(any_of(c('type','t','nGCs', variable_pars)))) %>%
+    group_split()
   
-  return(paired_tibble)
   
-}
+  # Apply cor_matrix_function to list
+  pw_cors <- bind_rows(lapply(wide_format_list, FUN = cor_matrix_function))
+  
+  # Check we have the expected number of correlations
+  n_inds <- length(unique(repertoire_allele_freqs$individual))
+  n_pairs <- n_inds * (n_inds-1)/2
+  
+  pairs_in_output <- pw_cors %>% group_by(across(any_of(c('type','t','nGCs', 'method', variable_pars)))) %>%
+    dplyr::count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
+  
+  stopifnot(pairs_in_output == n_pairs)
 
-compute_pairwise_correlations <- function(pairwise_allele_freqs, variable_pars){
-  bind_rows(pairwise_allele_freqs %>% mutate(method = 'pearson'),
-            pairwise_allele_freqs %>% mutate(method = 'spearman')) %>%
-    group_by(across(c(any_of(variable_pars), 'pair', 'nGCs','t', 'method'))) %>%
-    mutate(n_points_in_pairwise_comparison = n()) %>%
-    filter(n_points_in_pairwise_comparison >= 3) %>%
-    summarise(freq_correlation = cor.test(experienced_freq_i, experienced_freq_j, method = unique(method))$estimate,
-              freq_ratio_correlation = cor.test(freq_ratio_i, freq_ratio_j, method = unique(method))$estimate) %>%
-    ungroup()
+  return(pw_cors)
 }
-
 
 # Summarise statistics across individual (or pairs of individuals) per time point
 # Median, 1st and 3rd quartiles
@@ -490,7 +468,7 @@ count_increases_and_decreases <- function(repertoire_allele_freqs, variable_pars
     mutate(net_direction = increasing - decreasing,
            fraction_increasing = increasing / (increasing + decreasing),
            fraction_decreasing = decreasing / (increasing + decreasing))
-    
+  
 }
 
 find_variable_parameters <- function(model_parameters){
@@ -519,23 +497,23 @@ test_allele_info <- assign_allele_properties(allele_info = test_allele_info,
 # Some visual tests:
 # If mu_max is < delta, clones should consistently die out
 # (this will stop simulations before tmax)
-   # quick_plotting_function(
-   #   GC_tibble = simulate_GC_dynamics(K = 500, I_total = 100, t_imm = 10, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
-   #                        allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5))),
-   #   allele_info = test_allele_info)
+# quick_plotting_function(
+#   GC_tibble = simulate_GC_dynamics(K = 500, I_total = 100, t_imm = 10, mu_max = 0.25, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
+#                        allele_info = test_allele_info, tmax = 100, observation_times = c(seq(5,100,5))),
+#   allele_info = test_allele_info)
 
 # Otherwise the total GC population size should remain around K
- # simulate_GC_dynamics(K = 300, I_total = 100, t_imm = 6, mu_max = 2, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
- #                       allele_info = test_allele_info, tmax = 50, observation_times = c(1,seq(5,50,5))) %>%
- #   group_by(t) %>%
- #   count() %>%
- #   ggplot(aes(x = t, y = n)) +
- #   geom_line() +
- #   scale_y_continuous(limits = c(0, NA)) +
- #   geom_hline(yintercept = 300, linetype = 2) +
- #   ylab('Total population in germinal center')
- 
- 
+# simulate_GC_dynamics(K = 300, I_total = 100, t_imm = 6, mu_max = 2, delta = 0.5, mutation_rate = 0.01, mutation_sd = 0.1,
+#                       allele_info = test_allele_info, tmax = 50, observation_times = c(1,seq(5,50,5))) %>%
+#   group_by(t) %>%
+#   count() %>%
+#   ggplot(aes(x = t, y = n)) +
+#   geom_line() +
+#   scale_y_continuous(limits = c(0, NA)) +
+#   geom_hline(yintercept = 300, linetype = 2) +
+#   ylab('Total population in germinal center')
+
+
 # An arbitrary initial state for testing purposes. Two clones with the same initial abundance but different affinities
 # test_initial_GC <- tibble(allele = c(rep('V1',20), rep('V2', 20)),
 #                          affinity = c(rep(1,20), rep(1.2, 20)),
@@ -574,5 +552,5 @@ test_allele_info <- assign_allele_properties(allele_info = test_allele_info,
 #   facet_wrap('replicate') +
 #   theme(legend.position = 'top')
 
- 
+
 
