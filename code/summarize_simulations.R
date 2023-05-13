@@ -9,12 +9,6 @@ allele_info <- read_csv(paste0(results_directory, 'allele_info.csv'))
 model_parameters <- read_csv(paste0(results_directory, 'combined_model_parameters.csv'))
 simulations <- read_csv(paste0(results_directory, 'combined_simulations.csv'))
 
-# Check that each simulated individual is associated with a single base individual
-n_base_inds_per_sim_ind <- simulations %>% select(individual, base_individual) %>% unique() %>%
-  group_by(individual) %>% count() %>% ungroup() %>% select(n) %>% unique() %>% pull(n)
-
-stopifnot(all(n_base_inds_per_sim_ind) == 1)
-
 n_individuals <- length(unique(simulations$individual))
 nGC_values <- c(1,5,15,30)
 

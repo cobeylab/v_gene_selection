@@ -10,7 +10,7 @@ sbatch <<EOT
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --time=100:00:00
-#SBATCH --mem-per-cpu=128G
+#SBATCH --mem-per-cpu=256G
 
 module load R/3.6.1
 Rscript summarize_simulations.R $results_dir

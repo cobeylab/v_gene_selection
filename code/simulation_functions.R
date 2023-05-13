@@ -359,17 +359,19 @@ complete_repertoire_allele_freqs <- function(repertoire_allele_freqs, allele_inf
   complete_scaffold <-  expand_grid(individual = unique(repertoire_allele_freqs$individual),
                                     t = unique(repertoire_allele_freqs$t),
                                     nGCs = unique(repertoire_allele_freqs$nGCs))
-  complete_scaffold <- left_join(complete_scaffold, repertoire_allele_freqs %>% select(individual, base_individual) %>% unique())
+
+  # For all variable parameter combinations, if more than 1
+  if(length(variable_pars) >0){
+    complete_scaffold <- as_tibble(merge(complete_scaffold, repertoire_allele_freqs %>% select(any_of(variable_pars)) %>% unique()))
+  }
+
+  # Link base individuals for each individual in each parameter combination
+  complete_scaffold <- left_join(complete_scaffold, repertoire_allele_freqs %>%
+                                   select(individual, any_of(variable_pars), base_individual) %>% unique())
   
-  
-  
+  # Complete with the alleles of each base individual
   complete_scaffold <- left_join(complete_scaffold,
                                  allele_info %>% select(base_individual, allele))
-  
-  if(length(variable_pars) > 0){
-    complete_scaffold <- expand_grid(repertoire_allele_freqs %>% select(any_of(variable_pars)) %>% unique(),
-                                     complete_scaffold)
-  }
   
   completed_tibble <- left_join(complete_scaffold, repertoire_allele_freqs) %>%
     replace_na(list(n_cells = 0, experienced_freq = 0))
