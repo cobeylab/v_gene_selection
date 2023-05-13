@@ -416,11 +416,11 @@ compute_pairwise_correlations <- function(repertoire_allele_freqs, variable_pars
   
   wide_format_freqs <- bind_rows(
     repertoire_allele_freqs %>%
-      select(individual, t, nGCs, matches(variable_pars), allele, experienced_freq) %>%
+      select(individual, t, nGCs, any_of(variable_pars), allele, experienced_freq) %>%
       pivot_wider(names_from = individual, values_from = experienced_freq) %>%
       mutate(type = 'freq'),
     repertoire_allele_freqs %>%
-      select(individual, t, nGCs, matches(variable_pars), allele, freq_ratio) %>%
+      select(individual, t, nGCs, any_of(variable_pars), allele, freq_ratio) %>%
       pivot_wider(names_from = individual, values_from = freq_ratio) %>%
       mutate(type = 'freq_ratio')
   ) %>% select(type, everything())
