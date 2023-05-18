@@ -315,14 +315,14 @@ pairwise_freq_correlations_plot <- pairwise_correlations$freqs %>%
   mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(as.character(day_i)))) %>%
   cell_type_facet_labeller() %>%
     ggplot(aes(x = day_i, y = cor_coef_freqs, group = day_i)) +
-  geom_boxplot(outlier.alpha = 0) +
+  geom_boxplot(outlier.alpha = 0, aes(color = pair_type)) +
   geom_point(position = position_jitter(width =0.1, height = 0), alpha = 0.8, size = 4,
              aes(color = pair_type),
   ) +
-  facet_grid(method ~ cell_type) +
+  facet_grid(.~cell_type) +
   background_grid() +
   xlab('Days after primary infection') +
-  ylab('Correlation in V gene frequencies\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
+  ylab('Correlation in V allele frequencies\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
   theme(legend.position = 'top') +
   scale_x_continuous(breaks = c(0,8,16,24,40,56),
                      labels = c('control', '8','16','24','40','56')) +
@@ -340,15 +340,15 @@ pairwise_freq_deviations_plot <- pairwise_correlations$freq_ratios %>%
   mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(as.character(day_i)))) %>%
   cell_type_facet_labeller() %>%
   ggplot(aes(x = day_i, y = cor_coef_freq_ratios, group = day_i)) +
-  geom_boxplot(outlier.alpha = 0) +
+  geom_boxplot(outlier.alpha = 0, aes(color = pair_type)) +
   geom_point(position = position_jitter(width =0.1, height = 0), alpha = 0.8, size = 4,
              aes(color = pair_type),
   ) +
-  facet_grid(method~cell_type) +
+  facet_grid(.~cell_type) +
   background_grid() +
   #scale_color_manual(values = c('green3','dodgerblue2'), guide = 'none') +
   xlab('Days after primary infection') +
-  ylab('Correlation in V gene frequency deviations\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
+  ylab('Correlation in V allele frequency deviations\nbetween mouse pairs (excluding mice with < 100 seqs.)') +
   theme(legend.position = 'top') +
   scale_x_continuous(breaks = c(0,8,16,24,40,56),
                      labels = c('control', '8','16','24','40','56')) +
@@ -420,21 +420,27 @@ if(include_mutability_vs_freq_ratio){
 # ======= Null model with fixed lineage sizes but randomized V alleles
 
 # Compute summary statistics for randomizations
+summarize_randomized_lineage_V_allele_replicates <- function(randomized_pairwise_correlations, min_compartment_size){
+  randomized_pairwise_correlations %>%
+    filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_i >= min_compartment_size,
+           total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
+    group_by(pair_type, day_i, tissue, cell_type, method, replicate) %>%
+    mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(day_i))) %>%
+    # For each replicate, compute median correlation for each group
+    summarise(median_cor_coef = median(cor_coef_freqs)) %>%
+    # For each group, find the average median 2.5 and 97.5 percentile of medians across replicates
+    group_by(pair_type, day_i, tissue, cell_type, method) %>%
+    summarise(average_median = mean(median_cor_coef, na.rm = T),
+              median_lower = quantile(median_cor_coef, 0.025, na.rm = T),
+              median_upper = quantile(median_cor_coef, 0.975, na.rm = T)) %>%
+    ungroup()
+}
+
 summary_pwcorr_randomized_lineage_V_alleles <-
-  list(freqs = pairwise_correlations_randomized_lineage_V_alleles$freqs %>%
-         filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_i >= min_compartment_size,
-                total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
-         group_by(pair_type, day_i, tissue, cell_type, method) %>%
-         summarise(cor_coef_lower = quantile(cor_coef_freqs, 0.25, na.rm = T),
-                   cor_coef_upper = quantile(cor_coef_freqs, 0.75, na.rm = T),
-                   cor_coef_freqs = median(cor_coef_freqs, na.rm = T)),
-       freq_ratios = pairwise_correlations_randomized_lineage_V_alleles$freq_ratios %>%
-         filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_i >= min_compartment_size,
-                total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
-         group_by(pair_type, day_i, tissue, cell_type, method) %>%
-         summarise(cor_coef_lower = quantile(cor_coef_freq_ratios, 0.25, na.rm = T),
-                   cor_coef_upper = quantile(cor_coef_freq_ratios, 0.75, na.rm = T),
-                   cor_coef_freq_ratios = median(cor_coef_freq_ratios, na.rm = T))
+  list(freqs = summarize_randomized_lineage_V_allele_replicates(pairwise_correlations_randomized_lineage_V_alleles$freqs,
+                                                                min_compartment_size = min_compartment_size),
+       freq_ratios = summarize_randomized_lineage_V_allele_replicates(pairwise_correlations_randomized_lineage_V_alleles$freqs,
+                                                                      min_compartment_size = min_compartment_size)
   )
 
 
@@ -443,12 +449,11 @@ pw_freq_cors_randomized_lineage_V_alleles <- pairwise_freq_correlations_plot +
   geom_pointrange(data = summary_pwcorr_randomized_lineage_V_alleles$freqs %>% 
                     filter(cell_type %in% c('GC','PC','mem'),
                            method == 'pearson') %>%
-                    cell_type_facet_labeller() %>%
-                    mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(day_i))),
-                  color = '#FF3333',
-                  shape = 15,
-                  aes(ymin = cor_coef_lower,
-                      ymax = cor_coef_upper),
+                    cell_type_facet_labeller(),
+                  color = 'black',
+                  shape = 1,
+                  aes(y = average_median, ymin = median_lower,
+                      ymax = median_upper),
                   size = 1.2
   )
 
@@ -457,12 +462,11 @@ pw_freq_deviations_randomized_lineage_V_alleles <- pairwise_freq_deviations_plot
   geom_pointrange(data = summary_pwcorr_randomized_lineage_V_alleles$freq_ratios %>% 
                     filter(cell_type %in% c('GC','PC','mem'),
                            method == 'pearson') %>%
-                    cell_type_facet_labeller() %>%
-                    mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(day_i))),
-                  color = '#FF3333',
-                  shape = 15,
-                  aes(ymin = cor_coef_lower,
-                      ymax = cor_coef_upper),
+                    cell_type_facet_labeller(),
+                  color = 'black',
+                  shape = 1,
+                  aes(y = average_median, ymin = median_lower,
+                      ymax = median_upper),
                   size = 1.2
   ) 
 

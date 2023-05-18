@@ -49,7 +49,7 @@ if('total_genes_and_genes_in_LN_pops' %in% ls()){
 
 
 # Correlations in V gene freqs and freq deviations
-top_row <- plot_grid(pairwise_freq_correlations_plot +
+top_row <- plot_grid(pw_freq_cors_randomized_lineage_V_alleles +
                        ylab('Pairwise correlation\nbetween individuals') +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
@@ -58,7 +58,7 @@ top_row <- plot_grid(pairwise_freq_correlations_plot +
                              legend.position = 'none',
                              axis.text.x = element_text(angle = 45, vjust = 0.7)) +
                        ggtitle('Germline V allele frequencies in the response'),
-                     pairwise_freq_deviations_plot +
+                     pw_freq_deviations_randomized_lineage_V_alleles +
                        ylab('') +
                        ylim(-0.2,0.9) +
                        theme(axis.title = element_text(size = 16),
