@@ -4,8 +4,8 @@ library(readr)
 library(scales)
 theme_set(theme_cowplot())
 
-# For convenience, save here (though these analyses do not depend on VDJ assignment)
-figure_output_dir = '../figures/all_seqs_partis/exported_ggplot_objects/'
+# Put these plots in the default assignment folder (though these analyses do not depend on VDJ assignment)
+figure_output_dir = '../figures/all_seqs_partis_ogrdb/exported_ggplot_objects/'
 dir.create(figure_output_dir, recursive = T, showWarnings = F)
 
 # ======= Number of sorted cells =======

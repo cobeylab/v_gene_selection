@@ -581,14 +581,19 @@ get_pairwise_freqs <- function(gene_freqs, adjust_naive_zeros, within_groups_onl
   naive_freqs <- gene_freqs %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene,
            n_naive_vgene_seqs, total_mouse_naive_seqs, naive_vgene_seq_freq) %>%
-    unique() %>%
+    unique()
+  
+  if(adjust_naive_zeros){
+    naive_freqs <- adjust_zero_naive_freqs(naive_freqs)
+  }
+  
+  naive_freqs <- naive_freqs %>%
     dplyr::rename(n_vgene_seqs = n_naive_vgene_seqs, total_compartment_seqs = total_mouse_naive_seqs,
                   vgene_seq_freq = naive_vgene_seq_freq) %>%
     mutate(cell_type = 'naive', tissue = 'naive_source_tissue') %>%
     select(mouse_id, day, infection_status, group, group_controls_pooled, v_gene, cell_type, n_vgene_seqs,
            total_compartment_seqs, vgene_seq_freq)
   
-
   # Put experienced and naive frequencies back together in long format
   gene_freqs <- bind_rows(exp_freqs, naive_freqs)
   
@@ -1330,24 +1335,22 @@ resample_clone_v_alleles <- function(exp_seq_counts, naive_freqs, adjust_naive_z
 # Uses resample_clone_v_alleles to generate gene freqs under a null model where lineages are randomly assigned V alleles based on naive freqs
 gene_freqs_random_lineage_alleles <- function(exp_seq_counts, naive_seq_counts, naive_freqs, adjust_naive_zeros){
   
+  if(adjust_naive_zeros){
+    naive_freqs <- adjust_zero_naive_freqs(naive_freqs)
+  }
+  
   # Randomize lineage alleles in exp_seq_counts object
   null_model_exp_counts <- resample_clone_v_alleles(exp_seq_counts = exp_seq_counts, 
                                                     naive_freqs = naive_freqs, 
                                                     adjust_naive_zeros = adjust_naive_zeros)
   
   # Calculate allele (gene) frequencies
-  null_model_gene_freqs <- calc_gene_freqs(exp_seq_counts = null_model_exp_counts,
+  null_model_exp_freqs <- calc_gene_freqs(exp_seq_counts = null_model_exp_counts,
                                            naive_seq_counts = naive_seq_counts,
-                                           clone_info = clone_info, long_format = F, by_tissue = T)
-  
-  if(adjust_naive_zeros){
-    naive_freqs <- adjust_zero_naive_freqs(null_model_gene_freqs$naive_freqs)
-  }else{
-    naive_freqs <- null_model_gene_freqs$naive_freqs
-  }
+                                           clone_info = clone_info, long_format = F, by_tissue = T)$exp_freqs
   
   # Convert gene frequencies to wide format
-  null_model_gene_freqs <- format_gene_freqs_wide(exp_freqs = null_model_gene_freqs$exp_freqs,
+  null_model_gene_freqs <- format_gene_freqs_wide(exp_freqs = null_model_exp_freqs,
                                                   naive_freqs = naive_freqs)
   
   # Add values of rho (ratio of experienced to naive frequencies)

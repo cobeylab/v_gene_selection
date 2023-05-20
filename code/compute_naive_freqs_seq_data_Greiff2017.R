@@ -177,6 +177,7 @@ pairwise_naive_freq_correlations <- get_pairwise_correlations(
 # Mean and interquartile range of cross-dataset Spearman correlations
 
 pairwise_naive_freq_correlations %>% group_by(pair_type) %>%
+  filter(method == 'pearson') %>%
   summarise(mean_correlation = mean(cor_coef_freqs),
             lower_quartile = quantile(cor_coef_freqs,0.25),
             upper_quartile = quantile(cor_coef_freqs, 0.75))

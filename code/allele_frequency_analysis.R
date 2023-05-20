@@ -421,13 +421,16 @@ if(include_mutability_vs_freq_ratio){
 
 # Compute summary statistics for randomizations
 summarize_randomized_lineage_V_allele_replicates <- function(randomized_pairwise_correlations, min_compartment_size){
+  
+  cor_vars <- names(randomized_pairwise_correlations)[str_detect(names(randomized_pairwise_correlations), 'cor_coef_')]
+  
   randomized_pairwise_correlations %>%
     filter(total_compartment_seqs_i >= min_compartment_size, total_compartment_seqs_i >= min_compartment_size,
            total_mouse_naive_seqs_i >= min_compartment_size, total_mouse_naive_seqs_j >= min_compartment_size) %>%
     group_by(pair_type, day_i, tissue, cell_type, method, replicate) %>%
     mutate(day_i = ifelse(pair_type == 'control', 0, as.integer(day_i))) %>%
     # For each replicate, compute median correlation for each group
-    summarise(median_cor_coef = median(cor_coef_freqs)) %>%
+    dplyr::summarise(across(all_of(cor_vars), .fns = median, .names = 'median_cor_coef')) %>%
     # For each group, find the average median 2.5 and 97.5 percentile of medians across replicates
     group_by(pair_type, day_i, tissue, cell_type, method) %>%
     summarise(average_median = mean(median_cor_coef, na.rm = T),
@@ -439,7 +442,7 @@ summarize_randomized_lineage_V_allele_replicates <- function(randomized_pairwise
 summary_pwcorr_randomized_lineage_V_alleles <-
   list(freqs = summarize_randomized_lineage_V_allele_replicates(pairwise_correlations_randomized_lineage_V_alleles$freqs,
                                                                 min_compartment_size = min_compartment_size),
-       freq_ratios = summarize_randomized_lineage_V_allele_replicates(pairwise_correlations_randomized_lineage_V_alleles$freqs,
+       freq_ratios = summarize_randomized_lineage_V_allele_replicates(pairwise_correlations_randomized_lineage_V_alleles$freq_ratios,
                                                                       min_compartment_size = min_compartment_size)
   )
 
