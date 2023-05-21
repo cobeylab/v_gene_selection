@@ -350,6 +350,20 @@ save_plot('../figures/simulations/high_affinity_supp_other_nAlleles.pdf',
           high_affinity_supp_other_nAlleles,
           base_width = 14, base_height = 11)
 
+# Supplementary fig showing high-affinity scenario with lower sigma r
+high_affinity_supp_lower_sigma_r <- base_plotting_function(summary_tibble = high_affinity_scenario_lower_sigma_r_summary$summary_pairwise_correlations %>%
+                                                             filter(method == 'pearson', nGCs == 15),
+                                                           y_var = 'freq_ratio_correlation',
+                                                           color_var = 'mutation_rate', facet_vars = c('s', 'beta')) +
+  ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
+  mutation_rate_color_scale +
+  ylab('Pairwise correlation in experienced-to-naive frequency ratios') +
+  theme(legend.position = 'bottom')
+
+save_plot('../figures/simulations/high_affinity_scenario_main_fig.pdf',
+          high_affinity_scenario_main_fig,
+          base_width = 8.5, base_height = 9)
+
 # =========================================== High mutation scenario plots ===========================================
 high_mutation_scenario_main_fig <- base_plotting_function(summary_tibble = high_mutation_scenario_summary$summary_pairwise_correlations %>%
                                                             filter(method == 'pearson', nGCs == 15),

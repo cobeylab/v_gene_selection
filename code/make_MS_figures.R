@@ -268,13 +268,11 @@ if('length_matched_CDR3_similarity_plot' %in% ls()){
   
   # In CDR3 diversity per V gene plot, color
   
-  
-  
   cdr3_diversity_per_vgene <- CDR3_similarity_NAIVE_same_mouse_pl +
     scale_x_discrete(labels = function(x){str_remove(x, 'IGHV')}) +
     theme(axis.text.x = element_text(angle = 90, vjust = 0.5, size = 5)) +
     xlab('V allele') +
-    ylab('Dissimilarity between length-matched CDR3 sequences') 
+    ylab('Dissimilarity between length-matched CDR3 sequences')
   
   save_plot(paste0(figures_dir,'cdr3_diversity_per_vgene.pdf'),
             cdr3_diversity_per_vgene,

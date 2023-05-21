@@ -25,8 +25,7 @@ if(str_detect(output_label,'partis')){
 
   germ_mut_by_region_file <- 'germline_mutability_by_region_partis'
   germ_mut_by_region_type_file <- 'germline_mutability_by_region_type_partis'
-  cdr3_diversity_per_vgene_file <- 'CDR3_diversity_per_V_gene_partis'
-  
+
   include_focal_genes_plot <- T
   include_mutability_vs_freq_ratio <- T
   include_CDR3_diversity_vs_freq_ratios <- T
@@ -35,12 +34,11 @@ if(str_detect(output_label,'partis')){
   if(str_detect(output_label,'partis_ogrdb')){
     germ_mut_by_region_file <- paste0(germ_mut_by_region_file, '_ogrdb')
     germ_mut_by_region_type_file <- paste0(germ_mut_by_region_type_file, '_ogrdb')
-    cdr3_diversity_per_vgene_file <- 'CDR3_diversity_per_V_gene_partis_ogrdb'
   }
   
   germline_mutability_by_region <- read_csv(paste0('../results/', germ_mut_by_region_file, '.csv'))
   germline_mutability_by_region_type <- read_csv(paste0('../results/', germ_mut_by_region_type_file, '.csv'))
-  cdr3_diversity_per_vgene <- read_csv(paste0('../results/', cdr3_diversity_per_vgene_file, '.csv'))
+
 }else{
   include_mutability_vs_freq_ratio <- F
   include_focal_genes_plot <- F
@@ -269,10 +267,11 @@ top_20_genes_day8_LN_PC <- plot_most_common_genes(plot_group = 'primary-8', gene
 
 # ======= MAKE DETAILED PLOTS TRACKING THE FATE OF FOCAL GENES =======
 if(include_focal_genes_plot){
+  focal_alleles <- c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01', 'IGHV14-1*01', 'IGHV14-2*01')
   # How genes consistently overrepresented on day 8 LN PCs (14-4, 1-69, 1-82) fare at later time points and other cell types
   focal_alleles_plot <- plot_focal_genes(gene_freqs = gene_freqs,
                                          clone_freqs_by_tissue_and_cell_type = clone_freqs_by_tissue_and_cell_type,
-                                         focal_genes = c('IGHV14-4*01', 'IGHV1-69*01', 'IGHV1-82*01'),
+                                         focal_genes = focal_alleles,
                                          min_compartment_size = min_compartment_size)
 }else{
   focal_alleles_plot <- NA
@@ -400,9 +399,7 @@ if(include_mutability_vs_freq_ratio){
     ggplot(aes(x = average_RS5NF_mutability)) +
     geom_histogram() +
     facet_wrap('region') +
-    geom_vline(data = germline_mutability_by_region %>% filter(v_gene %in% c('IGHV14-4*01',
-                                                                             'IGHV1-82*01',
-                                                                             'IGHV1-69*01')),
+    geom_vline(data = germline_mutability_by_region %>% filter(v_gene %in% focal_alleles),
                aes(xintercept = average_RS5NF_mutability, color = v_gene), size = 1.5) +
     theme(legend.position = 'top') +
     xlab('Average RS5NF mutability') +

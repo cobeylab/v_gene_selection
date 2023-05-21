@@ -439,18 +439,13 @@ CDR3_similarity_NAIVE_same_mouse <- CDR3_similarity_NAIVE_same_mouse %>%
                values_to = 'similarity') %>%
   mutate(dissimilarity = 1 - similarity)
 
-CDR3_dissimilarity_NAIVE_same_mouse_summary <- CDR3_similarity_NAIVE_same_mouse %>%
-  group_by(mouse_id, v_gene, type) %>%
-  mutate(type = str_replace(type, 'similarity','dissimilarity')) %>%
-  summarise(mean = mean(dissimilarity)) %>%
-  ungroup()
-
-# Export mean dissimilarity per V gene
-write_csv(CDR3_dissimilarity_NAIVE_same_mouse_summary, paste0('../results/CDR3_diversity_per_V_gene_', assignment, '.csv'))
-
-focal_alleles <- c('IGHV14-4*01','IGHV1-82*01','IGHV1-69*01')
+focal_alleles <- c('IGHV14-4*01','IGHV1-82*01','IGHV1-69*01', 'IGHV14-1*01','IGHV14-2*01')
 
 CDR3_similarity_NAIVE_same_mouse_pl <- CDR3_similarity_NAIVE_same_mouse %>%
+  mutate(type = case_when(
+    type == 'cdr3_biochem_similarity' ~ 'Biochemical dissimilarity',
+    type == 'cdr3_seq_similarity' ~ 'Sequence dissimilarity'
+  )) %>%
   mutate(focal_allele = v_gene %in% focal_alleles) %>%
   ggplot(aes(x = v_gene, y = dissimilarity, color = focal_allele)) +
   scale_color_manual(values = c('black','red')) +
