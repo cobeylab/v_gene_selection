@@ -280,14 +280,14 @@ create_scenario(scenario_directory = '../results/simulations/high_mutation_scena
                 tmax = 50,
                 uniform_naive_freqs = F)
 
-# ============================ HIGH AFFINITY SCENARIO W/ lower sigma r ===================================
+# ============================ HIGH AFFINITY SCENARIO W/ lower sigma r  ===================================
 create_scenario(scenario_directory = '../results/simulations/high_affinity_scenario_lower_sigma_r/',
                 obs_naive_freqs = obs_naive_freqs,
                 selected_allele_eligibility_threshold = selected_allele_eligibility_threshold,
                 selected_allele_naive_freq_interval = selected_allele_naive_freq_interval,
                 n_high_avg_alleles = 5,
                 baseline_mean = 1,
-                s = c(1, 5, 10, 20),
+                s = c(5, 10, 15, 20),
                 sigma_r = 0.1,
                 n_high_mutability_alleles = 0,
                 gamma = 1,
@@ -297,7 +297,7 @@ create_scenario(scenario_directory = '../results/simulations/high_affinity_scena
                 mu_max = 3,
                 delta = 0.2,
                 mutation_rate = c(0, 0.01, 0.05),
-                beta = c(1,5,10,20),
+                beta = c(10,20,30,40),
                 tmax = 50,
                 uniform_naive_freqs = F)
 

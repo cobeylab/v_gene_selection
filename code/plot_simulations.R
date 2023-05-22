@@ -360,8 +360,8 @@ high_affinity_supp_lower_sigma_r <- base_plotting_function(summary_tibble = high
   ylab('Pairwise correlation in experienced-to-naive frequency ratios') +
   theme(legend.position = 'bottom')
 
-save_plot('../figures/simulations/high_affinity_scenario_main_fig.pdf',
-          high_affinity_scenario_main_fig,
+save_plot('../figures/simulations/high_affinity_supp_lower_sigma_r.pdf',
+          high_affinity_supp_lower_sigma_r_v1,
           base_width = 8.5, base_height = 9)
 
 # =========================================== High mutation scenario plots ===========================================
