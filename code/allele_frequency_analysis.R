@@ -88,6 +88,7 @@ plot_most_common_genes <- function(plot_group, gene_freqs, plot_cell_type, plot_
     filter(total_compartment_seqs >= min_compartment_size, total_mouse_naive_seqs >= min_compartment_size) %>%
     rowwise() %>%
     mutate(label_position = ifelse(vgene_seq_freq > naive_vgene_seq_freq, 1.05*vgene_seq_freq, 1.05*naive_vgene_seq_freq)) %>%
+    mutate(mouse_id = paste0('mouse ', mouse_id)) %>%
     ggplot() +
     geom_point(aes(x = v_gene_rank, y = naive_vgene_seq_freq, color = deviation_from_naive)) +
     geom_segment(aes(x = v_gene_rank, xend = v_gene_rank, y = naive_vgene_seq_freq, yend = vgene_seq_freq,
@@ -102,7 +103,6 @@ plot_most_common_genes <- function(plot_group, gene_freqs, plot_cell_type, plot_
     ylab('V gene frequency') +
     theme(legend.position = 'bottom') + 
     scale_x_continuous(expand = c(0.15,0), breaks = 1:max_rank) +
-    #scale_color_discrete(name = 'Deviation from naive\nfrequency (bootstrap)', labels = c('negative','non-significant','positive'))
     deviations_color_scale(name = 'Deviation from naive\nfrequency (bootstrap)')
   
 }
