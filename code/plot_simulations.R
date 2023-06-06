@@ -76,26 +76,29 @@ base_plotting_function <- function(summary_tibble, y_var, color_var, facet_vars 
 
 
 # Function for making main fig showing simulated frequency and freq. deviation correlations in the equivalent-alleles scenario
-make_neutral_scenario_fig <- function(neutral_scenario_summary, beta, I_total, mutation_rate, facet_vars = 'mutation_rate'){
+make_neutral_scenario_fig <- function(neutral_scenario_summary, beta, I_total, mutation_rate){
   
   subset_tibble <- neutral_scenario_summary$summary_pairwise_correlations %>%
     filter(beta == !!beta, I_total == !!I_total, mutation_rate == !!mutation_rate) %>%
-    filter(method == 'pearson') 
+    filter(method == 'pearson') %>%
+    mutate(mutation_rate = paste0('Mutation rate = ', mutation_rate))
     
   theme_specs <- theme(legend.position = 'none', plot.title = element_text(size = 12,hjust = 0.5)) 
   
   freq_corr <-  base_plotting_function(summary_tibble = subset_tibble,
                                        y_var = 'freq_correlation', color_var = 'nGCs',
-                                       facet_vars = facet_vars, hline = 0)  + ylim(-0.2,1) +
+                                       facet_vars = NULL, hline = 0) + ylim(-0.2,1) +
     ylab('Pairwise correlation between individuals') +
+    facet_wrap("mutation_rate") +
     theme_specs +
     nGCs_color_scale +
     ggtitle('\n\n\nGermline allele frequencies\nin the response')
   
   freq_ratio_corr <- base_plotting_function(summary_tibble = subset_tibble,
                                             y_var = 'freq_ratio_correlation', color_var = 'nGCs',
-                                            facet_vars = facet_vars, hline = 0)  +
+                                            facet_vars = NULL, hline = 0) +
     ylab('') + theme(legend.position = 'none') +
+    facet_wrap("mutation_rate") + 
     ylim(-0.2,1) +
     theme_specs +
     nGCs_color_scale +
@@ -147,8 +150,6 @@ for(scen in scenarios){
 # Main text figure with behavior of frequency correlations
 # Across scenarios, where applicable, use simulations with these values
 default_s <- 1.5
-
-
 default_gamma <- 6
 
 
@@ -242,7 +243,8 @@ save_plot('../figures/simulations/neutral_scenario_main_fig.pdf',
 # Main fig correlation panel for high-affinity scenario
 # (Assume 15 germinal centers per individual)
 high_affinity_scenario_main_fig <- base_plotting_function(summary_tibble = high_affinity_scenario_summary$summary_pairwise_correlations %>%
-                                                            filter(method == 'pearson', nGCs == 15),
+                                                            # Excluding one of the betas to keep main text fig small
+                                                            filter(method == 'pearson', nGCs == 15, beta != 3),
                                                           y_var = 'freq_ratio_correlation',
                                                           color_var = 'mutation_rate', facet_vars = c('s', 'beta')) +
   ylim(-0.2,1) + geom_hline(yintercept = 0, linetype = 2) +
