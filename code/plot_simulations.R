@@ -254,7 +254,7 @@ high_affinity_scenario_main_fig <- base_plotting_function(summary_tibble = high_
 
 save_plot('../figures/simulations/high_affinity_scenario_main_fig.pdf',
           high_affinity_scenario_main_fig,
-          base_width = 8.5, base_height = 9)
+          base_width = 9.5, base_height = 9)
 
 # Supplemental fig. showing correlation in freq ratios in affinity scenario (15 GCs)
 high_affinity_supp_freq_corr <- base_plotting_function(summary_tibble = high_affinity_scenario_summary$summary_pairwise_correlations %>%
